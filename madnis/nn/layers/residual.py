@@ -13,14 +13,6 @@ class ResidualWeight(tf.keras.layers.Layer):
     ):
         super().__init__(**kwargs)
 
-        # # coupling to trainable weight initialized with ones
-        # self.w_res = self.add_weight(
-        #     "w_res",
-        #     shape=(channels_out,),
-        #     initializer=tf.keras.initializers.Ones(),
-        #     trainable=True,
-        # )
-
         self.w_x = self.add_weight(
             "w_x",
             shape=(channels_out,),
@@ -39,10 +31,9 @@ class ResidualWeight(tf.keras.layers.Layer):
         Then the network ``f`` simply yields a correction
         and gives the output:
 
-        :math:`alpha_{i, new} = theta_{i} * f_{i} + w_{i} * alpha_{i}
+        :math:`alpha_{i, new} = \theta_{i} * f_{i} + \log alpha_{i}
 
-        with a trainable weight w_i.
+        with a trainable weight \theta_i.
         """
-        # out = self.w_x * x + self.w_res * residual
         out = self.w_x * x + tf.math.log(residual)  # log guarantees the residual is restored after normalization
         return out
