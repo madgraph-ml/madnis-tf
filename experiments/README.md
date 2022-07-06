@@ -1,6 +1,4 @@
-===========================
-Experiments
-===========================
+# Experiments
 
 We perform 2 sets of experiments:
 
