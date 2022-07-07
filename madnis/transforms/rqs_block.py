@@ -5,7 +5,6 @@ import tensorflow as tf
 
 from .base import Transform
 from .splines.rational_quadratic import rational_quadratic_spline
-from .splines.cubic import cubic_spline
 
 import warnings
 from scipy.stats import special_ortho_group
