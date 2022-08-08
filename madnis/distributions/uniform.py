@@ -32,7 +32,7 @@ class StandardUniform(Distribution):
             )
 
         lb = tfutils.mean_except_batch(tf.cast(tf.math.greater_equal(x, self._zero), dtype=self._dtype))
-        ub = tfutils.mean_except_batch(tf.cast(tf.math.greater_equal(x, self._zero), dtype=self._dtype))
+        ub = tfutils.mean_except_batch(tf.cast(tf.math.less_equal(x, self._one), dtype=self._dtype))
         return tf.math.log(lb*ub)
 
     def _sample(self, num_samples, condition):

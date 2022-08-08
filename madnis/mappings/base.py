@@ -1,6 +1,5 @@
 """Implementations of Base mapping."""
 
-from turtle import forward
 import tensorflow as tf
 from typing import Any, Callable
 
@@ -16,7 +15,7 @@ class Mapping(tf.Module):
         # Define the right floating point precision
         self._dtype = tf.keras.backend.floatx()
 
-    def foward(self, x, condition=None):
+    def forward(self, x: tf.Tensor, condition=None):
         """
         Forward pass of the mapping ``f``.
         Conventionally in MC, this is the pass from the
@@ -49,7 +48,7 @@ class Mapping(tf.Module):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not provide _forward(...) method"
         )
-
+        
     __call__: Callable[..., Any] = forward
 
     def inverse(self, z, condition=None):
