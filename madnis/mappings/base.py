@@ -15,7 +15,7 @@ class Mapping(tf.Module):
         # Define the right floating point precision
         self._dtype = tf.keras.backend.floatx()
 
-    def forward(self, x: tf.Tensor, condition=None):
+    def forward(self, x: tf.Tensor, condition: tf.Tensor=None):
         """
         Forward pass of the mapping ``f``.
         Conventionally in MC, this is the pass from the
