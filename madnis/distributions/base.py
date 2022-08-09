@@ -1,21 +1,25 @@
-"""Implementations of Base distribution."""
+"""Implementation of distribution class."""
 
 import tensorflow as tf
+from typing import Tuple
 
 from ..utils import typechecks
 from ..utils import tfutils
 
 
-class Distribution(tf.Module):
+class Distribution(tf.keras.Model):
     """Base class for all distribution objects."""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         # Define the right floating point precision
         self._dtype = tf.keras.backend.floatx()
 
-    def log_prob(self, x, condition=None):
+    def call(self, *args, **kwargs):
+        raise RuntimeError("Call method cannot be called for a Distribution object.")
+
+    def log_prob(self, x: tf.Tensor, condition: tf.Tensor = None) -> tf.Tensor:
         """Calculate log probability of the distribution.
 
         Args:
@@ -44,7 +48,7 @@ class Distribution(tf.Module):
             return tf.math.log(self._prob(x, condition))
         raise NotImplementedError("log_prob is not implemented")
 
-    def prob(self, x, condition=None):
+    def prob(self, x: tf.Tensor, condition: tf.Tensor = None) -> tf.Tensor:
         """Calculate probability of the distribution.
 
         Args:
@@ -73,7 +77,12 @@ class Distribution(tf.Module):
             return tf.math.exp(self._log_prob(x, condition))
         raise NotImplementedError("prob is not implemented")
 
-    def sample(self, num_samples, condition=None, batch_size=None):
+    def sample(
+        self,
+        num_samples: int,
+        condition: tf.Tensor = None,
+        batch_size: int = None,
+    ) -> tf.Tensor:
         """Generates samples from the distribution. Samples can be generated in batches.
         Args:
             num_samples: int, number of samples to generate.
@@ -111,9 +120,13 @@ class Distribution(tf.Module):
             return tf.concat(samples, axis=0)
 
     def _sample(self, num_samples, condition):
-        raise NotImplementedError()
+        raise NotImplementedError("sampling is not implemented")
 
-    def sample_and_log_prob(self, num_samples, condition=None):
+    def sample_and_log_prob(
+        self,
+        num_samples: int,
+        condition: tf.Tensor = None,
+    ) -> Tuple[tf.Tensor, tf.Tensor]:
         """Generates samples from the distribution together with with their log probability.
 
         Args:
@@ -146,7 +159,11 @@ class Distribution(tf.Module):
 
         return samples, log_prob
 
-    def sample_and_prob(self, num_samples, condition=None):
+    def sample_and_prob(
+        self,
+        num_samples: int,
+        condition: tf.Tensor = None,
+    ) -> Tuple[tf.Tensor, tf.Tensor]:
         """Generates samples from the distribution together with with their probability.
 
         Args:

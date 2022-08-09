@@ -34,13 +34,14 @@ class GaussianRing(Distribution):
         self,
         r0: float,
         sigma: float,
+        **kwargs
     ):
         """
         Args:
             r0 (float): peak location - radius of ring.
             sigma (float): standard deviation - width of the ring.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._shape = tf.TensorShape([1])
 
         self.r0 = tf.constant(r0, dtype=self._dtype)
@@ -48,6 +49,8 @@ class GaussianRing(Distribution):
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
+        del condition
+        
         # Define the norm
         w = tf.convert_to_tensor(
             1 / np.sqrt(2.0) * self.r0 / self.sigma, dtype=self._dtype
@@ -63,11 +66,11 @@ class GaussianRing(Distribution):
         )
 
         # Define the base with exponent
-        r = tf.math.sqrt(tf.reduce_sum(x ** 2, axis=-1))
+        r = tf.math.sqrt(tfutils.sum_except_batch(x ** 2, num_batch_dims=1))
         log_base = -0.5 / (self.sigma ** 2) * ((r - self.r0) ** 2)
 
         prob = 1 / inv_norm * tf.math.exp(log_base)
-        return tf.expand_dims(prob, -1)
+        return prob
 
     def _get_samples(self, num_samples):
         len_sample = 0
@@ -132,6 +135,7 @@ class GaussianLine(Distribution):
         means: List[float],
         sigmas: List[float],
         alpha: float,
+        **kwargs
     ):
         """
         Args:
@@ -139,7 +143,7 @@ class GaussianLine(Distribution):
             sigmas (List[float]): standard deviations.
             alpha (float): rotation anlge.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._shape = tf.TensorShape([1])
 
         # check that its floats
@@ -166,7 +170,8 @@ class GaussianLine(Distribution):
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
-
+        del condition
+        
         # Define the norm
         norm = tf.convert_to_tensor(
             1
@@ -178,8 +183,8 @@ class GaussianLine(Distribution):
 
         # Rotate and define log_base
         x = self._rotate(x, self.alpha)
-        log_base1 = -0.5 / (self.sigmas[0] ** 2) * ((x[:, :1] - self.means[0]) ** 2)
-        log_base2 = -0.5 / (self.sigmas[1] ** 2) * ((x[:, 1:] - self.means[1]) ** 2)
+        log_base1 = -0.5 / (self.sigmas[0] ** 2) * ((x[:, 0] - self.means[0]) ** 2)
+        log_base2 = -0.5 / (self.sigmas[1] ** 2) * ((x[:, 1] - self.means[1]) ** 2)
 
         prob = norm * tf.math.exp(log_base1 + log_base2)
         return prob
@@ -222,6 +227,7 @@ class TwoChannelLineRing(Distribution):
         sigmas: List[float],
         alpha: float,
         ratio: float = 0.5,
+        **kwargs
     ):
         """
         Args:
@@ -232,8 +238,7 @@ class TwoChannelLineRing(Distribution):
             alpha (float): rotation anlge.
             ratio (float, optional): relative contribution A (0<A<1). Default is 0.5.
         """
-        super().__init__()
-        self._shape = tf.TensorShape([1])
+        super().__init__(**kwargs)
 
         self.ratio = tf.constant(ratio, dtype=self._dtype)
         self.ring = GaussianRing(r0, sigma)
@@ -241,10 +246,11 @@ class TwoChannelLineRing(Distribution):
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
+        del condition
+        
         p1 = self.ring.prob(x)
         p2 = self.line.prob(x)
         p_tot = self.ratio * p1 + (1. - self.ratio) * p2
-        # p_tot = p1 + p2 - 2 * tf.math.sqrt(p1 * p2)
         return p_tot
 
     def _get_samples(self, num_samples):

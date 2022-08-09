@@ -19,6 +19,7 @@ class Camel(Distribution):
         means: List[float],
         stds: List[float],
         peak_ratios: List[float] = None,
+        **kwargs
     ):
         """
         Args:
@@ -26,7 +27,7 @@ class Camel(Distribution):
             stds (List[float]): standard deviations.
             peak_ratios (List[float], optional): relative peak contribution. Defaults to None.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._shape = tf.TensorShape([1])
 
         # check that its floats
@@ -53,7 +54,9 @@ class Camel(Distribution):
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
-        prob = 0
+        del condition
+
+        prob = tf.zeros(x.shape[0], dtype=self._dtype)
         for i in range(self.npeaks):
             log_norm = tf.convert_to_tensor(
                 -0.5 * np.log(2 * np.pi) - self.log_stds[i], dtype=self._dtype
@@ -62,7 +65,7 @@ class Camel(Distribution):
                 -0.5 * tf.math.exp(-2 * self.log_stds[i]) * ((x - self.means[i]) ** 2)
             )
             prob += self.ratios[i] * tf.math.exp(log_base + log_norm)
-        return prob
+        return tfutils.sum_except_batch(prob, num_batch_dims=1)
 
     def _sample(self, num_samples, condition):
         if condition is None:
@@ -77,9 +80,11 @@ class Camel(Distribution):
             ]
             return tf.concat(samples, axis=0)
         else:
-            # The value of the context is ignored, only its size is taken into account.
+            # The value of the condition is ignored, only its size is taken into account.
             condition_size = condition.shape[0]
-            rand_draw = np.random.binomial(condition_size * num_samples, self.ratios[1:])
+            rand_draw = np.random.binomial(
+                condition_size * num_samples, self.ratios[1:]
+            )
             n0 = condition_size * num_samples - np.sum(rand_draw)
             n_samples = [n0] + [*rand_draw]
             samples = [
@@ -101,6 +106,7 @@ class CuttedCamel(Distribution):
         stds: List[float],
         peak_ratios: List[float] = None,
         cut: float = None,
+        **kwargs
     ):
         """
         Args:
@@ -109,7 +115,7 @@ class CuttedCamel(Distribution):
             peak_ratios: None, list or float, with the relative peak contribution, with shape [amp_0, amp_1,..]
             cut: None or float, use a lower cut on the distribution
         """
-        super().__init__()
+        super().__init__(**kwargs)
 
         # check that its floats
         if any(isinstance(mean, int) for mean in means):
@@ -140,7 +146,9 @@ class CuttedCamel(Distribution):
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
-        prob = 0
+        del condition
+        
+        prob = tf.zeros(x.shape[0], dtype=self._dtype)
         for i in range(self.npeaks):
             log_norm = tf.convert_to_tensor(
                 -0.5 * np.log(2 * np.pi) - self.log_stds[i], dtype=self._dtype
@@ -150,7 +158,7 @@ class CuttedCamel(Distribution):
             )
             prob += self.ratios[i] * tf.math.exp(log_base + log_norm)
         prob = tf.where(x > self.cut, prob, 0)
-        return prob
+        return tfutils.sum_except_batch(prob, num_batch_dims=1)
 
     def _get_samples(self, num_samples):
         rand_draw = np.random.binomial(num_samples, self.ratios[1:])
@@ -195,7 +203,7 @@ class CuttedCamel(Distribution):
             return samples
 
         else:
-            # The value of the context is ignored, only its size is taken into account.
+            # The value of the condition is ignored, only its size is taken into account.
             condition_size = condition.shape[0]
             samples = self._get_samples(num_samples * condition_size)
             return tfutils.split_leading_dim(samples, [condition_size, num_samples])
@@ -210,6 +218,7 @@ class MultiDimCamel(Distribution):
         stds: List[float],
         dims: int,
         peak_ratios: List[float] = None,
+        **kwargs
     ):
         """
         Args:
@@ -218,7 +227,7 @@ class MultiDimCamel(Distribution):
             dims (int): dimensionality of the distributions
             peak_ratios (List[float], optional): relative peak contribution. Defaults to None.
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self._shape = tf.TensorShape([dims])
 
         # check that its a proper tensor
@@ -245,18 +254,24 @@ class MultiDimCamel(Distribution):
             )
 
         # Define the norm for all peaks
-        self.log_norms = tf.constant(-1/2 * np.log(2 * np.pi) - self.log_stds, dtype=self._dtype)
+        self.log_norms = tf.constant(
+            -1 / 2 * np.log(2 * np.pi) - self.log_stds, dtype=self._dtype
+        )
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.
-        prob = 0
+        del condition
+        
+        prob = tf.zeros(x.shape[0], dtype=self._dtype)
         for i in range(self.npeaks):
             log_norm = self.log_norms[i]
             log_base = (
                 -0.5 * tf.math.exp(-2 * self.log_stds[i]) * ((x - self.means[i]) ** 2)
             )
-            prob += self.ratios[i] * tf.math.exp(tfutils.sum_except_batch(log_base + log_norm, num_batch_dims=1))
-        return tf.expand_dims(prob, -1)
+            prob += self.ratios[i] * tf.math.exp(
+                tfutils.sum_except_batch(log_base + log_norm, num_batch_dims=1)
+            )
+        return prob
 
     def _sample(self, num_samples, condition):
         if condition is None:
@@ -273,7 +288,9 @@ class MultiDimCamel(Distribution):
         else:
             # The value of the context is ignored, only its size is taken into account.
             condition_size = condition.shape[0]
-            rand_draw = np.random.binomial(condition_size * num_samples, self.ratios[1:])
+            rand_draw = np.random.binomial(
+                condition_size * num_samples, self.ratios[1:]
+            )
             n0 = condition_size * num_samples - np.sum(rand_draw)
             n_samples = [n0] + [*rand_draw]
             samples = [
