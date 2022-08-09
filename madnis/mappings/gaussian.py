@@ -7,19 +7,20 @@ import numpy as np
 import tensorflow as tf
 
 from .base import Mapping
+from ..distributions.uniform import StandardUniform
 from ..utils import tfutils, special_math
 
 
 class GaussianMap(Mapping):
     """A 1-dimensional Normal with given mean and std."""
 
-    def __init__(self, mean=0.0, std=1.0):
+    def __init__(self, mean: float=0.0, std: float=1.0, **kwargs):
         """
         Args:
             mean: float, location of the peak
             std: float, standard deviation
         """
-        super().__init__()
+        super().__init__(StandardUniform([1]), **kwargs)
         self._shape = tf.TensorShape([1])
 
         self.mean = tf.constant(mean, dtype=self._dtype)
@@ -39,6 +40,7 @@ class GaussianMap(Mapping):
         coincides with the cumulative distribution function (cdf).
         """
         # Note: the condition is ignored.
+        del condition
         return special_math.ndtr(self._standardize(x))
 
     def _inverse(self, z, condition):
@@ -47,12 +49,30 @@ class GaussianMap(Mapping):
         coincides with the quantile function.
         """
         # Note: the condition is ignored.
+        del condition
         return tf.math.ndtri(z) * tf.math.exp(self.log_std) + self.mean
+    
+    @tf.function
+    def _quantile_jacdet(self, z):
+        """
+        Calculat the jacobian determinant of the quantile function, i.e.
+        of the inverse mapping
+        """
+        with tf.GradientTape() as tape:
+            tape.watch(z)
+            x = tf.math.ndtri(z) * tf.math.exp(self.log_std) + self.mean
+
+        # get the determinant of the contour deform
+        jac = tape.batch_jacobian(x, z)
+        det = tf.linalg.det(jac)
+        return det
 
     def _log_det(self, x_or_z, condition, inverse=False):
         # Note: the condition is ignored.
+        del condition
         if inverse:
-            raise NotImplementedError()
+            det = self._quantile_jacdet(x_or_z)
+            return tf.math.log(det)
         else:
             # the log derivative of the cdf (dF/dx)
             log_norm = tf.constant(- 0.5 * np.log(2 * np.pi) - self.log_std, dtype=self.mean.dtype)

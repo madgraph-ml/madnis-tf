@@ -5,7 +5,7 @@ Implementation of distributions for sampling and for importance sampling
 
 import numpy as np
 import tensorflow as tf
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Union
 
 from .base import Distribution
 from ..utils import tfutils
@@ -51,7 +51,11 @@ class Normal(Distribution):
     """A multivariate diagonal Normal with given mean and log_std."""
 
     def __init__(
-        self, shape: Tuple[int], mean: float = 0.0, log_std: float = 0.0, **kwargs
+        self,
+        shape: Tuple[int],
+        mean: Union[tf.Tensor, float] = 0.0,
+        log_std: Union[tf.Tensor, float] = 0.0,
+        **kwargs
     ):
         """
         Args:
@@ -66,10 +70,11 @@ class Normal(Distribution):
         # Define mean
         if isinstance(mean, (int, float)):
             self.mean = tf.constant(mean, dtype=self._dtype) * tf.ones(
-                self._shape, dtype=self._dtype
+                (1, *self._shape), dtype=self._dtype
             )
         elif isinstance(mean, tf.Tensor):
             assert mean.shape[1:] == self._shape
+            assert mean.shape[0] == 1
             self.mean = tf.constant(mean, dtype=self._dtype)
         else:
             raise ValueError()
@@ -77,10 +82,11 @@ class Normal(Distribution):
         # Define log_std
         if isinstance(log_std, (int, float)):
             self.log_std = tf.constant(log_std, dtype=self._dtype) * tf.ones(
-                self._shape, dtype=self._dtype
+                (1, *self._shape), dtype=self._dtype
             )
         elif isinstance(log_std, tf.Tensor):
             assert log_std.shape[1:] == self._shape
+            assert log_std.shape[0] == 1
             self.log_std = tf.constant(log_std, dtype=self._dtype)
         else:
             raise ValueError()
@@ -93,8 +99,8 @@ class Normal(Distribution):
             raise ValueError(
                 "Expected input of shape {}, got {}".format(self._shape, x.shape[1:])
             )
-        log_norm = tf.constant(
-            -0.5 * np.log(2 * np.pi) - self.log_std, dtype=self._dtype
+        log_norm = (
+            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
         )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - self.mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
@@ -128,13 +134,13 @@ class DiagonalNormal(Distribution):
         # trainable loc and log_scale
         mean_init = tf.zeros_initializer()
         self.mean = tf.Variable(
-            initial_value=mean_init(shape=self._shape, dtype=self._dtype),
+            initial_value=mean_init(shape=(1, *self._shape), dtype=self._dtype),
             trainable=True,
         )
 
         log_std_init = tf.zeros_initializer()
         self.log_std = tf.Variable(
-            initial_value=log_std_init(shape=self._shape, dtype=self._dtype),
+            initial_value=log_std_init(shape=(1, *self._shape), dtype=self._dtype),
             trainable=True,
         )
 
@@ -146,8 +152,8 @@ class DiagonalNormal(Distribution):
             raise ValueError(
                 "Expected input of shape {}, got {}".format(self._shape, x.shape[1:])
             )
-        log_norm = tf.constant(
-            -0.5 * np.log(2 * np.pi) - self.log_std, dtype=self._dtype
+        log_norm = (
+            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
         )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - self.mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
@@ -213,7 +219,9 @@ class ConditionalMeanNormal(Distribution):
         mean = self._compute_mean(condition)
         assert mean.shape == x.shape
 
-        log_norm = tf.constant(-0.5 * np.log(2 * np.pi) - self.log_std, dtype=x.dtype)
+        log_norm = (
+            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
+        )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
 
@@ -284,7 +292,7 @@ class ConditionalDiagonalNormal(Distribution):
         mean, log_std = self._compute_params(condition)
         assert mean.shape == x.shape and log_std.shape == x.shape
 
-        log_norm = tf.constant(-0.5 * np.log(2 * np.pi) - log_std, dtype=self._dtype)
+        log_norm = tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - log_std
         log_inner = -0.5 * tf.math.exp(-2 * log_std) * ((x - mean) ** 2)
         return tfutils.sum_except_batch(log_inner - log_norm, num_batch_dims=1)
 

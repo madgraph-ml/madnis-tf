@@ -8,19 +8,20 @@ import numpy as np
 import tensorflow as tf
 
 from .base import Mapping
+from ..distributions.uniform import StandardUniform
 from ..utils import tfutils
 
 
 class CauchyRingMap(Mapping):
     """Two-dimensional Cauchy ring mapping."""
 
-    def __init__(self, r0=0.0, gamma=1.0):
+    def __init__(self, r0: float = 0.0, gamma: float = 1.0, **kwargs):
         """
         Args:
             r0: float, location of the peak - radius of the ring
             gamma: float, scale parameter (FWHM) - width of the ring
         """
-        super().__init__()
+        super().__init__(StandardUniform([2]), **kwargs)
         self._shape = tf.TensorShape([2])
 
         self.r0 = tf.constant(r0, dtype=self._dtype)
@@ -44,17 +45,23 @@ class CauchyRingMap(Mapping):
     def _forward(self, x, condition):
         """The forward pass of the mapping"""
         # Note: the condition is ignored.
+        del condition
+
         # Map onto sphericals
         r, phi = self._to_sphericals(x)
 
         # Map onto unit-hypercube
         z1 = 1 / self.tf_pi * tf.math.atan((r - self.r0) / self.gamma) + self.c0
         z2 = phi / (2 * self.tf_pi)
-        return tf.concat([z1, z2], axis=1)
+
+        logdet = self.log_det(x)
+        return tf.concat([z1, z2], axis=1), logdet
 
     def _inverse(self, z, condition):
         """The inverse pass of the mapping"""
         # Note: the condition is ignored.
+        del condition
+
         z1 = z[:, :1]
         z2 = z[:, 1:]
 
@@ -65,10 +72,13 @@ class CauchyRingMap(Mapping):
 
         # Map to cartesians
         x1, x2 = self._to_cartesian(rvec)
-        return tf.concat([x1, x2], axis=1)
+        logdet = self.log_det(z, inverse=True)
+        return tf.concat([x1, x2], axis=1), logdet
 
     def _det(self, x_or_z, condition, inverse=False):
         # Note: the condition is ignored.
+        del condition
+
         if inverse:
             # the derivative of the inverse pass (dF^{-1}/dz)
             # first part of the pass
@@ -84,7 +94,7 @@ class CauchyRingMap(Mapping):
 
             # map onto cartesian
             r = self.r0 + self.gamma * tf.math.tan(self.tf_pi * (z1 - self.c0))
-            return det_peak * r
+            return tf.squeeze(det_peak * r)
         else:
             # the derivative of the forward pass (dF/dx)
             # first part of the pass
@@ -97,39 +107,38 @@ class CauchyRingMap(Mapping):
             d11 = self.gamma / (self.tf_pi) * 1 / ((r - self.r0) ** 2 + self.gamma ** 2)
             d22 = 1 / (2 * self.tf_pi)
             det_peak = d11 * d22
-            return det_peak / r
+            return tf.squeeze(det_peak / r)
 
     def _sample(self, num_samples, condition):
+        z_values = self.base_dist.sample(num_samples, condition)
+
         # Sample from quantile
-        if condition is None:
-            z_values = tf.random.uniform((num_samples, *self._shape), dtype=self._dtype)
-            return self._inverse(z_values, condition)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            z_values = tf.random.uniform(
-                (condition_size * num_samples, *self._shape), dtype=self._dtype
-            )
-            samples = self._inverse(z_values, condition)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        if condition is not None:
+            # Merge the condition dimension with sample dimension in order to call log_prob.
+            z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
+            condition = tfutils.repeat_rows(condition, num_reps=num_samples)
+            assert z_values.shape[0] == condition.shape[0]
+
+        sample, _ = self.inverse(z_values, condition)
+
+        if condition is not None:
+            # Split the context dimension from sample dimension.
+            sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
+
+        return sample
 
 
 class CauchyLineMap(Mapping):
     """Two-dimensional Cauchy line mapping."""
 
-    def __init__(
-        self,
-        means: List[float],
-        gammas: List[float],
-        alpha: float,
-    ):
+    def __init__(self, means: List[float], gammas: List[float], alpha: float, **kwargs):
         """
         Args:
             means (List[float]): peak locations.
             gammas (List[float]): scale parameters (FWHM).
             alpha (float): rotation anlge.
         """
-        super().__init__()
+        super().__init__(StandardUniform([2]), **kwargs)
         self._shape = tf.TensorShape([2])
 
         # check that its floats
@@ -158,6 +167,8 @@ class CauchyLineMap(Mapping):
     def _forward(self, x, condition):
         """The forward pass of the mapping"""
         # Note: the condition is ignored.
+        del condition
+
         # Rotate to be parallel with x-axis
         y = self._rotate(x, self.alpha)
         y1, y2 = tf.split(y, 2, axis=-1)
@@ -165,11 +176,15 @@ class CauchyLineMap(Mapping):
         # Map onto unit-hypercube
         z1 = 1 / self.tf_pi * tf.math.atan((y1 - self.means[0]) / self.gammas[0]) + 0.5
         z2 = 1 / self.tf_pi * tf.math.atan((y2 - self.means[1]) / self.gammas[1]) + 0.5
-        return tf.concat([z1, z2], axis=1)
+        logdet = self.log_det(x)
+
+        return tf.concat([z1, z2], axis=1), logdet
 
     def _inverse(self, z, condition):
         """The inverse pass of the mapping"""
         # Note: the condition is ignored.
+        del condition
+
         z1, z2 = tf.split(z, 2, axis=-1)
 
         # Map out peaks
@@ -179,7 +194,9 @@ class CauchyLineMap(Mapping):
 
         # Rotate back
         x = self._rotate(y, self.alpha, inverse=True)
-        return x
+        logdet = self.log_det(z, inverse=True)
+
+        return x, logdet
 
     def _det(self, x_or_z, condition, inverse=False):
         # Note: the condition is ignored.
@@ -188,25 +205,29 @@ class CauchyLineMap(Mapping):
             z1, z2 = tf.split(x_or_z, 2, axis=-1)
             d11 = self.tf_pi * self.gammas[0] * 1 / (tf.math.sin(self.tf_pi * z1) ** 2)
             d22 = self.tf_pi * self.gammas[1] * 1 / (tf.math.sin(self.tf_pi * z2) ** 2)
-            return d11 * d22
+            return tf.squeeze(d11 * d22)
         else:
             # the derivative of the forward pass (dF/dx)
             y = self._rotate(x_or_z, self.alpha)
             y1, y2 = tf.split(y, 2, axis=-1)
             d11 = self.gammas[0] / ((y1 - self.means[0]) ** 2 + self.gammas[0] ** 2)
             d22 = self.gammas[1] / ((y2 - self.means[1]) ** 2 + self.gammas[1] ** 2)
-            return d11 * d22 / (self.tf_pi ** 2)
+            return tf.squeeze(d11 * d22 / (self.tf_pi ** 2))
 
     def _sample(self, num_samples, condition):
+        z_values = self.base_dist.sample(num_samples, condition)
+
         # Sample from quantile
-        if condition is None:
-            z_values = tf.random.uniform((num_samples, *self._shape), dtype=self._dtype)
-            return self._inverse(z_values, condition)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            z_values = tf.random.uniform(
-                (condition_size * num_samples, *self._shape), dtype=self._dtype
-            )
-            samples = self._inverse(z_values, condition)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        if condition is not None:
+            # Merge the condition dimension with sample dimension in order to call log_prob.
+            z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
+            condition = tfutils.repeat_rows(condition, num_reps=num_samples)
+            assert z_values.shape[0] == condition.shape[0]
+
+        sample, _ = self.inverse(z_values, condition)
+
+        if condition is not None:
+            # Split the context dimension from sample dimension.
+            sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
+
+        return sample
