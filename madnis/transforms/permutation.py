@@ -4,11 +4,11 @@ from typing import Union
 import numpy as np
 import tensorflow as tf
 
-from .base import InvertibleModule
+from .base import Transform
 
 
 # pylint: disable=C0103
-class PermuteRandom(InvertibleModule):
+class PermuteRandom(Transform):
     """Constructs a random permutation, that stays fixed during training.
     Permutes along the first (channel-) dimension for multi-dimenional tensors."""
 
@@ -55,7 +55,7 @@ class PermuteRandom(InvertibleModule):
             return y, 0.0
 
         return y
-    
+
     def inverse(self, x, jac=True):  # pylint: disable=W0221
         y = self.permute_function(x, self.w_perm_inv)
         if jac:

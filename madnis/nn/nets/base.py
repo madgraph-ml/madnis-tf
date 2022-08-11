@@ -5,7 +5,7 @@ import tensorflow as tf
 
 
 # pylint: disable=C0103
-class _SubNet(tf.keras.layers.Layer):
+class SubNet(tf.keras.layers.Layer):
     """Base class to implement various subnetworks.  It takes care of
     checking the dimensions. Each child class only has
     to implement the _network() method.

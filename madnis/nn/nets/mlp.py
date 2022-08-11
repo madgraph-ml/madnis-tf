@@ -1,10 +1,10 @@
 """ MLP subnetwork """
 
 import tensorflow as tf
-from .base import _SubNet
+from .base import SubNet
 
 
-class MLP(_SubNet):
+class MLP(SubNet):
     """
     Creates a dense subnetwork
     which can be used within the invertible modules.

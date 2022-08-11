@@ -1,4 +1,4 @@
-"""Base Invertible Module Class"""
+"""Base Transform Class"""
 
 from typing import Tuple, Iterable
 import tensorflow as tf
@@ -48,7 +48,7 @@ class Transform(tf.keras.layers.Layer):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not provide call(...) method"
         )
-        
+
     def inverse(  # pylint: disable=W0221
         self,
         z: tf.Tensor,
@@ -71,11 +71,12 @@ class Transform(tf.keras.layers.Layer):
         config = {"dims_in": self.dims_in, "dims_c": self.dims_c}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
-    
+
+
 class InverseTransform(Transform):
     """Creates a transform that is the inverse of a given transform."""
 
-    def __init__(self, transform):
+    def __init__(self, transform: Transform):
         """Constructor.
         Args:
             transform: An object of type `Transform`.

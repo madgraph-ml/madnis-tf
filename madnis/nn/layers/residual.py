@@ -26,14 +26,14 @@ class ResidualWeight(tf.keras.layers.Layer):
         physics-based channel-weight:
 
         1. :math:`alpha_i = \frac{|M_i|^2}{\Sum_j |M_j|^2}`
-        2. :math:`alpha_i = \Prod_{k in Prop} \frac{1}{|p_k^2 - M_k^2 -i M_k \Gamma_k^2|^2}
+        2. :math:`alpha_i = \Prod_{k in Prop} \frac{1}{|p_k^2 - M_k^2 -i M_k \Gamma_k^2|^2}`
 
         Then the network ``f`` simply yields a correction
         and gives the output:
 
-        :math:`alpha_{i, new} = \theta_{i} * f_{i} + \log alpha_{i}
+        :math:`alpha_{i, new} = \theta_{i} * f_{i} + \log alpha_{i}`
 
-        with a trainable weight \theta_i.
+        with a trainable weight :math:`\theta_i`.
         """
         out = self.w_x * x + tf.math.log(residual)  # log guarantees the residual is restored after normalization
         return out
