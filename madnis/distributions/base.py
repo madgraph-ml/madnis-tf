@@ -17,7 +17,8 @@ class Distribution(tf.keras.Model):
         self._dtype = tf.keras.backend.floatx()
 
     def call(self, *args, **kwargs):
-        raise RuntimeError("Call method cannot be called for a Distribution object.")
+        "Call method just calls the prob function"
+        return self.prob(*args, **kwargs)
 
     def log_prob(self, x: tf.Tensor, condition: tf.Tensor = None) -> tf.Tensor:
         """Calculate log probability of the distribution.

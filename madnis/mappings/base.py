@@ -20,7 +20,9 @@ class Mapping(Distribution):
         self.base_dist = base_dist
 
     def call(
-        self, x: tf.Tensor, condition: tf.Tensor = None
+        self,
+        x: tf.Tensor,
+        condition: tf.Tensor = None,
     ) -> Tuple[tf.Tensor, tf.Tensor]:
         """
         Forward pass of the mapping ``f``.
@@ -55,7 +57,9 @@ class Mapping(Distribution):
         )
 
     def inverse(
-        self, z: tf.Tensor, condition: tf.Tensor = None
+        self,
+        z: tf.Tensor,
+        condition: tf.Tensor = None,
     ) -> Tuple[tf.Tensor, tf.Tensor]:
         """
         Inverse pass ``f^{-1}`` of the mapping. Conventionally, this is the pass
@@ -90,7 +94,10 @@ class Mapping(Distribution):
         )
 
     def log_prob(
-        self, x_or_z: tf.Tensor, condition: tf.Tensor = None, inverse: bool = False
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ) -> tf.Tensor:
         """
         Calculate log probability of the mapping combined
@@ -120,13 +127,19 @@ class Mapping(Distribution):
             return base_log_prob + logdet
 
     def prob(
-        self, x_or_z: tf.Tensor, condition: tf.Tensor = None, inverse: bool = False
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ) -> tf.Tensor:
         """Calculate full probability of the mapping"""
         return tf.math.exp(self.log_prob(x_or_z, condition, inverse))
 
     def log_det(
-        self, x_or_z: tf.Tensor, condition: tf.Tensor = None, inverse: bool = False
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ) -> tf.Tensor:
         """Calculate log det of the mapping only:
 
@@ -169,7 +182,10 @@ class Mapping(Distribution):
         )
 
     def det(
-        self, x_or_z: tf.Tensor, condition: tf.Tensor = None, inverse: bool = False
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ) -> tf.Tensor:
         """Calculates the jacobian determinant of the mapping:
 
