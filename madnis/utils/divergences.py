@@ -25,7 +25,11 @@ class Divergence:
     """
 
     def __init__(
-        self, alpha: float = None, beta: float = None, train_mcw: bool = False
+        self,
+        alpha: float = None,
+        beta: float = None,
+        train_mcw: bool = False,
+        n_channels: int = 1,
     ):
         """
         Args:
@@ -36,14 +40,26 @@ class Divergence:
             train_mcw (bool, optional): returns losses such that the multi-channel
                 weight can be trained. Requires different handling of tf.stop_gradient.
                 Defaults to False.
+            n_channels (int, optional): number of channels in the multi-channel integrator.
+                Defaults to 1.
+
         """
         self.alpha = alpha
         self.beta = beta
         self.train_mcw = train_mcw
+        self.n_channels = n_channels
+        self._dtype = tf.keras.backend.floatx()
         self.divergences = [
             x
             for x in dir(self)
-            if ("__" not in x and "alpha" not in x and "beta" not in x)
+            if (
+                "__" not in x
+                and "alpha" not in x
+                and "beta" not in x
+                and "train_mcw" not in x
+                and "n_channels" not in x
+                and "_dtype" not in x
+            )
         ]
 
     def variance(
@@ -52,6 +68,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement variance loss.
 
@@ -66,16 +83,20 @@ class Divergence:
         when the variance is used as loss function.
 
         Arguments:
-            true (tf.tensor): true function/probability. Does not have to be normalized.
-            test (tf.tensor): estimated function/probability
+            p_true (tf.tensor): true function/probability. Does not have to be normalized.
+            q_test (tf.tensor): estimated function/probability
             logp (tf.tensor): not used in variance
             logq (tf.tensor): not used in variance
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed variance loss
 
         """
         del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             mean2 = tf.reduce_mean(
                 p_true ** 2 / (tf.stop_gradient(q_test ** 2)), axis=0
@@ -87,7 +108,7 @@ class Divergence:
             )
 
         mean = tf.reduce_mean(p_true / tf.stop_gradient(q_test), axis=0)
-        return tf.reduce_sum(mean2 - mean ** 2)
+        return tf.reduce_sum(sigma * (mean2 - mean ** 2))
 
     def neyman_chi2(
         self,
@@ -95,6 +116,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Neyman chi2 divergence.
 
@@ -110,27 +132,30 @@ class Divergence:
             q_test (tf.tensor): estimated probabiliy
             logp (tf.tensor): not used in chi2
             logq (tf.tensor): not used in chi2
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Neyman chi2 divergence
 
         """
         del logp, logq
-        del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             chi2 = tf.reduce_mean(
                 (p_true - tf.stop_gradient(q_test)) ** 2
                 / (tf.stop_gradient(q_test ** 2)),
                 axis=0,
             )
-            return tf.reduce_sum(chi2)
+            return tf.reduce_sum(sigma * chi2)
 
         chi2 = tf.reduce_mean(
             (tf.stop_gradient(p_true) - q_test) ** 2
             / (q_test * tf.stop_gradient(q_test)),
             axis=0,
         )
-        return tf.reduce_sum(chi2)
+        return tf.reduce_sum(sigma * chi2)
 
     def pearson_chi2(
         self,
@@ -138,6 +163,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Pearson chi2 divergence.
 
@@ -153,26 +179,30 @@ class Divergence:
             q_test (tf.tensor): estimated probabiliy
             logp (tf.tensor): not used in chi2
             logq (tf.tensor): not used in chi2
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Pearson chi2 divergence
 
         """
         del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             chi2 = tf.reduce_mean(
                 (tf.stop_gradient(q_test) - p_true) ** 2
                 / (p_true * tf.stop_gradient(q_test)),
                 axis=0,
             )
-            return tf.reduce_sum(chi2)
+            return tf.reduce_sum(sigma * chi2)
 
         chi2 = tf.reduce_mean(
             (q_test - tf.stop_gradient(p_true)) ** 2
             / (tf.stop_gradient(p_true * q_test)),
             axis=0,
         )
-        return tf.reduce_sum(chi2)
+        return tf.reduce_sum(sigma * chi2)
 
     def kl_divergence(
         self,
@@ -180,6 +210,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Kullback-Leibler (KL) divergence.
 
@@ -195,22 +226,26 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed KL divergence
 
         """
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             kl = tf.reduce_mean(
                 p_true / tf.stop_gradient(q_test) * (logp - tf.stop_gradient(logq)),
                 axis=0,
             )
-            return tf.reduce_sum(kl)
+            return tf.reduce_sum(sigma * kl)
 
         kl = tf.reduce_mean(
             tf.stop_gradient(p_true / q_test) * (tf.stop_gradient(logp) - logq), axis=0
         )
-        return tf.reduce_sum(kl)
+        return tf.reduce_sum(sigma * kl)
 
     def reverse_kl(
         self,
@@ -218,6 +253,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement reverse Kullback-Leibler (RKL) divergence.
 
@@ -232,18 +268,22 @@ class Divergence:
             q_test (tf.tensor): not used in RKL
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed RKL divergence
 
         """
         del p_true, q_test
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             rkl = tf.reduce_mean(tf.stop_gradient(logq) - logp, axis=0)
-            return tf.reduce_sum(rkl)
+            return tf.reduce_sum(sigma * rkl)
 
         rkl = tf.reduce_mean((1 + tf.stop_gradient(logq - logp)) * logq, axis=0)
-        return tf.reduce_sum(rkl)
+        return tf.reduce_sum(sigma * rkl)
 
     def hellinger(
         self,
@@ -251,6 +291,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Hellinger distance.
 
@@ -266,12 +307,16 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): not used in hellinger
             logq (tf.tensor): not used in hellinger
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Hellinger distance
 
         """
         del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             hell = tf.reduce_mean(
                 2.0
@@ -279,7 +324,7 @@ class Divergence:
                 / tf.stop_gradient(q_test),
                 axis=0,
             )
-            return tf.reduce_sum(hell)
+            return tf.reduce_sum(sigma * hell)
 
         hell = tf.reduce_mean(
             2.0
@@ -287,7 +332,7 @@ class Divergence:
             / tf.stop_gradient(q_test),
             axis=0,
         )
-        return tf.reduce_sum(hell)
+        return tf.reduce_sum(sigma * hell)
 
     def jeffreys(
         self,
@@ -295,6 +340,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Jeffreys divergence.
 
@@ -310,17 +356,31 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Jeffreys divergence
 
         """
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
-            jeff = tf.reduce_mean((p_true - tf.stop_gradient(q_test)) * (logp - tf.stop_gradient(logq)) / tf.stop_gradient(q_test), axis=0)
-            return tf.reduce_sum(jeff)
-        
-        jeff = tf.reduce_mean((tf.stop_gradient(p_true) - q_test) * (tf.stop_gradient(logp) - logq) / tf.stop_gradient(q_test), axis=0)
-        return tf.reduce_sum(jeff)
+            jeff = tf.reduce_mean(
+                (p_true - tf.stop_gradient(q_test))
+                * (logp - tf.stop_gradient(logq))
+                / tf.stop_gradient(q_test),
+                axis=0,
+            )
+            return tf.reduce_sum(sigma * jeff)
+
+        jeff = tf.reduce_mean(
+            (tf.stop_gradient(p_true) - q_test)
+            * (tf.stop_gradient(logp) - logq)
+            / tf.stop_gradient(q_test),
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * jeff)
 
     def chernoff(
         self,
@@ -328,6 +388,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Chernoff divergence.
 
@@ -343,6 +404,7 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): not used in Chernoff
             logq (tf.tensor): not used in Chernoff
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Chernoff divergence
@@ -352,6 +414,9 @@ class Divergence:
 
         """
         del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.alpha is None:
             raise ValueError("Must give an alpha value to use Chernoff " "Divergence.")
         if not 0 < self.alpha < 1:
@@ -359,11 +424,21 @@ class Divergence:
 
         prefactor = 4.0 / (1 - self.alpha ** 2)
         if self.train_mcw:
-            int =  tf.reduce_mean(tf.pow(p_true, (1.0 - self.alpha) / 2.0) * tf.stop_gradient(tf.pow(q_test, (1.0 + self.alpha) / 2.0)) / tf.stop_gradient(q_test), axis=0)
-            return tf.reduce_sum(prefactor * (1 - int))
-        
-        int =  tf.reduce_mean(tf.stop_gradient(tf.pow(p_true, (1.0 - self.alpha) / 2.0)) * tf.pow(q_test, (1.0 + self.alpha) / 2.0) / tf.stop_gradient(q_test), axis=0)
-        return tf.reduce_sum(prefactor * (1 - int))
+            int = tf.reduce_mean(
+                tf.pow(p_true, (1.0 - self.alpha) / 2.0)
+                * tf.stop_gradient(tf.pow(q_test, (1.0 + self.alpha) / 2.0))
+                / tf.stop_gradient(q_test),
+                axis=0,
+            )
+            return tf.reduce_sum(sigma * prefactor * (1 - int))
+
+        int = tf.reduce_mean(
+            tf.stop_gradient(tf.pow(p_true, (1.0 - self.alpha) / 2.0))
+            * tf.pow(q_test, (1.0 + self.alpha) / 2.0)
+            / tf.stop_gradient(q_test),
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * prefactor * (1 - int))
 
     def exponential(
         self,
@@ -371,6 +446,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Exponential divergence.
 
@@ -386,17 +462,29 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Exponential divergence
 
         """
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
-            exp = tf.reduce_mean(p_true / tf.stop_gradient(q_test) * (logp - tf.stop_gradient(logq)) ** 2, axis=0)
-            return tf.reduce_sum(exp)
-        
-        exp = tf.reduce_mean(tf.stop_gradient(p_true / q_test) * (tf.stop_gradient(logp) - logq) ** 2, axis=0)
-        return tf.reduce_sum(exp)
+            exp = tf.reduce_mean(
+                p_true
+                / tf.stop_gradient(q_test)
+                * (logp - tf.stop_gradient(logq)) ** 2,
+                axis=0,
+            )
+            return tf.reduce_sum(sigma * exp)
+
+        exp = tf.reduce_mean(
+            tf.stop_gradient(p_true / q_test) * (tf.stop_gradient(logp) - logq) ** 2,
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * exp)
 
     def exponential2(
         self,
@@ -404,6 +492,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Exponential divergence with ``p_true`` and ``q_test`` interchanged.
 
@@ -419,25 +508,34 @@ class Divergence:
             q_test (tf.tensor): not used in Exponential2
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Exponential2 divergence
 
         """
         del p_true, q_test
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             exp2 = tf.reduce_mean((tf.stop_gradient(logq) - logp) ** 2, axis=0)
-            return tf.reduce_sum(exp2)
-        
-        exp2 = tf.reduce_mean(2 * tf.stop_gradient(logq - logp) * logq + tf.stop_gradient(logq - logp) ** 2 * logq, axis=0)
-        return tf.reduce_sum(exp2)
-    
+            return tf.reduce_sum(sigma * exp2)
+
+        exp2 = tf.reduce_mean(
+            2 * tf.stop_gradient(logq - logp) * logq
+            + tf.stop_gradient(logq - logp) ** 2 * logq,
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * exp2)
+
     def ab_product(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement (alpha, beta)-product divergence.
 
@@ -453,6 +551,7 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): not used in ab_product
             logq (tf.tensor): not used in ab_product
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed (alpha, beta)-product divergence
@@ -463,6 +562,9 @@ class Divergence:
 
         """
         del logp, logq
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.alpha is None:
             raise ValueError(
                 "Must give an alpha value to use " "(alpha, beta)-product Divergence."
@@ -479,11 +581,22 @@ class Divergence:
 
         prefactor = 2.0 / ((1 - self.alpha) * (1 - self.beta))
         if self.train_mcw:
-            ab_prod =  tf.reduce_mean((1 - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.alpha) / 2.0)) * (1 - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.beta) / 2.0)) *  p_true / tf.stop_gradient(q_test), axis=0)
-            return tf.reduce_sum(prefactor * ab_prod)
-        
-        ab_prod =  tf.reduce_mean((1 - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.alpha) / 2.0)) * (1 - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.beta) / 2.0)) * tf.stop_gradient(p_true / q_test), axis=0)
-        return tf.reduce_sum(prefactor * ab_prod)
+            ab_prod = tf.reduce_mean(
+                (1 - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.alpha) / 2.0))
+                * (1 - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.beta) / 2.0))
+                * p_true
+                / tf.stop_gradient(q_test),
+                axis=0,
+            )
+            return tf.reduce_sum(sigma * prefactor * ab_prod)
+
+        ab_prod = tf.reduce_mean(
+            (1 - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.alpha) / 2.0))
+            * (1 - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.beta) / 2.0))
+            * tf.stop_gradient(p_true / q_test),
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * prefactor * ab_prod)
 
     def js_divergence(
         self,
@@ -491,6 +604,7 @@ class Divergence:
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
+        sigma: tf.Tensor = None,
     ):
         """Implement Jensen-Shannon (JS) divergence.
 
@@ -506,19 +620,34 @@ class Divergence:
             q_test (tf.tensor): estimated probability
             logp (tf.tensor): logarithm of the true probability
             logq (tf.tensor): logarithm of the estimated probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed Jensen-Shannon divergence
 
         """
+        if sigma is None:
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
+
         if self.train_mcw:
             logm = tf.math.log(0.5 * (tf.stop_gradient(q_test) + p_true))
-            js = 0.5 * tf.reduce_mean( p_true * (logp - logm) / tf.stop_gradient(q_test) + (q_test * (tf.stop_gradient(logq) - logm)), axis=0)
-            return tf.reduce_sum(js)
-        
+            js = 0.5 * tf.reduce_mean(
+                p_true * (logp - logm) / tf.stop_gradient(q_test)
+                + (q_test * (tf.stop_gradient(logq) - logm)),
+                axis=0,
+            )
+            return tf.reduce_sum(sigma * js)
+
         logm = tf.math.log(0.5 * (q_test + tf.stop_gradient(p_true)))
-        js = tf.reduce_mean(tf.stop_gradient(0.5 / q_test) * ((tf.stop_gradient(p_true) * (tf.stop_gradient(logp) - logm)) + (q_test * (logq - logm))), axis=0)
-        return tf.reduce_sum(js)
+        js = tf.reduce_mean(
+            tf.stop_gradient(0.5 / q_test)
+            * (
+                (tf.stop_gradient(p_true) * (tf.stop_gradient(logp) - logm))
+                + (q_test * (logq - logm))
+            ),
+            axis=0,
+        )
+        return tf.reduce_sum(sigma * js)
 
     def __call__(self, name):
         func = getattr(self, name, None)
