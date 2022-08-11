@@ -1,6 +1,10 @@
-""" Modules for the MadNIS framework """
+""" Neural network modules for the MadNIS framework """
  
 # Load the subfolders
-from .nets import *
-from .layers import *
+from . import layers
+from . import nets
+
+__all__ = ["layers", "nets"]
+
+
 

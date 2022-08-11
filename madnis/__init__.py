@@ -1,4 +1,4 @@
-"""
+r"""
 ==========================================
                    _     __ _____  __    
    /\/\   __ _  __| | /\ \ \\_   \/ _\    
@@ -14,10 +14,11 @@ Modules to construct machine-learning based
 Monte Carlo integrator using TensorFlow 2.
 
 """
+from . import distributions
+from . import mappings
+from . import models
+from . import nn
 from . import transforms
 from . import utils
-from . import distributions
-from . import flows
-from . import nn
 
-__all__ = ["distributions", "utils", "transforms", "nn", "flows"]
+__all__ = ["distributions", "mappings", "models", "nn", "transforms", "utils"]
