@@ -2,7 +2,9 @@
 MadNIS
 =================
 
-This a Machine learning framework to perform neural importance sampling and multi-channel Monte Carlo integration.
+This a machine learning framework to perform neural multi-channel importance sampling in MadGraph.
+It containes modules to construct a machine-learning based
+Monte Carlo integrator using TensorFlow 2.
 
 
 Installation
