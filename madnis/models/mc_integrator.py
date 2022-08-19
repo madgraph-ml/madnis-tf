@@ -52,7 +52,11 @@ class MultiChannelIntegrator:
         self.mcw_optimizer = optimizer[1]
 
         self.use_weight_init = use_weight_init
-        self.n_channels = n_channels
+        
+        if n_channels > 1:
+            self.n_channels = n_channels
+        else:
+            raise ValueError(f"More than 1 channel expected. Use Integrator instead.")
 
         # Define the loss functions
         self.flow_divergence = Divergence(**kwargs)
