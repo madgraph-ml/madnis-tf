@@ -130,7 +130,7 @@ class CuttedCamel(Distribution):
             self.cut = tf.constant(-np.inf, dtype=self._dtype)
 
         self.means = tf.constant(means, dtype=self._dtype)
-        self.log_stds = tf.constant(tf.math.log(stds), dtype=self._dtype)
+        self.log_stds = tf.constant(np.log(stds), dtype=self._dtype)
 
         self.npeaks = len(means)
 
