@@ -7,7 +7,7 @@ We start by considering the following process
 ```
 
 <div align="center">
-<img src="wp_2j.png" width="400">
+<img src="wp_2j.png" width="300">
 </div>
 
 ## MadGraph API
