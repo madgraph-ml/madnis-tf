@@ -1,6 +1,6 @@
 """Various TensorFlow utility functions."""
 
-import typechecks as check
+import madnis.utils.typechecks as check
 import tensorflow as tf
 
 

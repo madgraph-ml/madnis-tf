@@ -5,7 +5,7 @@
 import numpy as np
 import tensorflow as tf
 
-import madml.utils.typechecks as checks
+import madnis.utils.typechecks as checks
 
 # log_ndtr uses different functions over the ranges
 # (-infty, lower](lower, upper](upper, infty)

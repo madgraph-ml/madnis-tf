@@ -16,9 +16,9 @@ class Distribution(tf.keras.Model):
         # Define the right floating point precision
         self._dtype = tf.keras.backend.floatx()
 
-    def call(self, *args, **kwargs):
+    def call(self, x: tf.Tensor, condition: tf.Tensor = None):
         "Call method just calls the prob function"
-        return self.prob(*args, **kwargs)
+        return self.prob(x, condition)
 
     def log_prob(self, x: tf.Tensor, condition: tf.Tensor = None) -> tf.Tensor:
         """Calculate log probability of the distribution.

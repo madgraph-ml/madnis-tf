@@ -5,7 +5,7 @@ from madnis.nn.layers.residual import ResidualWeight
 from madnis.nn.layers.normalize import NormalizeWeights
 
 
-def MultiChannelWeight(
+def mcw_model(
     dims_in: int,
     n_channels: int,
     meta: dict,
@@ -21,7 +21,7 @@ def MultiChannelWeight(
     return tf.keras.Model(inputs=[x_input], outputs=x_out, name=name)
 
 
-def ResidualMultiChannelWeight(
+def residual_mcw_model(
     dims_in: int,
     n_channels: int,
     meta: dict,

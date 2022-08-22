@@ -38,7 +38,7 @@ class Camel(Distribution):
             stds = [float(i) for i in stds]
 
         self.means = tf.constant(means, dtype=self._dtype)
-        self.log_stds = tf.constant(tf.math.log(stds), dtype=self._dtype)
+        self.log_stds = tf.constant(np.log(stds), dtype=self._dtype)
 
         self.npeaks = len(means)
 
@@ -56,7 +56,7 @@ class Camel(Distribution):
         # Note: the condition is ignored.
         del condition
 
-        prob = tf.zeros(x.shape[0], dtype=self._dtype)
+        prob = 0
         for i in range(self.npeaks):
             log_norm = tf.convert_to_tensor(
                 -0.5 * np.log(2 * np.pi) - self.log_stds[i], dtype=self._dtype
@@ -148,7 +148,7 @@ class CuttedCamel(Distribution):
         # Note: the condition is ignored.
         del condition
 
-        prob = tf.zeros(x.shape[0], dtype=self._dtype)
+        prob = 0
         for i in range(self.npeaks):
             log_norm = tf.convert_to_tensor(
                 -0.5 * np.log(2 * np.pi) - self.log_stds[i], dtype=self._dtype
@@ -262,7 +262,7 @@ class MultiDimCamel(Distribution):
         # Note: the condition is ignored.
         del condition
 
-        prob = tf.zeros(x.shape[0], dtype=self._dtype)
+        prob = 0
         for i in range(self.npeaks):
             log_norm = self.log_norms[i]
             log_base = (
@@ -371,7 +371,7 @@ class NormalizedMultiDimCamel(Distribution):
         # Note: the condition is ignored.
         del condition
 
-        prob = tf.zeros(x.shape[0], dtype=self._dtype)
+        prob = 0
         for i in range(self.npeaks):
             log_norm = self.log_norms[i]
             log_base = (

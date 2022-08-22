@@ -17,7 +17,6 @@ class CauchyDistribution(Mapping):
 
     def __init__(
         self,
-        base_dist: Distribution = StandardUniform([1]),
         mean: float = 0.0,
         gamma: float = 1.0,
         **kwargs
@@ -29,7 +28,7 @@ class CauchyDistribution(Mapping):
             mean: float, location of the peak.
             gamma: float, scale parameter (FWHM).
         """
-        super().__init__(base_dist, **kwargs)
+        super().__init__(StandardUniform([1]), **kwargs)
         self._shape = tf.TensorShape([1])
 
         self.mean = tf.constant(mean, dtype=self._dtype)

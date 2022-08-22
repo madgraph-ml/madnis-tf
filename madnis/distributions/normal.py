@@ -31,7 +31,7 @@ class StandardNormal(Distribution):
             raise ValueError(
                 "Expected input of shape {}, got {}".format(self._shape, x.shape[1:])
             )
-        log_norm = tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype)
+        log_norm = tf.convert_to_tensor(-0.5 * np.log(2 * np.pi), dtype=self._dtype)
         log_inner = -0.5 * x ** 2
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
 
@@ -75,7 +75,7 @@ class Normal(Distribution):
         elif isinstance(mean, tf.Tensor):
             assert mean.shape[1:] == self._shape
             assert mean.shape[0] == 1
-            self.mean = tf.constant(mean, dtype=self._dtype)
+            self.mean = tf.cast(mean, dtype=self._dtype)
         else:
             raise ValueError()
 
@@ -87,7 +87,7 @@ class Normal(Distribution):
         elif isinstance(log_std, tf.Tensor):
             assert log_std.shape[1:] == self._shape
             assert log_std.shape[0] == 1
-            self.log_std = tf.constant(log_std, dtype=self._dtype)
+            self.log_std = tf.cast(log_std, dtype=self._dtype)
         else:
             raise ValueError()
 
@@ -100,7 +100,7 @@ class Normal(Distribution):
                 "Expected input of shape {}, got {}".format(self._shape, x.shape[1:])
             )
         log_norm = (
-            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
+            tf.convert_to_tensor(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
         )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - self.mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
@@ -153,7 +153,7 @@ class DiagonalNormal(Distribution):
                 "Expected input of shape {}, got {}".format(self._shape, x.shape[1:])
             )
         log_norm = (
-            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
+            tf.convert_to_tensor(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
         )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - self.mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
@@ -220,7 +220,7 @@ class ConditionalMeanNormal(Distribution):
         assert mean.shape == x.shape
 
         log_norm = (
-            tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
+            tf.convert_to_tensor(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - self.log_std
         )
         log_inner = -0.5 * tf.math.exp(-2 * self.log_std) * ((x - mean) ** 2)
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
@@ -292,7 +292,7 @@ class ConditionalDiagonalNormal(Distribution):
         mean, log_std = self._compute_params(condition)
         assert mean.shape == x.shape and log_std.shape == x.shape
 
-        log_norm = tf.constant(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - log_std
+        log_norm = tf.convert_to_tensor(-0.5 * np.log(2 * np.pi), dtype=self._dtype) - log_std
         log_inner = -0.5 * tf.math.exp(-2 * log_std) * ((x - mean) ** 2)
         return tfutils.sum_except_batch(log_inner - log_norm, num_batch_dims=1)
 

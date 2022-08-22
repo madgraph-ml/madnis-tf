@@ -21,7 +21,6 @@ class MultiDimCauchy(Mapping):
         shape: Tuple[int],
         mean: Union[tf.Tensor, float] = 0.0,
         gamma: Union[tf.Tensor, float] = 1.0,
-        base_dist: Distribution=None,
         **kwargs
     ):
         """
@@ -33,10 +32,7 @@ class MultiDimCauchy(Mapping):
             means (List[tf.Tensor]): peak locations.
             gammas (List[float]): scale parameters (FWHM)
         """
-        if base_dist is None:
-            base_dist = StandardUniform(shape)
-        
-        super().__init__(base_dist, **kwargs)
+        super().__init__(StandardUniform(shape), **kwargs)
         self._shape = tf.TensorShape(shape)
 
         # Define mean
