@@ -32,5 +32,12 @@ Commands for ```camel```:
 # train the multi-channel weights (optinally adding arguments, see --help)
 python train_camel.py (--arg ARG)
 ```
+
+Commands for `truncated camel` (with cut):
+
+```python
+# train the multi-channel weights (optinally adding arguments, see --help)
+python train_trunc_camel.py (--arg ARG)
+```
    
    
