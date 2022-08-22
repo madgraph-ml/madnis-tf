@@ -1,16 +1,24 @@
 # Toy Experiments
 
-We compare the performance of our machine learned multi-channel weight
-and importance weight to set of global and simple choosen multi-channel weights
-and an importance weight deduced from vegas.
+We test the performance of our machine learned multi-channel weight and importance weight deduced
+from our conditional flow and use it to benchmark
+the various techniques to improve precision.
 
-## Training
+## Examples
 
-Commands for ```camel```:
+In this folder we test various multi-dimensional examples
 
-```python
-# train the flow (optinally adding arguments, see --help)
-python train_camel.py (--arg ARG)
-```
+- 1-dimensional Camel distribution in the folder `camel`
+    - 2 channels with analytic mappings
+    - trainable multi-channel weight
+- 2-dimensional distribution in the folder `ring`:
+    - 2 channels with analytic mappings
+    - trainable multi-channel weight
+    - trainable conditional Flow
+- $n$-dimensional Camel distribution on the unit hypercube in the folder `multidim`
+    - variable dimension $n$ and variable number of peaks $m$
+    - $k$ channels with or without analytic mappings
+    - trainable multi-channel weight
+    - trainable conditional flow
    
    

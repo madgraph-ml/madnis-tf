@@ -20,6 +20,20 @@ def sum_except_batch(x, num_batch_dims=1):
     reduce_dims = tuple(range(num_batch_dims, len(x.shape)))
     return tf.math.reduce_sum(x, axis=reduce_dims)
 
+def partion_into_list(nsamples: int, parts: int):
+    """Splits a given number n into a m parts of equal size
+    that sum up to n again.
+
+    Args:
+        nsamples (int): number of samples
+        parts (int): numper of parts
+
+    Returns:
+        list: the partioned number of samples
+    """
+    nsamples_list = [nsamples // parts for _ in range(parts - 1)] + [ nsamples // parts + nsamples % parts]
+    return nsamples_list
+    
 
 def prod_except_batch(x, num_batch_dims=1):
     """
