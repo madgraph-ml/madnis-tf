@@ -3,17 +3,16 @@ import tensorflow as tf
 import numpy as np
 import argparse
 import time
-import sys
 
 from mcw import mcw_model, residual_mcw_model
 from utils import integrate, error
-from plots import plot_alphas
 
-from madnis.distributions.camel import Camel
-from madnis.distributions.normal import Normal
-from madnis.mappings.cauchy import CauchyDistribution
+# from plots import plot_alphas
+from madnis.distributions.gaussians_2d import TwoChannelLineRing
+from madnis.mappings.cauchy_2d import CauchyRingMap, CauchyLineMap
 from madnis.models.multi_channel import MultiChannelWeight
 from madnis.models.mc_prior import WeightPrior
+import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
@@ -32,50 +31,60 @@ parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
 parser.add_argument("--use_prior_weights", action='store_true')
-parser.add_argument("--units", type=int, default=16)
+parser.add_argument("--units", type=int, default=32)
 parser.add_argument("--layers", type=int, default=3)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
 
 # Train params
-parser.add_argument("--epochs", type=int, default=10)
-parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--epochs", type=int, default=20)
+parser.add_argument("--batch_size", type=int, default=512)
 parser.add_argument("--lr", type=float, default=1e-3)
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
 
 args = parser.parse_args()
 
 ################################
 # Define distributions
 ################################
+DTYPE = tf.keras.backend.floatx()
 
 # Define peak positions and heights
-MEAN1 = 2.0
-STD1 = 0.5
-MEAN2 = 5.0
-STD2 = 0.2
+# Ring
+RADIUS = 1.0
+SIGMA0 = 0.01
+
+# Line
+MEAN1 = 0.0
+MEAN2 = 0.0
+SIGMA1 = 3.0
+SIGMA2 = 0.01
+ALPHA = np.pi/4
 
 # Define truth distribution
-camel = Camel([MEAN1, MEAN2], [STD1, STD2])
+line_ring = TwoChannelLineRing(RADIUS, SIGMA0, [MEAN1, MEAN2], [SIGMA1, SIGMA2], ALPHA)
 
 # Define the channel mappings
-GAMMA1 = np.sqrt(2.) * STD1
-GAMMA2 = np.sqrt(2.) * STD2
+GAMMA0 = np.sqrt(2.) * SIGMA0
+GAMMA1 = np.sqrt(2.) * SIGMA1
+GAMMA2 = np.sqrt(2.) * SIGMA2
 
-map_1 = CauchyDistribution(mean=MEAN1, gamma=GAMMA1)
-map_2 = CauchyDistribution(mean=MEAN2, gamma=GAMMA2)
+map_1 = CauchyRingMap(RADIUS, GAMMA0)
+map_2 = CauchyLineMap([MEAN1, MEAN2], [GAMMA1, GAMMA2], ALPHA)
 
 ################################
 # Naive integration
 ################################
 
 INT_SAMPLES = args.int_samples
+DIMS_IN = 2  # dimensionality of data space
 
-# Uniform sampling in range [0,6]
-volume = 6
-noise = tf.random.uniform((INT_SAMPLES, 1), dtype=tf.keras.backend.floatx()) * volume
+# Uniform sampling in area [-6,6]x[-6,6]
+limits = [-6, 6]
+volume = (limits[1] - limits[0]) ** 2
+noise = limits[0] + (limits[1] - limits[0]) * tf.random.uniform((INT_SAMPLES, DIMS_IN), dtype=DTYPE)
 phi = 1 / volume
-integrand = camel.prob(noise) / phi  # divide by volume in this case
+integrand = line_ring.prob(noise) / phi  # divide by density which is 1/V
 
 res = integrate(integrand).numpy()
 err = error(integrand).numpy()
@@ -91,7 +100,6 @@ print("-----------------------------------------------------------\n")
 # Define the network
 ################################
 
-DIMS_IN = 1  # dimensionality of data space (Camel = 1D)
 N_CHANNELS = 2  # number of Mappings
 PRIOR = args.use_prior_weights
 
@@ -110,22 +118,14 @@ if PRIOR:
 else:
     mcw_model = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META)
     PREFIX = "scratch"
-
-#mcw_model.summary()
-
+    
 ################################
 # Define the prior
 ################################
 
-# Define prior functions
-# LOGST1 = tf.math.log(STD1) * tf.ones((1,1))
-# LOGST2 = tf.math.log(STD2) * tf.ones((1,1))
-# f1 = Normal((1,), mean=MEAN1, log_std=LOGST1)
-# f2 = Normal((1,), mean=MEAN2, log_std=LOGST2)
-
 if PRIOR:
     # Define prior weight 
-    prior = WeightPrior([map_1,map_2], N_CHANNELS)
+    prior = WeightPrior([map_1,map_1], N_CHANNELS)
     madgraph_prior = prior.get_prior_weights
 else:
     madgraph_prior = None
@@ -138,6 +138,9 @@ else:
 EPOCHS = args.epochs
 BATCH_SIZE = args.batch_size
 LR = args.lr
+if PRIOR:
+    LR /= 5
+    EPOCHS /=2
 LOSS = args.loss
 
 # Number of samples
@@ -153,31 +156,12 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelWeight(
-    camel, mcw_model, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
-
-################################
-# Pre train - plot alphas
-################################
-
-p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
-if PRIOR:
-    res = madgraph_prior(p)
-    alphas = mcw_model([p, res])
-else:
-    alphas = mcw_model(p)
-truth = camel.prob(p)
-m1 = map_1.prob(p)
-m2 = map_2.prob(p)
-plot_alphas(p, alphas, truth, [m1, m2], prefix=f"pre_{PREFIX}")
-
+    line_ring, mcw_model, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
 
 ################################
 # Pre train - integration
 ################################
 
-# Uniform sampling in range [0,1]
-# integrand = integrator._get_integrand(INT_SAMPLES, weight_prior=madgraph_prior)
-# print(integrand)
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
@@ -216,22 +200,6 @@ end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
-
-
-################################
-# After train - plot alphas
-################################
-
-p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
-if PRIOR:
-    res = madgraph_prior(p)
-    alphas = mcw_model([p, res])
-else:
-    alphas = mcw_model(p)
-truth = camel.prob(p)
-m1 = map_1.prob(p)
-m2 = map_2.prob(p)
-plot_alphas(p, alphas, truth, [m1, m2], prefix=f"after_{PREFIX}")
 
 
 ################################
