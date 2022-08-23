@@ -12,7 +12,7 @@ $$ q(x,\varphi\vert i) = h(x,\varphi\vert i)\cdot g_i(x).$$
 <img src="circle.png" width="400">
 </div>
 
-## Function and mapping
+## Function
 
 We consider the overlap of a gaussian ring and a gaussian 'line' distribution, which is defined by:
 
@@ -35,7 +35,130 @@ where $N_0$ and $N_1$ are chosen such that each distribution is normalized indiv
 \tilde{x}_1=\frac{1}{\sqrt{2}}\left(x_1-x_2\right)\,,\qquad \tilde{x}_2=\frac{1}{\sqrt{2}}\left(x_1+x_2\right)\,.
 ```
 
-More details in the draft.
+## Analytic remapping
+
+### Mapping I
+
+In order to improve the integration of the two-modal distribution we introduce a channel-mapping for each of the two distributions. First, we consider the sub-density
+
+$$
+P_\text{line}(x_1,x_2) = N_1\,\mathrm{exp}\left(-\frac{1}{2\sigma_1^2}(\tilde{x}_1-\mu_1)^2\right)\mathrm{exp}\left(-\frac{1}{2\sigma_2^2}(\tilde{x}_2-\mu_2)^2\right),
+$$
+
+with
+
+$$
+N_1=\frac{1}{\sqrt{2\pi\sigma_1^2}} \frac{1}{\sqrt{2\pi\sigma_2^2}}.
+$$
+
+The sub-integral then reads in Cartesian coordinates
+
+$$
+I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{line}(x_1,x_2)\.
+$$
+
+We first perform a change of variables 
+
+$$\mathbf{x}\to \mathbf{y}$$ 
+
+and its inverse as
+
+$$
+y_1=\frac{1}{\sqrt{2}}(x_1-x_2), \quad y_2=\frac{1}{\sqrt{2}}(x_1+x_2),\quad
+$$
+
+$$
+x_1=\frac{1}{\sqrt{2}}(y_1+y_2), \quad x_2=\frac{1}{\sqrt{2}}(-y_1+y_2).
+$$
+
+And consequently, the Jacobian determinant is simply given by 
+
+$$\det J_1=1.$$ 
+
+Thus, the integral reads
+
+$$
+I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} y_1 \int\limits_{-\infty}^{\infty}\mathrm{d} y_2\ P_\text{line}(x_1,x_2)\Big\vert_{\mathbf{x}=\mathbf{x}(\mathbf{y})}
+$$
+
+Next, we map out the peak-structures in each direction by using again a Cauchy distribution. Hence, we define the mapping 
+
+$$\mathbf{y}\to\mathbf{z}$$ 
+
+and its inverse as
+
+$$
+ z_1=\frac{1}{\pi}\arctan\left(\frac{y_1-\mu_1}{\gamma_1}\right)+\frac{1}{2}, \quad z_2=\frac{1}{\pi}\arctan\left(\frac{y_2-\mu_1}{\gamma_2}\right)+\frac{1}{2},
+$$
+
+$$
+y_1=\mu_1+\gamma_1\tan\left[\pi\left(z_1-\frac{1}{2}\right)\right], \quad y_2=\mu_2+\gamma_2\tan\left[\pi\left(z_2-\frac{1}{2}\right)\right],
+$$
+
+Hence, the Jacobian determinant is given by
+
+$$
+\det J_2 = \left\vert\frac{\partial\mathbf{z}}{\partial\mathbf{y}}\right\vert=\frac{1}{\pi\gamma_1\left[1+\left(\frac{y_1-\mu_1}{\gamma_1}\right)^2\right]}\times \frac{1}{\pi\gamma_2\left[1+\left(\frac{y_2-\mu_2}{\gamma_2}\right)^2\right]}.
+$$
+
+Consequently, the reparametrized integral reads
+
+$$
+I_1=N_1\int\limits_{0}^{1}\mathrm{d} z_1 \int\limits_{0}^{1}\mathrm{d} z_2\left.\frac{\mathrm{exp}\left(-\frac{1}{2\sigma_1^2}(y_1-\mu_1)^2\right)}{\frac{1}{\pi\gamma_1\left[1+\left(\frac{y_1-\mu_1}{\gamma_1}\right)^2\right]}}\times \frac{\mathrm{exp}\left(-\frac{1}{2\sigma_2^2}(y_2-\mu_2)^2\right)}{\frac{1}{\pi\gamma_1\left[1+\left(\frac{y_2-\mu_2}{\gamma_2}\right)^2\right]}}\right\vert_{\mathbf{y}=\mathbf{y}(\mathbf{z})}.
+$$
+
+### Mapping II
+
+Next, we consider the circular part of the density which is given by
+
+$$
+P_\text{ring}(x_1,x_2) = N_0\,\mathrm{exp}\left(-\frac{1}{2\sigma_0^2}\left(\sqrt{x_1^2+x_2^2}-r_0\right)^2\right).
+$$
+
+with
+
+$$
+N_0=\left[2\pi\left(\sigma_0^2\,e^{-\frac{r_0^2}{2\sigma_0^2}}+\sqrt{\frac{\pi}{2}}\,r_0\,\sigma_0\left(1+\text{erf}\left[\frac{r_0}{\sqrt{2}\sigma_0}\right]\right)\right)\right]^{-1}.
+$$
+
+The sub-integral is then given by
+%
+\begin{align}
+I_2=\int\limits_{-\infty}^{\infty}\d x_1 \int\limits_{-\infty}^{\infty}\d x_2\,P_\text{ring}(x_1,x_2)\,.
+\end{align}
+%
+We first go to polar coordinated and define the change of variables $\mathbf{x}\to\mathbf{r}$ and its inverse as\footnote{In practice, we use the \textsc{TensorFlow} function \texttt{tf.math.atan2} which automatically respects the signs of the arguments. There also exist similiar functions in plain \textsc{Python} and \textsc{Numpy}, as well as in \texttt{C++}. }
+%
+\begin{align}
+    r&=\sqrt{x_1^2+x_2^2}\,, & \theta&=\arctan\frac{x_2}{x_1}\,,\notag\\
+    x_1&=r\cos\theta\,, & x_2&=r\sin\theta\,.
+\end{align}
+%
+Consequently, the Jacobian determinant is simply given by $\det J_1=r$. Thus, the integral reads in polar coordinates
+%
+\begin{align}
+I_1\int\limits_{0}^{\infty}\d r\,r \int\limits_{0}^{2\pi}\d \theta\,P_\text{ring}(x_1,x_2)\Big\vert_{\mathbf{x}=\mathbf{x}(\mathbf{r})}\,.
+\end{align}
+%
+Finally, we map out the peak-structure in the radial direction using again a Cauchy distribution and a simple linear transformation for the angle $\theta$. Hence, we define the mapping $\mathbf{r}\to\mathbf{z}$ and its inverse as
+%
+\begin{align}
+    z_1&=\frac{1}{\pi}\arctan\left(\frac{r-r_0}{\gamma_0}\right)+C_0\,, & z_2&=\frac{\theta}{2\pi}\,,\notag\\
+    r&=r_0+\gamma_0\tan\left[\pi\left(z_1-C_0\right)\right]\,, & \theta&=2\pi z_2\,,
+\end{align}
+%
+where the constant $C_0=\frac{1}{\pi}\arctan\left(\frac{r_0}{\gamma_0}\right)$ ensures that $r>0$. Thus the Jacobian determinant is given by
+%
+\begin{align}
+    \det J_2 = \left\vert\frac{\partial\mathbf{z}}{\partial\mathbf{r}}\right\vert
+    =\frac{1}{2\pi}\times\frac{1}{\pi\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}\,.
+\end{align}
+%
+Consequently, the integral reads
+\begin{align}
+I_2=N_0\int\limits_{0}^{1}\d z_1 \int\limits_{0}^{1}\d z_2\;\left.\frac{r\,\mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(r-r_0)^2\right)}{\frac{1}{2\pi^2\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}}\right\vert_{\mathbf{r}=\mathbf{r}(\mathbf{z})}\,.
+\end{align}
+%
 
 ## Training
 
