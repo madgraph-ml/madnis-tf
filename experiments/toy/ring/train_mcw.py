@@ -64,7 +64,7 @@ ALPHA = np.pi/4
 # Define truth distribution
 line_ring = TwoChannelLineRing(RADIUS, SIGMA0, [MEAN1, MEAN2], [SIGMA1, SIGMA2], ALPHA)
 
-# Define the channel mappings (would be sqrt(2), make wrong so that flow can learn sth)
+# Define the channel mappings
 GAMMA0 = np.sqrt(2.) * SIGMA0
 GAMMA1 = np.sqrt(2.) * SIGMA1
 GAMMA2 = np.sqrt(2.) * SIGMA2
