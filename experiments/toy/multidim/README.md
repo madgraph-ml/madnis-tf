@@ -4,7 +4,7 @@ In this example we consider a $n$-dimensional camel with $m$ modes, as given by
 
 $$
 f_{\text{multi}}(\vec{x})
-= \sum_{i=1}^m \frac{\omega_i}{\left(\sigma_i\sqrt{2\pi}\right)^{n}}\ \exp\left\{-\frac{1}{2}\frac{ (\vec{x}-\vec{\mu}_i)^2}{\sigma^2_i}\right\}.
+= \sum_{i=1}^m \frac{\omega_i}{\left(\sigma_i\sqrt{2\pi}\right)^{n}}\ \exp\left[-\frac{1}{2}\frac{ (\vec{x}-\vec{\mu}_i)^2}{\sigma^2_i}\right].
 $$
 
 
