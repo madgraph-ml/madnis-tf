@@ -26,14 +26,14 @@ $$
 We consider a `camel` function which is defined as
 
 $$
-f(x)= \frac{a_1}{\sqrt{2\pi\sigma_1^2}}\,\mathrm{exp}\left(-\frac{1}{2}\frac{(x-\mu_1)^2}{\sigma_1^2}\right) + \frac{a_2}{\sqrt{2\pi\sigma_2^2}}\,\mathrm{exp}\left(-\frac{1}{2}\frac{(x-\mu_2)^2}{\sigma_2^2}\right)
+f(x)= \frac{a_1}{\sqrt{2\pi\sigma_1^2}}\,\mathrm{exp}\left(-\frac{1}{2}\frac{(x-\mu_1)^2}{\sigma_1^2}\right) + \frac{a_2}{\sqrt{2\pi\sigma_2^2}}\,\mathrm{exp}\left(-\frac{1}{2}\frac{(x-\mu_2)^2}{\sigma_2^2}\right).
 $$
 
 For the analytic mapping we choose a cauchy distribution for each peak as given by
 
 $$
 g_i(x) = \frac{1}{\sqrt{\pi}}\frac{1}{\sqrt{2\pi\sigma_i^2}}\frac{2\sigma_i^2}{(x-\mu_i)^2+2\sigma^2_i}
-    \quad \text{with} \quad \left\vert\frac{\partial G_i(x)}{x}\right\vert=g_i(x)\,,
+    \quad \text{with} \quad \left\vert\frac{\partial G_i(x)}{x}\right\vert=g_i(x).
 $$
 
 The corresponding inverse mapping (quantile) is known and given as
