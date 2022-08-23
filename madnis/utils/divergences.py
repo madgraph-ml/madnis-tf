@@ -210,7 +210,7 @@ class Divergence:
         else:
             chi2 = tf.reduce_mean(
                 (q_test - tf.stop_gradient(p_true)) ** 2
-                / (tf.stop_gradient(p_true) * tf.stop_gradient(q_sample))),
+                / (tf.stop_gradient(p_true) * tf.stop_gradient(q_sample)),
                 axis=0,
             )
         return tf.reduce_sum(sigma * chi2)
