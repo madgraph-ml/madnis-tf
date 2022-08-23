@@ -61,7 +61,8 @@ python train_mcflow.py (--arg ARG)
 Commands for `map-mc-flow` (does not work yet!):
 
 ```python
-# train the flow simultanously with the multi-channel weights including anlytic mappings(optinally adding arguments, see --help)
+# train the flow simultanously with the multi-channel weights 
+# including analytic mappings (optinally adding arguments, see --help)
 python train_map_mcflow.py (--arg ARG)
 ```
 
