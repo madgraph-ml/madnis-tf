@@ -51,7 +51,7 @@ Commands for `flow`:
 python train_flow.py (--arg ARG)
 ```
 
-Commands for `mc-flow` (does not work yet!):
+Commands for `mc-flow`:
 
 ```python
 # train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
