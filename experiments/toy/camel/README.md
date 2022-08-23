@@ -39,15 +39,15 @@ $$
 The corresponding inverse mapping (quantile) is known and given as
 
 $$
-x=G^{-1}_i(z)=\sqrt{2}\sigma_i \\,\tan\\!\left(\pi (z-{\tfrac {1}{2}})\right)+\mu_i.
+x=G^{-1}_i(z)=\sqrt{2}\sigma_i \tan\left(\pi (z-{\tfrac {1}{2}})\right)+\mu_i.
 $$
 
 such that using the channel splitting $\sum_i \alpha_i(x)=1$, the total integral is given by
 
 $$
-I = \int\limits_{-\infty}^{\infty}\mathrm{d} x\\,f(x)
-  =\sum_i \int\limits_{-\infty}^{\infty}\mathrm{d} x\\,\alpha_i(x)\\,f(x)
-  =\sum_i \int\limits_{0}^{1}\mathrm{d} z\\,\left.\alpha_i(x)\\,\frac{f(x)}{g_i(x)}\right\vert_{x=G^{-1}_i(z)}.
+I = \int\limits_{-\infty}^{\infty}\mathrm{d} x\ f(x)
+  =\sum_i \int\limits_{-\infty}^{\infty}\mathrm{d} x\ \alpha_i(x)f(x)
+  =\sum_i \int\limits_{0}^{1}\mathrm{d} z\left.\alpha_i(x)\frac{f(x)}{g_i(x)}\right\vert_{x=G^{-1}_i(z)}.
 $$
 
 
