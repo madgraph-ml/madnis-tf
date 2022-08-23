@@ -1,11 +1,18 @@
 # 2-Dimensional Ring
 
 In this two-dimensional example we use a typical example
-for multi-channeling where standard `VEGAS` fails.
+for multi-channeling where standard `VEGAS` fails. In this example we train both, the multi-channel weights $\alpha_i(x,\theta)$ 
+as well as the conditional normalizing flow $H(x,\varphi\vert i)$ which yields the importance weight $h(x,\varphi\vert i)$. 
+In principle, we can combine this numeric importance weight with an additional weight $g_i(x)$ coming from an analytic phase-space mapping
+$G_i(x)$ to a total importance weight
+
+$$ q(x,\varphi\vert i) = h(x,\varphi\vert i)\cdot g_i(x).$$
 
 <div align="center">
 <img src="circle.png" width="400">
 </div>
+
+## Function and mapping
 
 We consider the overlap of a gaussian ring and a gaussian 'line' distribution, which is defined by:
 
@@ -28,8 +35,7 @@ where $N_0$ and $N_1$ are chosen such that each distribution is normalized indiv
 \tilde{x}_1=\frac{1}{\sqrt{2}}\left(x_1-x_2\right)\,,\qquad \tilde{x}_2=\frac{1}{\sqrt{2}}\left(x_1+x_2\right)\,.
 ```
 
-
-
+More details in the draft.
 
 ## Training
 
