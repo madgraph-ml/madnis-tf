@@ -1,3 +1,4 @@
+import os
 import tensorflow as tf
 import numpy as np
 import argparse
@@ -14,7 +15,9 @@ from madnis.mappings.cauchy import CauchyDistribution
 from madnis.models.multi_channel import MultiChannelWeight
 from madnis.models.mc_prior import WeightPrior
 
+# Use double precision
 tf.keras.backend.set_floatx("float64")
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 
 #########

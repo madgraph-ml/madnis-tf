@@ -102,7 +102,7 @@ class MultiChannelWeight:
         q_test = tf.concat(qs, axis=-1)
         
         logq = tf.concat(logqs, axis=-1)
-        logp = tf.math.log(p_true)
+        logp = tf.math.log(p_true + _EPSILON)
         
         # TODO: Understand why this where returns an error.
         # cond = tf.less(p_true, _EPSILON)
