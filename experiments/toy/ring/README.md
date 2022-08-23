@@ -4,7 +4,7 @@ In this two-dimensional example we use a typical example
 for multi-channeling where standard `VEGAS` fails.
 
 <div align="center">
-<img src="circle.png" width="300">
+<img src="circle.png" width="400">
 </div>
 
 We consider the overlap of a gaussian ring and a gaussian 'line' distribution, which is defined by:
@@ -16,7 +16,9 @@ P_\text{multi}=\frac{1}{2}P_\text{ring}+\frac{1}{2}P_\text{line}\,
 with
 
 ```math
-P_\text{ring}(x_1,x_2) = N_0\,\mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(\sqrt{x_1^2+x_2^2}-r_0)^2\right),\qquad
+P_\text{ring}(x_1,x_2) = N_0\,\mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(\sqrt{x_1^2+x_2^2}-r_0)^2\right),\qquad\qquad\qquad\quad
+```
+```math
 P_\text{line}(x_1,x_2) = N_1\,\mathrm{exp}\left(-\frac{1}{2\sigma_1^2}(\tilde{x}_1-\mu_1)^2\right)\mathrm{exp}\left(-\frac{1}{2\sigma_2^2}(\tilde{x}_2-\mu_2)^2\right),
 ```
 
