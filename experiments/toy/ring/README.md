@@ -122,43 +122,66 @@ N_0=\left[2\pi\left(\sigma_0^2\,e^{-\frac{r_0^2}{2\sigma_0^2}}+\sqrt{\frac{\pi}{
 $$
 
 The sub-integral is then given by
-%
-\begin{align}
-I_2=\int\limits_{-\infty}^{\infty}\d x_1 \int\limits_{-\infty}^{\infty}\d x_2\,P_\text{ring}(x_1,x_2)\,.
-\end{align}
-%
-We first go to polar coordinated and define the change of variables $\mathbf{x}\to\mathbf{r}$ and its inverse as\footnote{In practice, we use the \textsc{TensorFlow} function \texttt{tf.math.atan2} which automatically respects the signs of the arguments. There also exist similiar functions in plain \textsc{Python} and \textsc{Numpy}, as well as in \texttt{C++}. }
-%
-\begin{align}
-    r&=\sqrt{x_1^2+x_2^2}\,, & \theta&=\arctan\frac{x_2}{x_1}\,,\notag\\
-    x_1&=r\cos\theta\,, & x_2&=r\sin\theta\,.
-\end{align}
-%
-Consequently, the Jacobian determinant is simply given by $\det J_1=r$. Thus, the integral reads in polar coordinates
-%
-\begin{align}
-I_1\int\limits_{0}^{\infty}\d r\,r \int\limits_{0}^{2\pi}\d \theta\,P_\text{ring}(x_1,x_2)\Big\vert_{\mathbf{x}=\mathbf{x}(\mathbf{r})}\,.
-\end{align}
-%
-Finally, we map out the peak-structure in the radial direction using again a Cauchy distribution and a simple linear transformation for the angle $\theta$. Hence, we define the mapping $\mathbf{r}\to\mathbf{z}$ and its inverse as
-%
-\begin{align}
-    z_1&=\frac{1}{\pi}\arctan\left(\frac{r-r_0}{\gamma_0}\right)+C_0\,, & z_2&=\frac{\theta}{2\pi}\,,\notag\\
-    r&=r_0+\gamma_0\tan\left[\pi\left(z_1-C_0\right)\right]\,, & \theta&=2\pi z_2\,,
-\end{align}
-%
-where the constant $C_0=\frac{1}{\pi}\arctan\left(\frac{r_0}{\gamma_0}\right)$ ensures that $r>0$. Thus the Jacobian determinant is given by
-%
-\begin{align}
-    \det J_2 = \left\vert\frac{\partial\mathbf{z}}{\partial\mathbf{r}}\right\vert
-    =\frac{1}{2\pi}\times\frac{1}{\pi\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}\,.
-\end{align}
-%
+
+$$
+I_2=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{ring}(x_1,x_2)\,.
+$$
+
+We first go to polar coordinates and define the change of variables 
+
+$$\mathbf{x}\to\mathbf{r}$$
+
+and its inverse as
+
+$$
+r=\sqrt{x_1^2+x_2^2}, \quad \theta=\arctan\frac{x_2}{x_1},
+$$
+
+$$
+x_1=r\cos\theta, \qquad x_2=r\sin\theta.\quad\quad
+$$
+
+Consequently, the Jacobian determinant is simply given by 
+
+$$\det J_1=r.$$ 
+
+Thus, the integral reads in polar coordinates
+
+$$
+I_1\int\limits_{0}^{\infty}\mathrm{d} r\ r \int\limits_{0}^{2\pi}\mathrm{d} \theta\ P_\text{ring}(x_1,x_2)\Big\vert_{\mathbf{x}=\mathbf{x}(\mathbf{r})}\,.
+$$
+
+Finally, we map out the peak-structure in the radial direction using again a Cauchy distribution and a simple linear transformation for the angle $\theta$. Hence, we define the mapping 
+
+$$\mathbf{r}\to\mathbf{z}$$ 
+
+and its inverse as
+
+$$
+z_1=\frac{1}{\pi}\arctan\left(\frac{r-r_0}{\gamma_0}\right)+C_0, \quad z_2=\frac{\theta}{2\pi},
+$$
+
+$$
+r=r_0+\gamma_0\tan\left[\pi\left(z_1-C_0\right)\right], \quad \theta=2\pi z_2,
+$$
+
+where the constant 
+
+$$C_0=\frac{1}{\pi}\arctan\left(\frac{r_0}{\gamma_0}\right)$$
+
+ensures that $r>0$. Thus the Jacobian determinant is given by
+
+$$
+\det J_2 = \left\vert\frac{\partial\mathbf{z}}{\partial\mathbf{r}}\right\vert
+=\frac{1}{2\pi}\times\frac{1}{\pi\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}.
+$$
+
 Consequently, the integral reads
-\begin{align}
-I_2=N_0\int\limits_{0}^{1}\d z_1 \int\limits_{0}^{1}\d z_2\;\left.\frac{r\,\mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(r-r_0)^2\right)}{\frac{1}{2\pi^2\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}}\right\vert_{\mathbf{r}=\mathbf{r}(\mathbf{z})}\,.
-\end{align}
-%
+
+$$
+I_2=N_0\int\limits_{0}^{1}\mathrm{d} z_1 \int\limits_{0}^{1}\mathrm{d} z_2\left.\frac{r\ \mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(r-r_0)^2\right)}{\frac{1}{2\pi^2\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}}\right\vert_{\mathbf{r}=\mathbf{r}(\mathbf{z})}.
+$$
+
 
 ## Training
 
