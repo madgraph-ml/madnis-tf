@@ -131,8 +131,12 @@ class MultiChannelIntegrator:
                 else:
                     alphas = self.mcw_model(yi)
             else:
-                alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-
+                if weight_prior is not None:
+                    alphas = weight_prior(yi)
+                    assert alphas.shape[1] == self.n_channels
+                else:
+                    alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+    
             # Get true integrand
             pi = alphas[:, i] * tf.abs(self._func(yi))
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
@@ -168,8 +172,7 @@ class MultiChannelIntegrator:
             # Check for analytic remappings
             if self.use_analytic_mappings:
                 yi, _ = self.mappings[i].inverse(sample)
-                loggi = self.mappings[i].log_prob(yi)
-                logqi += loggi
+                logqi += self.mappings[i].log_det(yi)
             else:
                 yi = sample
             
@@ -189,7 +192,11 @@ class MultiChannelIntegrator:
                 else:
                     alphas = self.mcw_model(yi)
             else:
-                alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                if weight_prior is not None:
+                    alphas = weight_prior(yi)
+                    assert alphas.shape[1] == self.n_channels
+                else:
+                    alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
 
             # Get true integrand
             pi = alphas[:, i] * self._func(yi)

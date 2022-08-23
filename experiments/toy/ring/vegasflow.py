@@ -40,7 +40,7 @@ class VegasFlow(Flow):
                 AllInOneBlock(
                     self.dims_in,
                     dims_c=self.dims_c,
-                    clamp=0.2,
+                    clamp=0.5,
                     permute_soft=True,
                     subnet_meta=subnet_meta,
                     subnet_constructor=subnet_constructor,

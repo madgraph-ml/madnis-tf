@@ -104,15 +104,15 @@ META = {
 }
 
 if PRIOR:
-    mcw_model = residual_mcw_model(
+    mcw_net = residual_mcw_model(
         dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META
     )
     PREFIX = "trunc_residual"
 else:
-    mcw_model = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META)
+    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META)
     PREFIX = "trunc_scratch"
 
-#mcw_model.summary()
+#mcw_net.summary()
 
 ################################
 # Define the prior
@@ -154,7 +154,7 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelWeight(
-    camel, mcw_model, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
+    camel, mcw_net, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
 
 ################################
 # Pre train - plot alphas
@@ -163,9 +163,9 @@ integrator = MultiChannelWeight(
 p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
 if PRIOR:
     res = madgraph_prior(p)
-    alphas = mcw_model([p, res])
+    alphas = mcw_net([p, res])
 else:
-    alphas = mcw_model(p)
+    alphas = mcw_net(p)
 truth = camel.prob(p)
 m1 = map_1.prob(p)
 m2 = map_2.prob(p)
@@ -226,9 +226,9 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
 if PRIOR:
     res = madgraph_prior(p)
-    alphas = mcw_model([p, res])
+    alphas = mcw_net([p, res])
 else:
-    alphas = mcw_model(p)
+    alphas = mcw_net(p)
 truth = camel.prob(p)
 m1 = map_1.prob(p)
 m2 = map_2.prob(p)

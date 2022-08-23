@@ -3,15 +3,17 @@ import tensorflow as tf
 import numpy as np
 import argparse
 import time
+import sys
 
 from mcw import mcw_model, residual_mcw_model
 from utils import integrate, error
 
 from madnis.distributions.gaussians_2d import TwoChannelLineRing
 from madnis.mappings.cauchy_2d import CauchyRingMap, CauchyLineMap
-from madnis.models.multi_channel import MultiChannelWeight
+from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
-import sys
+from madnis.nn.nets.mlp import MLP
+from vegasflow import VegasFlow
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
@@ -30,16 +32,21 @@ parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
 parser.add_argument("--use_prior_weights", action='store_true')
-parser.add_argument("--units", type=int, default=32)
-parser.add_argument("--layers", type=int, default=3)
+parser.add_argument("--units", type=int, default=16)
+parser.add_argument("--layers", type=int, default=2)
+parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
 
+# mcw model params
+parser.add_argument("--mcw_units", type=int, default=16)
+parser.add_argument("--mcw_layers", type=int, default=2)
+
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=512)
-parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--batch_size", type=int, default=1024)
+parser.add_argument("--lr", type=float, default=5e-4)
 
 args = parser.parse_args()
 
@@ -63,7 +70,7 @@ ALPHA = np.pi/4
 # Define truth distribution
 line_ring = TwoChannelLineRing(RADIUS, SIGMA0, [MEAN1, MEAN2], [SIGMA1, SIGMA2], ALPHA)
 
-# Define the channel mappings
+# Define the channel mappings (would be sqrt(2), make wrong so that flow can learn sth)
 GAMMA0 = np.sqrt(2.) * SIGMA0
 GAMMA1 = np.sqrt(2.) * SIGMA1
 GAMMA2 = np.sqrt(2.) * SIGMA2
@@ -96,35 +103,56 @@ print("-----------------------------------------------------------\n")
 
 
 ################################
-# Define the network
+# Define the flow network
 ################################
 
 N_CHANNELS = 2  # number of Mappings
 PRIOR = args.use_prior_weights
 
-META = {
+FLOW_META = {
     "units": args.units,
     "layers": args.layers,
     "initializer": args.initializer,
     "activation": args.activation,
 }
 
+N_BLOCKS = args.blocks
+
+flow = VegasFlow(
+    [DIMS_IN],
+    dims_c=[[N_CHANNELS]],
+    n_blocks=N_BLOCKS,
+    subnet_meta=FLOW_META,
+    subnet_constructor=MLP,
+    hypercube_target=True,
+)
+
+################################
+# Define the mcw network
+################################
+
+MCW_META = {
+    "units": args.mcw_units,
+    "layers": args.mcw_layers,
+    "initializer": args.initializer,
+    "activation": args.activation,
+}
+
 if PRIOR:
     mcw_net = residual_mcw_model(
-        dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META
+        dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META
     )
-    PREFIX = "residual"
 else:
-    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META)
-    PREFIX = "scratch"
-    
+    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+
+
 ################################
 # Define the prior
 ################################
 
 if PRIOR:
     # Define prior weight 
-    prior = WeightPrior([map_1,map_1], N_CHANNELS)
+    prior = WeightPrior([map_1,map_2], N_CHANNELS)
     madgraph_prior = prior.get_prior_weights
 else:
     madgraph_prior = None
@@ -139,7 +167,7 @@ BATCH_SIZE = args.batch_size
 LR = args.lr
 if PRIOR:
     LR /= 5
-    EPOCHS /=2
+    EPOCHS //=2
 LOSS = args.loss
 
 # Number of samples
@@ -152,10 +180,12 @@ DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-opt = tf.keras.optimizers.Adam(lr_schedule)
 
-integrator = MultiChannelWeight(
-    line_ring, mcw_net, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
+opt1 = tf.keras.optimizers.Adam(lr_schedule)
+opt2 = tf.keras.optimizers.Adam(lr_schedule)
+
+integrator = MultiChannelIntegrator(
+    line_ring, flow, [opt1, opt2], mcw_model=mcw_net, mappings=[map_1, map_2], use_weight_init=PRIOR, n_channels=N_CHANNELS, loss_func=LOSS)
 
 ################################
 # Pre train - integration
@@ -169,11 +199,12 @@ print("--------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
 
+# TODO: Find out why the integral is completely off?! 
+sys.exit()
 
 ################################
 # Train the network
 ################################
-
 
 train_losses = []
 start_time = time.time()
@@ -192,14 +223,13 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
-
 
 ################################
 # After train - integration
