@@ -36,15 +36,8 @@ class StandardNormal(Distribution):
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            return tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = tf.random.normal(
-                condition_size * num_samples, *self._shape, dtype=self._dtype
-            )
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        return tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
 
 
 class Normal(Distribution):
@@ -106,17 +99,9 @@ class Normal(Distribution):
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
-            return tf.math.exp(self.log_std) * eps + self.mean
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            eps = tf.random.normal(
-                condition_size * num_samples, *self._shape, dtype=self._dtype
-            )
-            samples = tf.math.exp(self.log_std) * eps + self.mean
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
+        return tf.math.exp(self.log_std) * eps + self.mean
 
 
 class DiagonalNormal(Distribution):
@@ -159,17 +144,9 @@ class DiagonalNormal(Distribution):
         return tfutils.sum_except_batch(log_inner + log_norm, num_batch_dims=1)
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
-            return tf.math.exp(self.log_std) * eps + self.mean
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            eps = tf.random.normal(
-                condition_size * num_samples, *self._shape, dtype=self._dtype
-            )
-            samples = tf.math.exp(self.log_std) * eps + self.mean
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
+        return tf.math.exp(self.log_std) * eps + self.mean
 
 
 class ConditionalMeanNormal(Distribution):
@@ -232,16 +209,11 @@ class ConditionalMeanNormal(Distribution):
             # compute parameters
             mean = self._compute_mean(condition)
             log_std = self.log_std * tf.ones_like(mean)
-            mean = tfutils.repeat_rows(mean, num_samples)
-            log_std = tfutils.repeat_rows(log_std, num_samples)
 
             # generate samples
-            condition_size = condition.shape[0]
-            eps = tf.random.normal(
-                condition_size * num_samples, *self._shape, dtype=mean.dtype
+            eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype
             )
-            samples = tf.math.exp(log_std) * eps + mean
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+            return tf.math.exp(log_std) * eps + mean
 
 
 class ConditionalDiagonalNormal(Distribution):
@@ -302,13 +274,8 @@ class ConditionalDiagonalNormal(Distribution):
         else:
             # compute parameters
             mean, log_std = self._compute_params(condition)
-            mean = tfutils.repeat_rows(mean, num_samples)
-            log_std = tfutils.repeat_rows(log_std, num_samples)
 
             # generate samples
-            condition_size = condition.shape[0]
-            eps = tf.random.normal.randn(
-                condition_size * num_samples, *self._shape, dtype=self.dtype
+            eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype
             )
-            samples = tf.math.exp(log_std) * eps + mean
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+            return tf.math.exp(log_std) * eps + mean

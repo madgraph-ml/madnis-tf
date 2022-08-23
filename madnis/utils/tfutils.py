@@ -71,7 +71,7 @@ def mean_except_batch(x, num_batch_dims=1):
 
 def split_leading_dim(x, shape):
     """Reshapes the leading dim of `x` to have the given shape."""
-    new_shape = tf.TensorShape(shape) + x.shape[1:]
+    new_shape = shape + list(x.shape[1:])
     return tf.reshape(x, new_shape)
 
 

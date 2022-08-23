@@ -7,6 +7,7 @@ from typing import List, Union, Callable
 
 from ..utils.divergences import Divergence
 from ..mappings.flow import Flow
+from ..mappings.base import Mapping
 from ..distributions.base import Distribution
 
 _EPSILON = 1e-16
@@ -21,8 +22,9 @@ class MultiChannelIntegrator:
         self,
         func: Union[Callable, Distribution],
         flow: Flow,
-        mcw_model: tf.keras.Model,
         optimizer: List[tf.keras.optimizers.Optimizer],
+        mcw_model: tf.keras.Model = None,
+        mappings: List[Mapping] = None,
         use_weight_init: bool = True,
         n_channels: int = 2,
         loss_func: str = "chi2",
@@ -34,11 +36,13 @@ class MultiChannelIntegrator:
                 Function to be integrated
             flow (Flow):
                 Trainable flow model to match the function
-            mcw_model (tf.keras.Model):
-                Model which learns the multi-channel weights
             optimizer (List[tf.keras.optimizers.Optimizer]):
                 A list of optimizers for each of the two models
-            n_channels (int): number of channels. Defaults to 2.
+            mcw_model (tf.keras.Model, optional):
+                Model which learns the multi-channel weights. Defaults to None.
+            mappings (List(Mapping), optional): A list of analytic mappings applied
+                to each channel of integration. Defaults to None.
+            n_channels (int, optional): number of channels. Defaults to 2.
             loss_func (str, optional):
                 The loss function to be minimized. Defaults to "chi2".
             kwargs: Additional arguments that need to be passed to the loss
@@ -47,16 +51,37 @@ class MultiChannelIntegrator:
 
         self._func = func
         self.flow = flow
+        
+        # Define mcw model if given
         self.mcw_model = mcw_model
-        self.flow_optimizer = optimizer[0]
-        self.mcw_optimizer = optimizer[1]
-
+        if self.mcw_model is None:
+            self.train_mcw = False
+        else:
+            self.train_mcw = True
+        
+        # Define optimizers
+        if len(optimizer) > 1:
+            assert self.mcw_model is not None
+            self.flow_optimizer = optimizer[0]
+            self.mcw_optimizer = optimizer[1]
+        else:
+            self.flow_optimizer = optimizer[0]
+            self.mcw_optimizer = None
+            
         self.use_weight_init = use_weight_init
         
         if n_channels > 1:
             self.n_channels = n_channels
         else:
             raise ValueError(f"More than 1 channel expected. Use Integrator instead.")
+        
+        # Check and define analytic mappings
+        self.mappings = mappings
+        if self.mappings is not None:
+            assert n_channels == len(self.mappings)
+            self.use_analytic_mappings = True
+        else:
+            self.use_analytic_mappings = False
 
         # Define the loss functions
         self.flow_divergence = Divergence(**kwargs)
@@ -74,32 +99,46 @@ class MultiChannelIntegrator:
         return c_cond
     
     @tf.function
-    def _get_probs(self, nsamples: int, one_hot_channels: tf.Tensor):
+    def _get_probs(self, samples: List[tf.Tensor], one_hot_channels: tf.Tensor, weight_prior: Callable = None):
         ps = []
         qs = []
         logqs = []
         means = []
         vars = []
+        nsamples = samples[0].shape[0]
 
         for i in range(self.n_channels):
-            one_hot_channel_i = one_hot_channels[:, :, i]
-
-            # Channel dependent flow sampling
-            samples = self.flow.sample(nsamples, condition=one_hot_channel_i)
-            qi = self.flow.prob(samples, condition=one_hot_channel_i)
-            logqi = self.flow.log_prob(samples, condition=one_hot_channel_i)
-            qs.append(qi[..., None])
+            # Channel dependent flow mapping
+            logqi = self.flow.log_prob(samples[i], condition=one_hot_channels[:, :, i])
+            
+            # Check for analytic remappings
+            if self.use_analytic_mappings:
+                yi, _ = self.mappings[i].inverse(samples[i])
+                logqi += self.mappings[i].log_prob(yi)
+            else:
+                yi = samples[i]
+            
+            # Define test probs
             logqs.append(logqi[..., None])
+            qi = tf.math.exp(logqi)
+            qs.append(qi[..., None])
 
             # Get multi-channel weights
-            if self.use_weight_init:
-                init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                alphas = self.mcw_model([samples, init_weights])
+            if self.train_mcw:
+                if self.use_weight_init:
+                    if weight_prior is not None:
+                        init_weights = weight_prior(yi)
+                        assert init_weights.shape[1] == self.n_channels
+                    else:
+                        init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                    alphas = self.mcw_model([yi, init_weights])
+                else:
+                    alphas = self.mcw_model(yi)
             else:
-                alphas = self.mcw_model(samples)
+                alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
 
             # Get true integrand
-            pi = alphas[:, i] * tf.abs(self._func(samples))
+            pi = alphas[:, i] * tf.abs(self._func(yi))
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
             pi = pi / meani
             ps.append(pi[..., None])
@@ -110,18 +149,69 @@ class MultiChannelIntegrator:
         q_test = tf.concat(qs, axis=-1)
         logq = tf.concat(logqs, axis=-1)
         p_true = tf.concat(ps, axis=-1)
-        logp = tf.where(
-            p_true > _EPSILON, tf.math.log(p_true), tf.math.log(p_true + _EPSILON)
-        )
+        logp = tf.math.log(p_true + _EPSILON)
+        
+        # TODO: Understand why this where returns an error.
+        # cond = tf.less(p_true, _EPSILON)
+        # logp = tf.where(
+        #     cond, tf.math.log(p_true), tf.math.log(p_true + _EPSILON)
+        # )
         
         return p_true, q_test, logp, logq, sum(means), sum(vars)
+    
+    @tf.function
+    def _get_integrand(self, nsamples: int, one_hot_channels: tf.Tensor, weight_prior: Callable = None):
+        ps = []
+        qs = []
+        
+        for i in range(self.n_channels):
+            # Channel dependent flow sampling
+            sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
+            logqi = self.flow.log_prob(sample, condition=one_hot_channels[:, :, i])
+            
+            # Check for analytic remappings
+            if self.use_analytic_mappings:
+                yi, _ = self.mappings[i].inverse(sample)
+                loggi = self.mappings[i].log_prob(yi)
+                logqi += loggi
+            else:
+                yi = sample
+            
+            # Define test probs
+            qi = tf.math.exp(logqi)
+            qs.append(qi[..., None])
+
+            # Get multi-channel weights
+            if self.train_mcw:
+                if self.use_weight_init:
+                    if weight_prior is not None:
+                        init_weights = weight_prior(yi)
+                        assert init_weights.shape[1] == self.n_channels
+                    else:
+                        init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                    alphas = self.mcw_model([yi, init_weights])
+                else:
+                    alphas = self.mcw_model(yi)
+            else:
+                alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+
+            # Get true integrand
+            pi = alphas[:, i] * self._func(yi)
+            ps.append(pi[..., None])
+
+        # Get concatenated stuff all in shape (nsamples, n_channels)
+        p_true = tf.concat(ps, axis=-1)
+        q_test = tf.concat(qs, axis=-1)
+        
+        return p_true/q_test
 
     @tf.function
-    def train_one_step(self, nsamples: int, integral: bool = False):
+    def train_one_step(self, nsamples: int, weight_prior: Callable = None, integral: bool = False):
         """Perform one step of integration and improve the sampling.
 
         Args:
             nsamples (int): Number of samples to be taken in a training step
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
             integral (bool, optional): return the integral value. Defaults to False.
 
         Returns:
@@ -136,26 +226,35 @@ class MultiChannelIntegrator:
         Returns:
             _type_: _description_
         """
+        # Get the one-hot encoded channels
         one_hot_channels = self._get_channel_condition(nsamples)
         loss = 0
         
+        # Get the samples outside of gradientape!
+        samples = []
+        for i in range(self.n_channels):
+            # Channel dependent flow sampling
+            sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
+            samples.append(sample)
+        
         # Optimize the Flow
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(nsamples, one_hot_channels)
+            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, one_hot_channels, weight_prior)
             flow_loss = self.flow_loss_func(p_true, q_test, logp, logq)
 
         grads = tape.gradient(flow_loss, self.flow.trainable_weights)
         self.flow_optimizer.apply_gradients(zip(grads, self.flow.trainable_weights))
         loss += flow_loss
         
-        # Optimize the channel weight
-        with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(nsamples, one_hot_channels)
-            mcw_loss = self.mcw_loss_func(p_true, q_test, logp, logq)
+        if self.train_mcw:
+            # Optimize the channel weight
+            with tf.GradientTape() as tape:
+                p_true, q_test, logp, logq, mean, var = self._get_probs(samples, one_hot_channels)
+                mcw_loss = self.mcw_loss_func(p_true, q_test, logp, logq)
 
-        grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
-        self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
-        loss = 0.5 * (loss + mcw_loss)
+            grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
+            self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
+            loss += mcw_loss
 
         if integral:
             return loss, mean, tf.sqrt(var / (nsamples - 1.0))
@@ -163,20 +262,7 @@ class MultiChannelIntegrator:
         return loss
 
     @tf.function
-    def sample(self, nsamples: int):
-        """Sample from the trained distribution.
-
-        Args:
-            nsamples (int): Number of points to be sampled.
-
-        Returns:
-            tf.tensor of size (nsamples, ndim) of sampled points.
-
-        """
-        return self.flow.sample(nsamples)
-
-    @tf.function
-    def integrate(self, nsamples: int):
+    def integrate(self, nsamples: int, weight_prior: Callable = None):
         """Integrate the function with trained distribution.
 
         This method estimates the value of the integral based on
@@ -188,19 +274,20 @@ class MultiChannelIntegrator:
 
         Args:
             nsamples (int): Number of points on which the estimate is based on.
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
 
         Returns:
             tuple of 2 tf.tensors: mean and mc error
 
         """
-        samples = self.flow.sample(nsamples)
-        q_test = self.flow.prob(samples)
-        true = self._func(samples)
-        mean, var = tf.nn.moments(true / q_test, axes=[0])
+        one_hot_channels = self._get_channel_condition(nsamples)
+        integrands = self._get_integrand(nsamples, one_hot_channels, weight_prior)
+        means, vars = tf.nn.moments(integrands, axes=[0])
+        mean, var = tf.reduce_sum(means), tf.reduce_sum(vars)
         return mean, tf.sqrt(var / (nsamples - 1.0))
 
     @tf.function
-    def sample_weights(self, nsamples: int, yield_samples: bool = False):
+    def sample_weights(self, nsamples: int, yield_samples: bool = False, weight_prior: Callable = None):
         """Sample from the trained distribution and return their weights.
 
         This method samples 'nsamples' points from the trained distribution
@@ -219,15 +306,49 @@ class MultiChannelIntegrator:
             (samples: tf.tensor of size (nsamples, ndims) of sampled points)
 
         """
-        samples = self.flow.sample(nsamples)
-        test = self.flow.prob(samples)
-        true = self._func(samples)
-        weight = true / test
+        one_hot_channels = self._get_channel_condition(nsamples)
+        weights = []
+        samples = []
+        
+        for i in range(self.n_channels):
+            # Channel dependent flow sampling
+            sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
+            logqi = self.flow.log_prob(sample, condition=one_hot_channels[:, :, i])
+            
+            # Check for analytic remappings
+            if self.use_analytic_mappings:
+                yi = self.mappings[i].inverse(sample)
+                logqi += self.mappings[i].log_prob(yi)
+            else:
+                yi = sample
+                
+            # Define test probs
+            qi = tf.math.exp(logqi)
+
+            # Get multi-channel weights
+            if self.use_weight_init:
+                if weight_prior is not None:
+                    init_weights = weight_prior(yi)
+                    assert init_weights.shape[1] == self.n_channels
+                else:
+                    init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                alphas = self.mcw_model([yi, init_weights])
+            else:
+                alphas = self.mcw_model(yi)
+
+            # Get true integrand
+            fi = alphas[:, i] * self._func(yi)
+            weighti = fi / qi
+            samples.append(yi)
+            weights.append(weighti[...,None])
+            
+        weight = tf.concat(weights, axis=0)
+        sample = tf.concat(samples, axis=0)
 
         if yield_samples:
-            return weight[..., None], samples
+            return weight, sample 
 
-        return weight[..., None]
+        return sample
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
         """Calculate the acceptance, i.e. the unweighting
@@ -257,10 +378,14 @@ class MultiChannelIntegrator:
         return s_acc
 
     def save_weights(self, path: str):
-        """Save the network."""
-        self.flow.save_weights(path)
+        """Save the networks."""
+        self.flow.save_weights(path + 'flow')
+        if self.train_mcw:
+            self.mcw_model.save_weights(path + 'mcw')
 
     def load_weights(self, path: str):
-        """Load the network."""
-        self.flow.load_weights(path)
-        print("Model loaded successfully")
+        """Load the networks."""
+        self.flow.load_weights(path + 'flow')
+        if self.train_mcw:
+            self.mcw_model.load_weight(path + 'mcw')
+        print("Models loaded successfully")

@@ -63,34 +63,34 @@ class MultiChannelWeight:
         self.loss_func = self.divergence(loss_func)
     
     @tf.function
-    def _get_probs(self, nsamples: int, weight_prior: Callable = None):
+    def _get_probs(self, samples: List[tf.Tensor], weight_prior: Callable = None):
         ps = []
         qs = []
         logqs = []
         means = []
         vars = []
+        nsamples = samples[0].shape[0]
 
         for i in range(self.n_channels):
-            # Channel dependent flow sampling
-            samples = self.mappings[i].sample(nsamples)
-            qi = self.mappings[i].prob(samples)
-            logqi = self.mappings[i].log_prob(samples)
+            # Channel dependent mapping
+            logqi = self.mappings[i].log_prob(samples[i])
+            qi = tf.math.exp(logqi)
             qs.append(qi[..., None])
             logqs.append(logqi[..., None])
 
             # Get multi-channel weights
             if self.use_weight_init:
                 if weight_prior is not None:
-                    init_weights = weight_prior(samples)
+                    init_weights = weight_prior(samples[i])
                     assert init_weights.shape[1] == self.n_channels
                 else:
                     init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                alphas = self.mcw_model([samples, init_weights])
+                alphas = self.mcw_model([samples[i], init_weights])
             else:
-                alphas = self.mcw_model(samples)
+                alphas = self.mcw_model(samples[i])
 
             # Get true integrand
-            pi = alphas[:, i] * tf.abs(self._func(samples))
+            pi = alphas[:, i] * tf.abs(self._func(samples[i]))
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
             pi = pi / meani
             ps.append(pi[..., None])
@@ -116,8 +116,9 @@ class MultiChannelWeight:
     def _get_integrand(self, nsamples: int, weight_prior: Callable = None):
         ps = []
         qs = []
+        
         for i in range(self.n_channels):
-            # Channel dependent flow sampling
+            # Channel dependent sampling
             samples = self.mappings[i].sample(nsamples)
             qi = self.mappings[i].prob(samples)
             qs.append(qi[..., None])
@@ -165,9 +166,16 @@ class MultiChannelWeight:
             _type_: _description_
         """
         
-        # Optimize the channel weight
+        # Get the samples (outside of gradientape! More important for flows)
+        samples = []
+        for i in range(self.n_channels):
+            # Channel dependent flow sampling
+            sample = self.mappings[i].sample(nsamples)
+            samples.append(sample)
+            
+        # Optimize the channel weight 
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(nsamples, weight_prior)
+            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, weight_prior)
             loss = self.loss_func(p_true, q_test, logp, logq)
 
         grads = tape.gradient(loss, self.mcw_model.trainable_weights)

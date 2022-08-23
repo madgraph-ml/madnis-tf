@@ -54,7 +54,7 @@ $$
 The sub-integral then reads in Cartesian coordinates
 
 $$
-I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{line}(x_1,x_2)\.
+I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{line}(x_1,x_2).
 $$
 
 We first perform a change of variables 
@@ -195,22 +195,15 @@ python train_mcw.py (--arg ARG)
 Commands for `flow`:
 
 ```python
-# train the flow only with fixed weights (optinally adding arguments, see --help)
+# train the flow only with fixed weights including analytic remappings (optinally adding arguments, see --help)
 python train_flow.py (--arg ARG)
 ```
 
-Commands for `mc-flow`:
+Commands for `mc-flow` (does not work yet!):
 
 ```python
-# train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
+# train the flow simultanously with the multi-channel weights including analytic remappings (optinally adding arguments, see --help)
 python train_mcflow.py (--arg ARG)
-```
-
-Commands for `mc-map-flow`:
-
-```python
-# train the flow simultanously with the multi-channel weights and additional analytic remappings (optinally adding arguments, see --help)
-python train_mcmapflow.py (--arg ARG)
 ```
    
    

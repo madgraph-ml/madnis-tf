@@ -41,12 +41,5 @@ class StandardUniform(Distribution):
         return tf.math.log(lb * ub)
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            return tf.random.uniform((num_samples, *self._shape), dtype=self._dtype)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = tf.random.uniform(
-                condition_size * num_samples, *self._shape, dtype=self._dtype
-            )
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        return tf.random.uniform((num_samples, *self._shape), dtype=self._dtype)

@@ -81,12 +81,6 @@ class GaussianMap(Mapping):
             return log_det_fn
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
-            return tf.math.exp(self.log_std) * eps + self.mean
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            eps = tf.random.normal(condition_size * num_samples, *self._shape, dtype=self._dtype)
-            samples = tf.math.exp(self.log_std) * eps + self.mean
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        eps = tf.random.normal((num_samples, *self._shape), dtype=self._dtype)
+        return tf.math.exp(self.log_std) * eps + self.mean
