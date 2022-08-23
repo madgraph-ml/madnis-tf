@@ -38,14 +38,14 @@ class Flow(Mapping):
             self.embedding_net = lambda x: x
 
     def _forward(self, x: tf.Tensor, condition: tf.Tensor = None):
-        log_det = tf.zeros(x.shape[0], dtype=self._dtype)
+        log_det = 0
         for transform in self.transforms:
             x, ljd = transform(x, c=[condition])
             log_det += ljd
         return x, log_det
 
     def _inverse(self, z: tf.Tensor, condition: tf.Tensor = None):
-        log_det = tf.zeros(z.shape[0], dtype=self._dtype)
+        log_det = 0
         for transform in reversed(self.transforms):
             z, ljd = transform.inverse(z, c=[condition])
             log_det += ljd
