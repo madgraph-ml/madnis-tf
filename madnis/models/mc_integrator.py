@@ -69,11 +69,7 @@ class MultiChannelIntegrator:
             self.mcw_optimizer = None
             
         self.use_weight_init = use_weight_init
-        
-        if n_channels > 1:
-            self.n_channels = n_channels
-        else:
-            raise ValueError(f"More than 1 channel expected. Use Integrator instead.")
+        self.n_channels = n_channels
         
         # Check and define analytic mappings
         self.mappings = mappings

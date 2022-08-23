@@ -195,15 +195,22 @@ python train_mcw.py (--arg ARG)
 Commands for `flow`:
 
 ```python
-# train the flow only with fixed weights including analytic remappings (optinally adding arguments, see --help)
+# train the flow only with fixed weights (optinally adding arguments, see --help)
 python train_flow.py (--arg ARG)
 ```
 
 Commands for `mc-flow` (does not work yet!):
 
 ```python
-# train the flow simultanously with the multi-channel weights including analytic remappings (optinally adding arguments, see --help)
+# train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
 python train_mcflow.py (--arg ARG)
+```
+
+Commands for `map-mc-flow` (does not work yet!):
+
+```python
+# train the flow simultanously with the multi-channel weights including anlytic mappings(optinally adding arguments, see --help)
+python train_map_mcflow.py (--arg ARG)
 ```
    
    
