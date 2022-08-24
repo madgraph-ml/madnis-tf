@@ -93,31 +93,64 @@ class MultiChannelIntegrator:
         # creates shape (b, nc, nc) with b unit-matrices (nc x nc)
         c_cond = tf.linalg.diag(cond)
         return c_cond
-    
+
     @tf.function
-    def _get_probs(self, samples: List[tf.Tensor], one_hot_channels: tf.Tensor, weight_prior: Callable = None):
+    def _get_samples(self, nsamples: int, one_hot_channels: tf.Tensor):
+        ys = []
+        fs = []
+        qs = []
+
+        for i in range(self.n_channels):
+            # Channel dependent flow sampling
+            xi, logqi = self.flow.sample_and_log_prob(
+                nsamples, condition=one_hot_channels[:, :, i]
+            )
+
+            # Check for analytic remappings
+            if self.use_analytic_mappings:
+                yi, _ = self.mappings[i].inverse(xi)
+                logqi += self.mappings[i].log_prob(yi)
+            else:
+                yi = xi
+
+            ys.append(yi)
+            qs.append(tf.math.exp(logqi))
+            fs.append(self._func(yi))
+
+        # Get concatenated stuff all in shape (nsamples, n_channels)
+        return (
+            tf.stack(ys, axis=-1),
+            tf.stack(qs, axis=-1),
+            tf.stack(fs, axis=-1)
+        )
+
+    @tf.function
+    def _get_probs(
+        self, samples: tf.Tensor, func_vals: tf.Tensor,
+        one_hot_channels: tf.Tensor, weight_prior: Callable = None
+    ):
         ps = []
         qs = []
         logqs = []
         means = []
         vars = []
-        nsamples = samples[0].shape[0]
 
         for i in range(self.n_channels):
-            # Channel dependent flow mapping
-            logqi = self.flow.log_prob(samples[i], condition=one_hot_channels[:, :, i])
-            
-            # Check for analytic remappings
+            yi = samples[:, :, i]
+
+            # Flow density estimation
             if self.use_analytic_mappings:
-                yi, _ = self.mappings[i].inverse(samples[i])
-                logqi += self.mappings[i].log_prob(yi)
+                xi, _ = self.mappings[i](yi)
+                remap_jac = self.mappings[i].log_prob(yi)
             else:
-                yi = samples[i]
-            
-            # Define test probs
-            logqs.append(logqi[..., None])
+                xi = yi
+                remap_jac = 0
+            logqi = self.flow.log_prob(xi, condition=one_hot_channels[:, :, i])
+            logqi += remap_jac
+
             qi = tf.math.exp(logqi)
-            qs.append(qi[..., None])
+            logqs.append(logqi)
+            qs.append(qi)
 
             # Get multi-channel weights
             if self.train_mcw:
@@ -126,7 +159,8 @@ class MultiChannelIntegrator:
                         init_weights = weight_prior(yi)
                         assert init_weights.shape[1] == self.n_channels
                     else:
-                        init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                        init_weights = (1 / self.n_channels
+                                * tf.ones((nsamples, self.n_channels), dtype=self._dtype))
                     alphas = self.mcw_model([yi, init_weights])
                 else:
                     alphas = self.mcw_model(yi)
@@ -135,35 +169,36 @@ class MultiChannelIntegrator:
                     alphas = weight_prior(yi)
                     assert alphas.shape[1] == self.n_channels
                 else:
-                    alphas = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-    
+                    alphas = (1 / self.n_channels
+                            * tf.ones((nsamples, self.n_channels), dtype=self._dtype))
+
             # Get true integrand
-            pi = alphas[:, i] * tf.abs(self._func(yi))
+            pi = alphas[:, i] * tf.abs(func_vals[:, i])
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
             pi = pi / meani
-            ps.append(pi[..., None])
+            ps.append(pi)
             means.append(meani)
             vars.append(vari)
 
         # Get concatenated stuff all in shape (nsamples, n_channels)
-        q_test = tf.concat(qs, axis=-1)
-        logq = tf.concat(logqs, axis=-1)
-        p_true = tf.concat(ps, axis=-1)
+        q_test = tf.stack(qs, axis=-1)
+        logq = tf.stack(logqs, axis=-1)
+        p_true = tf.stack(ps, axis=-1)
         logp = tf.math.log(p_true + _EPSILON)
-        
+
         # TODO: Understand why this where returns an error.
         # cond = tf.less(p_true, _EPSILON)
         # logp = tf.where(
         #     cond, tf.math.log(p_true), tf.math.log(p_true + _EPSILON)
         # )
-        
+
         return p_true, q_test, logp, logq, sum(means), sum(vars)
-    
+
     @tf.function
     def _get_integrand(self, nsamples: int, one_hot_channels: tf.Tensor, weight_prior: Callable = None):
         ps = []
         qs = []
-        
+
         for i in range(self.n_channels):
             # Channel dependent flow sampling
             sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
@@ -229,31 +264,30 @@ class MultiChannelIntegrator:
         Returns:
             _type_: _description_
         """
-        # Get the one-hot encoded channels
-        one_hot_channels = self._get_channel_condition(nsamples)
         loss = 0
-        
-        # Get the samples outside of gradientape!
-        samples = []
-        for i in range(self.n_channels):
-            # Channel dependent flow sampling
-            sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
-            samples.append(sample)
+
+        # Sample from flow
+        one_hot_channels = self._get_channel_condition(nsamples)
+        samples, q_sample, func_vals = self._get_samples(nsamples, one_hot_channels)
         
         # Optimize the Flow
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, one_hot_channels, weight_prior)
-            flow_loss = self.flow_loss_func(p_true, q_test, logp, logq)
+            p_true, q_test, logp, logq, mean, var = self._get_probs(
+                samples, func_vals, one_hot_channels, weight_prior
+            )
+            flow_loss = self.flow_loss_func(p_true, q_test, logp, logq, q_sample=q_sample)
 
         grads = tape.gradient(flow_loss, self.flow.trainable_weights)
         self.flow_optimizer.apply_gradients(zip(grads, self.flow.trainable_weights))
         loss += flow_loss
         
+        # Optimize the channel weight
         if self.train_mcw:
-            # Optimize the channel weight
             with tf.GradientTape() as tape:
-                p_true, q_test, logp, logq, mean, var = self._get_probs(samples, one_hot_channels)
-                mcw_loss = self.mcw_loss_func(p_true, q_test, logp, logq)
+                p_true, q_test, logp, logq, mean, var = self._get_probs(
+                    samples, func_vals, one_hot_channels
+                )
+                mcw_loss = self.mcw_loss_func(p_true, q_test, logp, logq, q_sample=q_sample)
 
             grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
             self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
