@@ -210,15 +210,15 @@ for e in range(EPOCHS):
             )
         )
 
-    train_loss = integrator.train_on_stored_samples(1024, weight_prior=madgraph_prior)
+    for i in range(10):
+        train_loss = integrator.train_on_stored_samples(1024, weight_prior=madgraph_prior)
 
-    if (e + 1) % 1 == 0:
-        # Print metrics
-        print(
-            "Epoch #{}.2: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_loss, opt1._decayed_lr(tf.float32)
+        if (e + 1) % 1 == 0:
+            # Print metrics
+            print(
+                f"Epoch #{e+1}.{i+2}: Loss: {train_loss}, " +
+                f"Learning_Rate: {opt1._decayed_lr(tf.float32)}"
             )
-        )
 
 end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))

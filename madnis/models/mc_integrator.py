@@ -95,6 +95,7 @@ class MultiChannelIntegrator:
             self.stored_samples = []
             self.stored_q_sample = []
             self.stored_func_vals = []
+            self.stored_dataset = None
 
     def _store_samples(self, samples: tf.Tensor, q_sample: tf.Tensor, func_vals: tf.Tensor):
         if self.sample_capacity == 0:
@@ -106,6 +107,7 @@ class MultiChannelIntegrator:
         del self.stored_samples[:-self.sample_capacity]
         del self.stored_q_sample[:-self.sample_capacity]
         del self.stored_func_vals[:-self.sample_capacity]
+        self.stored_dataset = None
 
     def _get_channel_condition(self, nsamples: int):
         # creates ones with shape (nsamples, nc)
@@ -361,18 +363,19 @@ class MultiChannelIntegrator:
         return loss
 
     def train_on_stored_samples(self, batch_size: int, weight_prior: Callable = None):
-        samples = tf.concat(self.stored_samples, axis=0)
-        q_sample = tf.concat(self.stored_q_sample, axis=0)
-        func_vals = tf.concat(self.stored_func_vals, axis=0)
-        dataset = (
-            tf.data.Dataset.from_tensor_slices((samples, q_sample, func_vals))
-            .shuffle(samples.shape[0])
-            .batch(batch_size, drop_remainder=True)
-        )
-        one_hot_channels = self._get_channel_condition(batch_size)
+        if self.stored_dataset is None:
+            samples = tf.concat(self.stored_samples, axis=0)
+            q_sample = tf.concat(self.stored_q_sample, axis=0)
+            func_vals = tf.concat(self.stored_func_vals, axis=0)
+            self.stored_dataset = (
+                tf.data.Dataset.from_tensor_slices((samples, q_sample, func_vals))
+                .shuffle(samples.shape[0])
+                .batch(batch_size, drop_remainder=True)
+            )
 
+        one_hot_channels = self._get_channel_condition(batch_size)
         losses = []
-        for ys, qs, fs in dataset:
+        for ys, qs, fs in self.stored_dataset:
             loss, _, _ = self._optimization_step(
                 ys, qs, fs, one_hot_channels, weight_prior
             )
