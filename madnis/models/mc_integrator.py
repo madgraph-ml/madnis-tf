@@ -28,6 +28,7 @@ class MultiChannelIntegrator:
         use_weight_init: bool = True,
         n_channels: int = 2,
         loss_func: str = "chi2",
+        sample_capacity: int = 0,
         **kwargs,
     ):
         """
@@ -45,6 +46,9 @@ class MultiChannelIntegrator:
             n_channels (int, optional): number of channels. Defaults to 2.
             loss_func (str, optional):
                 The loss function to be minimized. Defaults to "chi2".
+            sample_capacity (int, optional):
+                Number of samples to be stored by the integrator for later reuse.
+                Defaults to 0.
             kwargs: Additional arguments that need to be passed to the loss
         """
         self._dtype = tf.keras.backend.floatx()
@@ -86,6 +90,23 @@ class MultiChannelIntegrator:
         self.mcw_divergence = Divergence(train_mcw=True, **kwargs)
         self.mcw_loss_func = self.mcw_divergence(loss_func)
 
+        self.sample_capacity = sample_capacity
+        if sample_capacity > 0:
+            self.stored_samples = []
+            self.stored_q_sample = []
+            self.stored_func_vals = []
+
+    def _store_samples(self, samples: tf.Tensor, q_sample: tf.Tensor, func_vals: tf.Tensor):
+        if self.sample_capacity == 0:
+            return
+
+        self.stored_samples.append(samples)
+        self.stored_q_sample.append(q_sample)
+        self.stored_func_vals.append(func_vals)
+        del self.stored_samples[:-self.sample_capacity]
+        del self.stored_q_sample[:-self.sample_capacity]
+        del self.stored_func_vals[:-self.sample_capacity]
+
     def _get_channel_condition(self, nsamples: int):
         # creates ones with shape (nsamples, nc)
         cond = tf.ones((nsamples, self.n_channels), dtype=self._dtype)
@@ -118,7 +139,7 @@ class MultiChannelIntegrator:
             fs.append(self._func(yi))
 
         # Get concatenated stuff all in shape (nsamples, n_channels)
-        return (tf.stack(ys, axis=-1), tf.stack(qs, axis=-1), tf.stack(fs, axis=-1))
+        return tf.stack(ys, axis=-1), tf.stack(qs, axis=-1), tf.stack(fs, axis=-1)
 
     @tf.function
     def _get_probs(
@@ -261,33 +282,15 @@ class MultiChannelIntegrator:
         return p_true / q_test
 
     @tf.function
-    def train_one_step(
-        self, nsamples: int, weight_prior: Callable = None, integral: bool = False
+    def _optimization_step(
+        self,
+        samples: tf.Tensor,
+        q_sample: tf.Tensor,
+        func_vals: tf.Tensor, 
+        one_hot_channels: tf.Tensor,
+        weight_prior: Callable
     ):
-        """Perform one step of integration and improve the sampling.
-
-        Args:
-            nsamples (int): Number of samples to be taken in a training step
-            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
-            integral (bool, optional): return the integral value. Defaults to False.
-
-        Returns:
-            loss: Value of the loss function for this step
-            integral (optional): Estimate of the integral value
-            uncertainty (optional): Integral statistical uncertainty
-
-        Args:
-            nsamples (int): _description_
-            integral (bool, optional): _description_. Defaults to False.
-
-        Returns:
-            _type_: _description_
-        """
         loss = 0
-
-        # Sample from flow
-        one_hot_channels = self._get_channel_condition(nsamples)
-        samples, q_sample, func_vals = self._get_samples(nsamples, one_hot_channels)
 
         # Optimize the Flow
         with tf.GradientTape() as tape:
@@ -318,10 +321,64 @@ class MultiChannelIntegrator:
             )
             loss += mcw_loss
 
+        return loss, mean, var
+
+    def train_one_step(
+        self, nsamples: int, weight_prior: Callable = None, integral: bool = False
+    ):
+        """Perform one step of integration and improve the sampling.
+
+        Args:
+            nsamples (int): Number of samples to be taken in a training step
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
+            integral (bool, optional): return the integral value. Defaults to False.
+
+        Returns:
+            loss: Value of the loss function for this step
+            integral (optional): Estimate of the integral value
+            uncertainty (optional): Integral statistical uncertainty
+
+        Args:
+            nsamples (int): _description_
+            integral (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
+
+        # Sample from flow
+        one_hot_channels = self._get_channel_condition(nsamples)
+        samples, q_sample, func_vals = self._get_samples(nsamples, one_hot_channels)
+        self._store_samples(samples, q_sample, func_vals)
+
+        loss, mean, var = self._optimization_step(
+            samples, q_sample, func_vals, one_hot_channels, weight_prior
+        )
+
         if integral:
             return loss, mean, tf.sqrt(var / (nsamples - 1.0))
 
         return loss
+
+    def train_on_stored_samples(self, batch_size: int, weight_prior: Callable = None):
+        samples = tf.concat(self.stored_samples, axis=0)
+        q_sample = tf.concat(self.stored_q_sample, axis=0)
+        func_vals = tf.concat(self.stored_func_vals, axis=0)
+        dataset = (
+            tf.data.Dataset.from_tensor_slices((samples, q_sample, func_vals))
+            .shuffle(samples.shape[0])
+            .batch(batch_size, drop_remainder=True)
+        )
+        one_hot_channels = self._get_channel_condition(batch_size)
+
+        losses = []
+        for ys, qs, fs in dataset:
+            loss, _, _ = self._optimization_step(
+                ys, qs, fs, one_hot_channels, weight_prior
+            )
+            losses.append(loss)
+
+        return tf.reduce_mean(losses)
 
     @tf.function
     def integrate(self, nsamples: int, weight_prior: Callable = None):
