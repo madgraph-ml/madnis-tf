@@ -3,10 +3,15 @@
 In this example we consider a $n$-dimensional camel with $m$ modes, as given by
 
 $$
-f_{\text{multi}}(\vec{x})
-= \sum_{i=1}^m \frac{\omega_i}{\left(\sigma_i\sqrt{2\pi}\right)^{n}}\ \exp\left[-\frac{1}{2}\frac{ (\vec{x}-\vec{\mu}_i)^2}{\sigma^2_i}\right].
+f_1(\vec{x})
+    = \sum_{i=1}^m \frac{\omega_i}{\left(\sigma_i\sqrt{2\pi}\right)^{n}}\,\exp\left[-\frac{1}{2}\frac{ \vert\vec{x}-\vec{\mu}_i\vert^2}{\sigma^2_i}\right].
 $$
 
+which integrated on the unit-hypercube $[0,1]^n$ has the integral
+
+$$
+I_1 = \int\limits_{0}^{1}\mathrm{d}^n x\ f_1(\vec{x})=\sum_{i=1}^M\ \omega_i\ \prod_{j=1}^n\left(\frac{1}{2}\left[\mathrm{erf}\left(\frac{1-\mu^j_i}{\sqrt{2}\sigma^j_i}\right)+\mathrm{erf}\left(\frac{\mu^j_i}{\sqrt{2}\sigma^j_i}\right)\right]\right).
+$$
 
 ## Training
 
