@@ -101,15 +101,9 @@ class GaussianRing(Distribution):
         return sample
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            samples = self._get_samples(num_samples)
-            return samples
-
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = self._get_samples(num_samples * condition_size)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        samples = self._get_samples(num_samples)
+        return samples
 
 
 class GaussianLine(Distribution):
@@ -201,15 +195,9 @@ class GaussianLine(Distribution):
         return sample
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            samples = self._get_samples(num_samples)
-            return samples
-
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = self._get_samples(num_samples * condition_size)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        samples = self._get_samples(num_samples)
+        return samples
 
 
 class TwoChannelLineRing(Distribution):
@@ -262,12 +250,6 @@ class TwoChannelLineRing(Distribution):
         return sample
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            samples = self._get_samples(num_samples)
-            return samples
-
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = self._get_samples(num_samples * condition_size)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        samples = self._get_samples(num_samples)
+        return samples

@@ -112,18 +112,18 @@ class CauchyRingMap(Mapping):
     def _sample(self, num_samples, condition):
         z_values = self.base_dist.sample(num_samples, condition)
 
-        # Sample from quantile
-        if condition is not None:
-            # Merge the condition dimension with sample dimension in order to call log_prob.
-            z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
-            condition = tfutils.repeat_rows(condition, num_reps=num_samples)
-            assert z_values.shape[0] == condition.shape[0]
+        # # Sample from quantile
+        # if condition is not None:
+        #     # Merge the condition dimension with sample dimension in order to call log_prob.
+        #     z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
+        #     condition = tfutils.repeat_rows(condition, num_reps=num_samples)
+        #     assert z_values.shape[0] == condition.shape[0]
 
         sample, _ = self.inverse(z_values, condition)
 
-        if condition is not None:
-            # Split the context dimension from sample dimension.
-            sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
+        # if condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
 
         return sample
 
@@ -217,17 +217,17 @@ class CauchyLineMap(Mapping):
     def _sample(self, num_samples, condition):
         z_values = self.base_dist.sample(num_samples, condition)
 
-        # Sample from quantile
-        if condition is not None:
-            # Merge the condition dimension with sample dimension in order to call log_prob.
-            z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
-            condition = tfutils.repeat_rows(condition, num_reps=num_samples)
-            assert z_values.shape[0] == condition.shape[0]
+        # # Sample from quantile
+        # if condition is not None:
+        #     # Merge the condition dimension with sample dimension in order to call log_prob.
+        #     z_values = tfutils.merge_leading_dims(z_values, num_dims=2)
+        #     condition = tfutils.repeat_rows(condition, num_reps=num_samples)
+        #     assert z_values.shape[0] == condition.shape[0]
 
         sample, _ = self.inverse(z_values, condition)
 
-        if condition is not None:
-            # Split the context dimension from sample dimension.
-            sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
+        # if condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
 
         return sample

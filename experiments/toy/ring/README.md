@@ -35,6 +35,37 @@ where $N_0$ and $N_1$ are chosen such that each distribution is normalized indiv
 \tilde{x}_1=\frac{1}{\sqrt{2}}\left(x_1-x_2\right)\,,\qquad \tilde{x}_2=\frac{1}{\sqrt{2}}\left(x_1+x_2\right)\,.
 ```
 
+## Training
+
+Commands for `mcw`:
+
+```python
+# train the multi-channel weights only with fixed analytic mappings (optinally adding arguments, see --help)
+python train_mcw.py (--arg ARG)
+```
+
+Commands for `flow`:
+
+```python
+# train the flow only with fixed weights (optinally adding arguments, see --help)
+python train_flow.py (--arg ARG)
+```
+
+Commands for `mc-flow`:
+
+```python
+# train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
+python train_mcflow.py (--arg ARG)
+```
+
+Commands for `map-mc-flow` (does not work yet!):
+
+```python
+# train the flow simultanously with the multi-channel weights 
+# including analytic mappings (optinally adding arguments, see --help)
+python train_map_mcflow.py (--arg ARG)
+```
+
 ## Analytic remapping
 
 ### Mapping I
@@ -54,7 +85,7 @@ $$
 The sub-integral then reads in Cartesian coordinates
 
 $$
-I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{line}(x_1,x_2)\.
+I_1=\int\limits_{-\infty}^{\infty}\mathrm{d} x_1 \int\limits_{-\infty}^{\infty}\mathrm{d} x_2\ P_\text{line}(x_1,x_2).
 $$
 
 We first perform a change of variables 
@@ -181,36 +212,5 @@ Consequently, the integral reads
 $$
 I_2=N_0\int\limits_{0}^{1}\mathrm{d} z_1 \int\limits_{0}^{1}\mathrm{d} z_2\left.\frac{r\ \mathrm{exp}\left(-\frac{1}{2\sigma_0^2}(r-r_0)^2\right)}{\frac{1}{2\pi^2\gamma_0\left[1+\left(\frac{r-r_0}{\gamma_0}\right)^2\right]}}\right\vert_{\mathbf{r}=\mathbf{r}(\mathbf{z})}.
 $$
-
-
-## Training
-
-Commands for `mcw`:
-
-```python
-# train the multi-channel weights only with fixed analytic mappings (optinally adding arguments, see --help)
-python train_mcw.py (--arg ARG)
-```
-
-Commands for `flow`:
-
-```python
-# train the flow only with fixed weights (optinally adding arguments, see --help)
-python train_flow.py (--arg ARG)
-```
-
-Commands for `mc-flow`:
-
-```python
-# train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
-python train_mcflow.py (--arg ARG)
-```
-
-Commands for `mc-map-flow`:
-
-```python
-# train the flow simultanously with the multi-channel weights and additional analytic remappings (optinally adding arguments, see --help)
-python train_mcmapflow.py (--arg ARG)
-```
    
    

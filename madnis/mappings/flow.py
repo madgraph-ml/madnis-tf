@@ -72,18 +72,18 @@ class Flow(Mapping):
 
         embedded_condition = self.embedding_net(condition)
         z = self.base_dist.sample(num_samples, condition=embedded_condition)
-
-        if embedded_condition is not None:
-            z = tfutils.merge_leading_dims(z, num_dims=2)
-            embedded_condition = tfutils.repeat_rows(
-                embedded_condition, num_reps=num_samples
-            )
+        
+        # if embedded_condition is not None:
+        #     z = tfutils.merge_leading_dims(z, num_dims=2)
+        #     embedded_condition = tfutils.repeat_rows(
+        #         embedded_condition, num_reps=num_samples
+        #     )
 
         sample, _ = self._inverse(z, embedded_condition)
 
-        if embedded_condition is not None:
-            # Split the context dimension from sample dimension.
-            sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
+        # if embedded_condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     sample = tfutils.split_leading_dim(sample, shape=[-1, num_samples])
 
         return sample
 
@@ -132,21 +132,20 @@ class Flow(Mapping):
         z, log_prob = self.base_dist.sample_and_log_prob(
             num_samples, condition=embedded_condition
         )
-
-        if embedded_condition is not None:
-            # Merge the condition dimension with sample dimension in order to call log_prob.
-            z = tfutils.merge_leading_dims(z, num_dims=2)
-            embedded_condition = tfutils.repeat_rows(
-                embedded_condition, num_reps=num_samples
-            )
-            assert z.shape[0] == embedded_condition.shape[0]
+        # if embedded_condition is not None:
+        #     # Merge the condition dimension with sample dimension in order to call log_prob.
+        #     z = tfutils.merge_leading_dims(z, num_dims=2)
+        #     embedded_condition = tfutils.repeat_rows(
+        #         embedded_condition, num_reps=num_samples
+        #     )
+        #     assert z.shape[0] == embedded_condition.shape[0]
 
         samples, logabsdet = self._inverse(z, embedded_condition)
 
-        if embedded_condition is not None:
-            # Split the context dimension from sample dimension.
-            samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
-            logabsdet = tfutils.split_leading_dim(logabsdet, shape=[-1, num_samples])
+        # if embedded_condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
+        #     logabsdet = tfutils.split_leading_dim(logabsdet, shape=[-1, num_samples])
 
         return samples, log_prob - logabsdet
 
@@ -160,19 +159,19 @@ class Flow(Mapping):
             num_samples, condition=embedded_condition
         )
 
-        if embedded_condition is not None:
-            # Merge the condition dimension with sample dimension in order to call log_prob.
-            z = tfutils.merge_leading_dims(z, num_dims=2)
-            embedded_condition = tfutils.repeat_rows(
-                embedded_condition, num_reps=num_samples
-            )
-            assert z.shape[0] == embedded_condition.shape[0]
+        # if embedded_condition is not None:
+        #     # Merge the condition dimension with sample dimension in order to call log_prob.
+        #     z = tfutils.merge_leading_dims(z, num_dims=2)
+        #     embedded_condition = tfutils.repeat_rows(
+        #         embedded_condition, num_reps=num_samples
+        #     )
+        #     assert z.shape[0] == embedded_condition.shape[0]
 
         samples, logabsdet = self._inverse(z, embedded_condition)
 
-        if embedded_condition is not None:
-            # Split the context dimension from sample dimension.
-            samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
-            logabsdet = tfutils.split_leading_dim(logabsdet, shape=[-1, num_samples])
+        # if embedded_condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
+        #     logabsdet = tfutils.split_leading_dim(logabsdet, shape=[-1, num_samples])
 
         return samples, tf.math.exp(log_prob - logabsdet)

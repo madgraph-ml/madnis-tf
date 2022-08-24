@@ -68,33 +68,17 @@ class Camel(Distribution):
         return tfutils.sum_except_batch(prob, num_batch_dims=1)
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            rand_draw = np.random.binomial(num_samples, self.ratios[1:])
-            n0 = num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            return tf.concat(samples, axis=0)
-        else:
-            # The value of the condition is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            rand_draw = np.random.binomial(
-                condition_size * num_samples, self.ratios[1:]
-            )
-            n0 = condition_size * num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            samples = tf.concat(samples, axis=0)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        rand_draw = np.random.binomial(num_samples, self.ratios[1:])
+        n0 = num_samples - np.sum(rand_draw)
+        n_samples = [n0] + [*rand_draw]
+        samples = [
+            self.means[i]
+            + tf.math.exp(self.log_stds[i])
+            * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
+            for i in range(self.npeaks)
+        ]
+        return tf.concat(samples, axis=0)
 
 
 class CuttedCamel(Distribution):
@@ -198,15 +182,9 @@ class CuttedCamel(Distribution):
         return sample
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            samples = self._get_samples(num_samples)
-            return samples
-
-        else:
-            # The value of the condition is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            samples = self._get_samples(num_samples * condition_size)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        samples = self._get_samples(num_samples)
+        return samples
 
 
 class MultiDimCamel(Distribution):
@@ -274,33 +252,17 @@ class MultiDimCamel(Distribution):
         return prob
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            rand_draw = np.random.binomial(num_samples, self.ratios[1:])
-            n0 = num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            return tf.concat(samples, axis=0)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            rand_draw = np.random.binomial(
-                condition_size * num_samples, self.ratios[1:]
-            )
-            n0 = condition_size * num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            samples = tf.concat(samples, axis=0)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        rand_draw = np.random.binomial(num_samples, self.ratios[1:])
+        n0 = num_samples - np.sum(rand_draw)
+        n_samples = [n0] + [*rand_draw]
+        samples = [
+            self.means[i]
+            + tf.math.exp(self.log_stds[i])
+            * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
+            for i in range(self.npeaks)
+        ]
+        return tf.concat(samples, axis=0)
 
 
 class NormalizedMultiDimCamel(Distribution):
@@ -384,30 +346,15 @@ class NormalizedMultiDimCamel(Distribution):
         return prob / norm
 
     def _sample(self, num_samples, condition):
-        if condition is None:
-            rand_draw = np.random.binomial(num_samples, self.ratios[1:])
-            n0 = num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            return tf.concat(samples, axis=0)
-        else:
-            # The value of the context is ignored, only its size is taken into account.
-            condition_size = condition.shape[0]
-            rand_draw = np.random.binomial(
-                condition_size * num_samples, self.ratios[1:]
-            )
-            n0 = condition_size * num_samples - np.sum(rand_draw)
-            n_samples = [n0] + [*rand_draw]
-            samples = [
-                self.means[i]
-                + tf.math.exp(self.log_stds[i])
-                * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
-                for i in range(self.npeaks)
-            ]
-            samples = tf.concat(samples, axis=0)
-            return tfutils.split_leading_dim(samples, [condition_size, num_samples])
+        del condition
+        rand_draw = np.random.binomial(num_samples, self.ratios[1:])
+        n0 = num_samples - np.sum(rand_draw)
+        n_samples = [n0] + [*rand_draw]
+        samples = [
+            self.means[i]
+            + tf.math.exp(self.log_stds[i])
+            * tf.random.normal((n_samples[i], *self._shape), dtype=self._dtype)
+            for i in range(self.npeaks)
+        ]
+        return tf.concat(samples, axis=0)
+        
