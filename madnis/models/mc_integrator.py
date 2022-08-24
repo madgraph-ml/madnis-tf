@@ -99,11 +99,9 @@ class MultiChannelIntegrator:
         ys = []
         fs = []
         qs = []
-        js = []
 
         for i in range(self.n_channels):
             # Channel dependent flow sampling
-            print(nsamples, one_hot_channels.shape)
             xi, logqi = self.flow.sample_and_log_prob(
                 nsamples, condition=one_hot_channels[:, :, i]
             )
@@ -116,13 +114,12 @@ class MultiChannelIntegrator:
                 yi = xi
 
             ys.append(yi)
-            qs.append(torch.math.exp(logqi))
-            js.append(ji)
+            qs.append(tf.math.exp(logqi))
             fs.append(self._func(yi))
 
         # Get concatenated stuff all in shape (nsamples, n_channels)
         return (
-            tf.stack(xs, axis=-1),
+            tf.stack(ys, axis=-1),
             tf.stack(qs, axis=-1),
             tf.stack(fs, axis=-1)
         )
@@ -146,7 +143,7 @@ class MultiChannelIntegrator:
                 xi, _ = self.mappings[i](yi)
                 remap_jac = self.mappings[i].log_prob(yi)
             else:
-                yi = xi
+                xi = yi
                 remap_jac = 0
             logqi = self.flow.log_prob(xi, condition=one_hot_channels[:, :, i])
             logqi += remap_jac
@@ -272,13 +269,6 @@ class MultiChannelIntegrator:
         # Sample from flow
         one_hot_channels = self._get_channel_condition(nsamples)
         samples, q_sample, func_vals = self._get_samples(nsamples, one_hot_channels)
-        
-        # Get the samples outside of gradientape!
-        samples = []
-        for i in range(self.n_channels):
-            # Channel dependent flow sampling
-            sample = self.flow.sample(nsamples, condition=one_hot_channels[:, :, i])
-            samples.append(sample)
         
         # Optimize the Flow
         with tf.GradientTape() as tape:
