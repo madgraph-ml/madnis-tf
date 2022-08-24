@@ -125,7 +125,7 @@ flow = VegasFlow(
     n_blocks=N_BLOCKS,
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
-    hypercube_target=False, # CHECK?
+    hypercube_target=True,
 )
 
 ################################

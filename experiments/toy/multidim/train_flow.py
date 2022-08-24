@@ -64,7 +64,7 @@ MEANS = []
 SIGMAS = []
 for i in range(N_MODES):
     MEANS.append(tf.constant([[(i+1)/(N_MODES+1)] * DIMS_IN], dtype=DTYPE))
-    SIGMAS.append(1.0/N_MODES)
+    SIGMAS.append(0.1/N_MODES)
 
 # Define truth distribution
 multi_camel = NormalizedMultiDimCamel(MEANS, SIGMAS, DIMS_IN)
@@ -120,7 +120,7 @@ flow = VegasFlow(
     n_blocks=N_BLOCKS,
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
-    hypercube_target=True, # CHECK?
+    hypercube_target=True,
 )
 
 ################################
