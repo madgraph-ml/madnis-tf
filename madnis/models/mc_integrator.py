@@ -288,7 +288,6 @@ class MultiChannelIntegrator:
                     samples, func_vals, one_hot_channels
                 )
                 mcw_loss = self.mcw_loss_func(p_true, q_test, logp, logq, q_sample=q_sample)
-            loss += mcw_loss
 
             grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
             self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
