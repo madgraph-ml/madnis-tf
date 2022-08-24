@@ -10,11 +10,19 @@ $$
 
 ## Training
 
-Commands for `multi-dim-camel`:
+Commands for `flow`:
+
+```python
+# train the flow only with fixed weights (1/nchannels) (optinally adding arguments, see --help)
+python train_mcflow.py (--arg ARG)
+```
+When choosing ```--channels=1```, this is a normal i-flow integrator.
+
+Commands for `mc-flow`:
 
 ```python
 # train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
-python train_multi.py (--arg ARG)
+python train_mcflow.py (--arg ARG)
 ```
 
 One can possibly alter the complexity of the integration by modifying the follwing args:

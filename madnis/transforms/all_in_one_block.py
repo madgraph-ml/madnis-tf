@@ -213,7 +213,7 @@ class AllInOneBlock(Transform):
         # the entire coupling coefficient tensor is scaled down by a
         # factor of ten for stability and easier initialization.
         a *= 0.1
-        s, t = tf.split(a, self.splits, -1)
+        s, t = tf.split(a, 2, -1)
         sub_jac = self.clamp * tf.math.tanh(s)
         if self.GIN:
             sub_jac -= tf.reduce_mean(sub_jac, axis=self.sum_dims, keepdims=True)

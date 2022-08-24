@@ -318,16 +318,14 @@ class NormalizedMultiDimCamel(Distribution):
         )
 
     def _norm(self):
-        dims = self._shape[0]
-        norms = tf.pow(
-            0.5
-            * (
-                tf.math.erf((1 - self.means) / tf.sqrt(2) / self.stds)
-                + tf.math.erf((self.means) / tf.sqrt(2) / self.stds)
-            ),
-            dims,
-        )
-        return tf.reduce_sum(self.ratios * norms)
+        norm = 0
+        for i in range(self.npeaks):
+            normi = 0.5 * (
+                    tf.math.erf((1 - self.means[i]) / np.sqrt(2.) / self.stds[i])
+                    + tf.math.erf((self.means[i]) / np.sqrt(2.) / self.stds[i])
+                )
+            norm += self.ratios[i] * tfutils.prod_except_batch(normi)
+        return norm
 
     def _prob(self, x, condition):
         # Note: the condition is ignored.

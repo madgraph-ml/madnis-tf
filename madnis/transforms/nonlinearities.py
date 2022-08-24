@@ -39,7 +39,7 @@ class Sigmoid(Transform):
         z = tf.clip_by_value(z, clip_value_min=self.epsilon, clip_value_max=1-self.epsilon)
         x = (1 / self.temperature) * (tf.math.log(z) - tf.math.log1p(-z))
         if jac:
-            log_det = - sum_except_batch(tf.math.log(self.temperature) - tf.math.softplus(-self.temperature * z) - tf.math.softplus(self.temperature * z))
+            log_det = - sum_except_batch(tf.math.log(self.temperature) - tf.math.softplus(-self.temperature * x) - tf.math.softplus(self.temperature * x))
             return x, log_det
         return x
 
