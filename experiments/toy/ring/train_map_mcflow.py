@@ -46,7 +46,7 @@ parser.add_argument("--mcw_layers", type=int, default=2)
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--lr", type=float, default=5e-4)
+parser.add_argument("--lr", type=float, default=1e-3)
 
 args = parser.parse_args()
 
@@ -71,9 +71,9 @@ ALPHA = np.pi/4
 line_ring = TwoChannelLineRing(RADIUS, SIGMA0, [MEAN1, MEAN2], [SIGMA1, SIGMA2], ALPHA)
 
 # Define the channel mappings (would be sqrt(2), make wrong so that flow can learn sth)
-GAMMA0 = np.sqrt(2.) * SIGMA0
-GAMMA1 = np.sqrt(2.) * SIGMA1
-GAMMA2 = np.sqrt(2.) * SIGMA2
+GAMMA0 = np.sqrt(40.) * SIGMA0
+GAMMA1 = np.sqrt(40.) * SIGMA1
+GAMMA2 = np.sqrt(40.) * SIGMA2
 
 map_1 = CauchyRingMap(RADIUS, GAMMA0)
 map_2 = CauchyLineMap([MEAN1, MEAN2], [GAMMA1, GAMMA2], ALPHA)
@@ -199,8 +199,6 @@ print("--------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
 
-# TODO: Find out why the integral is completely off?! 
-sys.exit()
 
 ################################
 # Train the network
