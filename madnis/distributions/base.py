@@ -183,17 +183,17 @@ class Distribution(tf.keras.Model):
         """
         samples = self.sample(num_samples, condition)
 
-        if condition is not None:
-            # Merge the condition dimension with sample dimension in order to call log_prob.
-            samples = tfutils.merge_leading_dims(samples, num_dims=2)
-            condition = tfutils.repeat_rows(condition, num_reps=num_samples)
-            assert samples.shape[0] == condition.shape[0]
+        # if condition is not None:
+        #     # Merge the condition dimension with sample dimension in order to call log_prob.
+        #     samples = tfutils.merge_leading_dims(samples, num_dims=2)
+        #     condition = tfutils.repeat_rows(condition, num_reps=num_samples)
+        #     assert samples.shape[0] == condition.shape[0]
 
         prob = self.prob(samples, condition)
 
-        if condition is not None:
-            # Split the context dimension from sample dimension.
-            samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
-            prob = tfutils.split_leading_dim(prob, shape=[-1, num_samples])
+        # if condition is not None:
+        #     # Split the context dimension from sample dimension.
+        #     samples = tfutils.split_leading_dim(samples, shape=[-1, num_samples])
+        #     prob = tfutils.split_leading_dim(prob, shape=[-1, num_samples])
 
         return samples, prob
