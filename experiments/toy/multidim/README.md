@@ -17,7 +17,7 @@ $$
 
 Commands for `flow`:
 
-```python
+```bash
 # train the flow only with fixed weights (1/nchannels) (optinally adding arguments, see --help)
 python train_mcflow.py (--arg ARG)
 ```
@@ -25,7 +25,7 @@ When choosing ```--channels=1```, this is a normal i-flow integrator.
 
 Commands for `mc-flow`:
 
-```python
+```bash
 # train the flow simultanously with the multi-channel weights (optinally adding arguments, see --help)
 python train_mcflow.py (--arg ARG)
 ```
