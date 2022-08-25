@@ -3,26 +3,29 @@ import tensorflow as tf
 import numpy as np
 import argparse
 import time
-import sys
 
 from mcw import mcw_model, residual_mcw_model
 from utils import integrate, error, parse_schedule
-
-from madnis.distributions.gaussians_2d import TwoChannelLineRing
 from madnis.models.mc_integrator import MultiChannelIntegrator
+from madnis.distributions.camel import MultiDimCamel, NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 from vegasflow import VegasFlow
+
+import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
-
 
 #########
 # Setup #
 #########
 
 parser = argparse.ArgumentParser()
+
+# function specifications
+parser.add_argument("--dims", type=int, default=2)
+parser.add_argument("--modes", type=int, default=2)
 
 # Data params
 parser.add_argument("--train_batches", type=int, default=1000)
@@ -47,51 +50,57 @@ parser.add_argument("--channels", type=int, default=2)
 # Train params
 parser.add_argument("--schedule", type=str, default="5g")
 parser.add_argument("--sample_capacity", type=int, default=2000)
-parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--lr", type=float, default=5e-4)
+parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--lr", type=float, default=1e-3)
 
 args = parser.parse_args()
 
 ################################
 # Define distributions
 ################################
+
 DTYPE = tf.keras.backend.floatx()
+DIMS_IN = args.dims  # dimensionality of data space
+N_MODES = args.modes  # number of modes
+N_CHANNELS = args.channels  # number of Channels
 
 # Define peak positions and heights
-# Ring
-RADIUS = 1.0
-SIGMA0 = 0.01
-
-# Line
-MEAN1 = 0.0
-MEAN2 = 0.0
-SIGMA1 = 3.0
-SIGMA2 = 0.01
-ALPHA = np.pi/4
+# Feel free to change
+MEANS = []
+SIGMAS = []
+for i in range(N_MODES):
+    MEANS.append(tf.constant([[(i+1)/(N_MODES+1)] * DIMS_IN], dtype=DTYPE))
+    SIGMAS.append(0.1/N_MODES)
 
 # Define truth distribution
-line_ring = TwoChannelLineRing(RADIUS, SIGMA0, [MEAN1, MEAN2], [SIGMA1, SIGMA2], ALPHA)
+multi_camel = NormalizedMultiDimCamel(MEANS, SIGMAS, DIMS_IN)
+
+print(f"\n Integrand specifications:")
+print("-----------------------------------------------------------")
+print(f" Dimensions: {DIMS_IN}                                    ")
+print(f" Modes: {N_MODES}                                         ")
+print(f" Channels: {N_CHANNELS} (not for naive integration)       ")
+print("-----------------------------------------------------------\n")
+
 
 ################################
 # Naive integration
 ################################
 
 INT_SAMPLES = args.int_samples
-DIMS_IN = 2  # dimensionality of data space
 
-# Uniform sampling in area [-6,6]x[-6,6]
-limits = [-6, 6]
-volume = (limits[1] - limits[0]) ** 2
-noise = limits[0] + (limits[1] - limits[0]) * tf.random.uniform((INT_SAMPLES, DIMS_IN), dtype=DTYPE)
-phi = 1 / volume
-integrand = line_ring.prob(noise) / phi  # divide by density which is 1/V
-
+# Uniform sampling in range [0,1]^d
+d = DIMS_IN
+volume = 1.0 ** d
+noise = tf.random.uniform((INT_SAMPLES, d), dtype=DTYPE) * volume
+rho = 1 / volume
+integrand = multi_camel.prob(noise) / rho  # divide by volume in this case
 res = integrate(integrand).numpy()
 err = error(integrand).numpy()
 relerr = err / res * 100
 
 print(f"\n Naive integration ({INT_SAMPLES:.1e} samples):")
-print("-------------------------------------------------------------")
+print("-----------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)")
 print("-----------------------------------------------------------\n")
 
@@ -100,7 +109,6 @@ print("-----------------------------------------------------------\n")
 # Define the flow network
 ################################
 
-N_CHANNELS = args.channels  # number of channels
 PRIOR = args.use_prior_weights
 
 FLOW_META = {
@@ -118,7 +126,7 @@ flow = VegasFlow(
     n_blocks=N_BLOCKS,
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
-    hypercube_target=False,
+    hypercube_target=True,
 )
 
 ################################
@@ -144,7 +152,7 @@ else:
 ################################
 
 madgraph_prior = None
-    
+
 ################################
 # Define the integrator
 ################################
@@ -171,7 +179,7 @@ opt1 = tf.keras.optimizers.Adam(lr_schedule)
 opt2 = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelIntegrator(
-    line_ring, flow, [opt1, opt2], mcw_model=mcw_net, use_weight_init=PRIOR,
+    multi_camel, flow, [opt1, opt2], mcw_model=mcw_net, use_weight_init=PRIOR,
     n_channels=N_CHANNELS, loss_func=LOSS, sample_capacity=SAMPLE_CAPACITY)
 
 ################################
@@ -186,6 +194,7 @@ print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
+
 
 ################################
 # Train the network
@@ -221,7 +230,6 @@ for e, etype in enumerate(SCHEDULE):
         integrator.delete_samples()
 
         print(f"Epoch #{e+1}: delete samples")
-
 end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))

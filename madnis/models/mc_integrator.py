@@ -325,6 +325,13 @@ class MultiChannelIntegrator:
 
         return loss, mean, var
 
+    def delete_samples(self):
+        """ Delete all stored samples. """
+        del self.stored_samples[:]
+        del self.stored_q_sample[:]
+        del self.stored_func_vals[:]
+        self.stored_dataset = None
+
     def train_one_step(
         self, nsamples: int, weight_prior: Callable = None, integral: bool = False
     ):
