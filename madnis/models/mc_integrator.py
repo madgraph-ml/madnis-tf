@@ -73,7 +73,10 @@ class MultiChannelIntegrator:
             self.mcw_optimizer = None
 
         self.use_weight_init = use_weight_init
+        
         self.n_channels = n_channels
+        if self.n_channels < 2:
+            self.train_mcw = False
 
         # Check and define analytic mappings
         self.mappings = mappings
@@ -399,7 +402,7 @@ class MultiChannelIntegrator:
         tf.tensors. The first one is the mean, i.e. the estimate of
         the integral. The second one gives the variance of the integrand.
         To get the variance of the estimated mean, the returned variance
-        needs to be divided by (nsamples -1).
+        needs to be divided by (nsamples - 1).
 
         Args:
             nsamples (int): Number of points on which the estimate is based on.
@@ -413,7 +416,9 @@ class MultiChannelIntegrator:
         integrands = self._get_integrand(nsamples, one_hot_channels, weight_prior)
         means, vars = tf.nn.moments(integrands, axes=[0])
         mean, var = tf.reduce_sum(means), tf.reduce_sum(vars)
-        return mean, tf.sqrt(var / (nsamples - 1.0))
+        
+        return mean, tf.sqrt(self.n_channels * var / (nsamples - 1.0))
+
 
     @tf.function
     def sample_weights(
@@ -431,6 +436,7 @@ class MultiChannelIntegrator:
         Args:
             nsamples (int): Number of samples to be drawn.
             yield_samples (bool, optional): return samples. Defaults to False.
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
 
         Returns:
             true/test: tf.tensor of size (nsamples, 1) of sampled weights
@@ -483,11 +489,11 @@ class MultiChannelIntegrator:
         if yield_samples:
             return weight, sample
 
-        return sample
+        return weight
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
         """Calculate the acceptance, i.e. the unweighting
-            efficiency as discussed in arXiv:2001.10028 [hep-ph]
+            efficiency as discussed in arXiv:2001.10028
 
         Args:
             nopt (int): Number of points on which the optimization was based on.

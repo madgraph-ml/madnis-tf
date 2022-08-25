@@ -28,7 +28,7 @@ parser.add_argument("--dims", type=int, default=2)
 parser.add_argument("--modes", type=int, default=2)
 
 # Data params
-parser.add_argument("--train_samples", type=int, default=128 * 10000)
+parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # model params
@@ -48,7 +48,7 @@ parser.add_argument("--mcw_layers", type=int, default=2)
 parser.add_argument("--channels", type=int, default=2)
 
 # Train params
-parser.add_argument("--epochs", type=int, default=10)
+parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
 
@@ -163,18 +163,20 @@ LR = args.lr
 LOSS = args.loss
 
 # Number of samples
-TRAIN_SAMPLES = args.train_samples
-ITERS = TRAIN_SAMPLES // BATCH_SIZE
+# TRAIN_SAMPLES = args.train_batches
+# ITERS = TRAIN_SAMPLES // BATCH_SIZE
+ITERS = args.train_batches
 
 # Decay of learning rate
 DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
-lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 
-opt1 = tf.keras.optimizers.Adam(lr_schedule)
-opt2 = tf.keras.optimizers.Adam(lr_schedule)
+opt1 = tf.keras.optimizers.Adam(lr_schedule1)
+opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
 integrator = MultiChannelIntegrator(
     multi_camel, flow, [opt1, opt2], mcw_model=mcw_net, use_weight_init=PRIOR, n_channels=N_CHANNELS, loss_func=LOSS)

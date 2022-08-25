@@ -101,18 +101,17 @@ class Divergence:
         if sigma is None:
             sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
-        sample_factor = tf.stop_gradient(q_test) / tf.stop_gradient(q_sample)
         if self.train_mcw:
             mean2 = tf.reduce_mean(
-                sample_factor * p_true ** 2 / (tf.stop_gradient(q_test ** 2)), axis=0
+                p_true ** 2 / (tf.stop_gradient(q_test) * tf.stop_gradient(q_sample)), axis=0
             )
         else:
             mean2 = tf.reduce_mean(
-                sample_factor * tf.stop_gradient(p_true) ** 2 / (q_test * tf.stop_gradient(q_test)),
+                tf.stop_gradient(p_true) ** 2 / (q_test * tf.stop_gradient(q_sample)),
                 axis=0,
             )
 
-        mean = tf.reduce_mean(p_true / tf.stop_gradient(q_test), axis=0)
+        mean = tf.reduce_mean(p_true / tf.stop_gradient(q_sample), axis=0)
         return tf.reduce_sum(sigma * (mean2 - mean ** 2))
 
     def neyman_chi2(
@@ -252,7 +251,7 @@ class Divergence:
 
         if self.train_mcw:
             kl = tf.reduce_mean(
-                p_true / tf.stop_gradient(q_test) * (logp - tf.stop_gradient(logq)),
+                p_true / tf.stop_gradient(q_sample) * (logp - tf.stop_gradient(logq)),
                 axis=0,
             )
             return tf.reduce_sum(sigma * kl)
