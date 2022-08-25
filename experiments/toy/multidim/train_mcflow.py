@@ -5,9 +5,9 @@ import argparse
 import time
 
 from mcw import mcw_model, residual_mcw_model
-from utils import integrate, error
+from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
-from madnis.distributions.camel import MultiDimCamel, NormalizedMultiDimCamel
+from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 from vegasflow import VegasFlow
 
@@ -94,8 +94,7 @@ volume = 1.0 ** d
 noise = tf.random.uniform((INT_SAMPLES, d), dtype=DTYPE) * volume
 rho = 1 / volume
 integrand = multi_camel.prob(noise) / rho  # divide by volume in this case
-res = integrate(integrand).numpy()
-err = error(integrand).numpy()
+res, err = integrate(integrand)
 relerr = err / res * 100
 
 print(f"\n Naive integration ({INT_SAMPLES:.1e} samples):")

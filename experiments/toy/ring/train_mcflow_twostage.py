@@ -6,7 +6,7 @@ import time
 import sys
 
 from mcw import mcw_model, residual_mcw_model
-from utils import integrate, error, parse_schedule
+from madnis.utils.train_utils import integrate, parse_schedule
 
 from madnis.distributions.gaussians_2d import TwoChannelLineRing
 from madnis.models.mc_integrator import MultiChannelIntegrator
@@ -86,8 +86,7 @@ noise = limits[0] + (limits[1] - limits[0]) * tf.random.uniform((INT_SAMPLES, DI
 phi = 1 / volume
 integrand = line_ring.prob(noise) / phi  # divide by density which is 1/V
 
-res = integrate(integrand).numpy()
-err = error(integrand).numpy()
+res, err = integrate(integrand)
 relerr = err / res * 100
 
 print(f"\n Naive integration ({INT_SAMPLES:.1e} samples):")

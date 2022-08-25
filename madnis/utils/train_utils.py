@@ -6,33 +6,34 @@ import tensorflow as tf
 
 
 def integrate(integrand: tf.Tensor):
-    """
-    Multi-channel integration
-    Args:
-        integrand: Tensor, with shape (samples, n_channels)
-    """
-    means = tf.math.reduce_mean(integrand, axis=0)
-    result = tf.reduce_sum(means)
-    return result
+    """Integrate the function with given integrand.
 
+    This method estimates the value of the integral based on
+    Monte Carlo integration. It returns a tuple of two
+    tf.tensors. The first one is the mean, i.e. the estimate of
+    the integral. The second one gives the variance of the integrand.
+    To get the variance of the estimated mean, the returned variance
+    needs to be divided by (nsamples - 1).
 
-def error(integrand: tf.Tensor):
-    """
-    Error of Multi-channel integration
     Args:
-        integrand: Tensor, with shape (samples, n_channels)
+        integrand (tf.tensor): integrand with shape (samples, n_channels)
+
+    Returns:
+        tuple of 2 tf.tensors: mean and mc error
+
     """
-    n = integrand.shape[0]
-    means = tf.math.reduce_mean(integrand, axis=0)
-    means2 = tf.math.reduce_mean(integrand ** 2, axis=0)
-    var = tf.math.reduce_sum(means2 - means ** 2)
-    return tf.sqrt(var / (n - 1.0))
+    dims = integrand.shape
+    means, vars = tf.nn.moments(integrand, axes=[0])
+    mean, var = tf.reduce_sum(means), tf.reduce_sum(vars)
+
+    return mean, tf.sqrt(dims[1] * var / (dims[0] - 1.0))
+
 
 def parse_schedule(sched_str):
     tokens = []
     tmp = ""
     for c in sched_str:
-        if "0" <= c <= "9": 
+        if "0" <= c <= "9":
             tmp += c
         else:
             if tmp != "":
@@ -42,9 +43,10 @@ def parse_schedule(sched_str):
                 tokens.append(c)
     if tmp != "":
         tokens.append(int(tmp))
-            
+
     return _parse_schedule_rec(iter(tokens))
-    
+
+
 def _parse_schedule_rec(tokens):
     multiplier = 1
     schedule = []

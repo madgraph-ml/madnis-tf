@@ -6,7 +6,7 @@ import time
 import sys
 
 from mcw import mcw_model, residual_mcw_model
-from utils import integrate, error
+from madnis.utils.train_utils import integrate
 from plots import plot_alphas
 
 from madnis.distributions.camel import CuttedCamel
@@ -78,8 +78,7 @@ noise = tf.random.uniform((INT_SAMPLES, 1), dtype=tf.keras.backend.floatx()) * v
 phi = 1 / volume
 integrand = camel.prob(noise) / phi  # divide by volume in this case
 
-res = integrate(integrand).numpy()
-err = error(integrand).numpy()
+res, err = integrate(integrand)
 relerr = err / res * 100
 
 print(f"\n Naive integration ({INT_SAMPLES:.1e} samples):")
