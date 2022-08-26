@@ -30,7 +30,29 @@ def integrate(integrand: tf.Tensor):
     return mean, tf.sqrt(var / (nsamples - 1.0))
 
 
-def parse_schedule(sched_str):
+def parse_schedule(sched_str: str) -> list[str]:
+    """Parses strings that describe two-stage training schedules.
+
+    This function parses string with a compact syntax to describe training
+    schedules. Different actions are expressed with single letters:
+      g: generate samples and optimize
+      r: reuse saved samples for optimization
+      d: delete all saved samples
+    Numbers in front of actions can be used to perform them multiple times.
+    Parentheses can be used to group actions together.
+    Examples:
+      "5g":         5 epochs of sampling+training
+      "3gd5(g2r)":  3 epochs of sampling+training training, then delete
+                    all samples, then 5 times 1 epoch of sampling+training
+                    followed by 2 epochs of training on saved samples
+
+    Args:
+        sched_str: string with schedule expression
+
+    Returns:
+        list of strings "g", "r" and "d"
+
+    """
     tokens = []
     tmp = ""
     for c in sched_str:
