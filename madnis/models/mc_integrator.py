@@ -121,111 +121,80 @@ class MultiChannelIntegrator:
         return c_cond
 
     @tf.function
-    def _get_samples(self, nsamples: int, one_hot_channels: tf.Tensor):
-        ys = []
-        fs = []
-        qs = []
+    def _compute_analytic_mappings(x, logq, channels):
+        if not self.use_analytic_mappings:
+            return x, logq
+
+        y = tf.zeros_like(x)
+        new_logq = tf.zeros_like(logq)
 
         for i in range(self.n_channels):
-            # Channel dependent flow sampling
-            xi, logqi = self.flow.sample_and_log_prob(
-                nsamples, condition=one_hot_channels[:, :, i]
-            )
+            mask = channels == i
+            yi, _ = self.mappings[i].inverse(x[mask])
+            y[mask] = yi
+            new_logq[mask] = logq[mask] + self.mappings[i].log_prob(yi)
 
-            # Check for analytic remappings
-            if self.use_analytic_mappings:
-                yi, _ = self.mappings[i].inverse(xi)
-                logqi += self.mappings[i].log_prob(yi)
-            else:
-                yi = xi
+        return y, new_logq
 
-            ys.append(yi)
-            qs.append(tf.math.exp(logqi))
-            fs.append(self._func(yi))
-
-        # Get concatenated stuff all in shape (nsamples, n_channels)
-        return tf.stack(ys, axis=-1), tf.stack(qs, axis=-1), tf.stack(fs, axis=-1)
+    @tf.function
+    def _get_samples(self, nsamples: int, channel_weights: tf.Tensor):
+        assert channel_weights.shape == (self.n_channels, )
+        channels = tf.random.categorical(tf.math.log(channel_weights)[None,:], nsamples)[0]
+        one_hot_channels = tf.one_hot(channels, self.n_channels)
+        x, logq = self.flow.sample_and_log_prob(nsamples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(xi, logq, channels)
+        return x, tf.math.exp(logq), self._func(y), channels
 
     @tf.function
     def _get_probs(
         self,
         samples: tf.Tensor,
         func_vals: tf.Tensor,
-        one_hot_channels: tf.Tensor,
+        channels: tf.Tensor,
         weight_prior: Callable = None,
     ):
-        ps = []
-        qs = []
-        logqs = []
+        nsamples = samples.shape[0]
+        one_hot_channels = tf.one_hot(channels, self.n_channels)
+        logq = self.flow.log_prob(samples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(samples, logq, channels)
+        q_test = tf.math.exp(logq)
+
+        if self.train_mcw:
+            if self.use_weight_init:
+                if weight_prior is not None:
+                    init_weights = weight_prior(y)
+                    assert init_weights.shape[1] == self.n_channels
+                else:
+                    init_weights = (
+                        1 / self.n_channels
+                        * tf.ones((nsamples, ), dtype=self._dtype)
+                    )
+                alphas = self.mcw_model([y, init_weights])
+            else:
+                alphas = self.mcw_model(y)
+        else:
+            if weight_prior is not None:
+                alphas = weight_prior(y)
+                assert alphas.shape[1] == self.n_channels
+            else:
+                alphas = (
+                    1 / self.n_channels
+                    * tf.ones((nsamples, ), dtype=self._dtype)
+                )
+
+        p_unnormed = alphas * tf.abs(func_vals)
+        p_true = tf.zeros_like(p_unnormed)
         means = []
         vars = []
-        nsamples = samples.shape[0]
-
         for i in range(self.n_channels):
-            yi = samples[:, :, i]
-
-            # Flow density estimation
-            if self.use_analytic_mappings:
-                xi, _ = self.mappings[i](yi)
-                remap_jac = self.mappings[i].log_prob(yi)
-            else:
-                xi = yi
-                remap_jac = 0
-
-            logqi = self.flow.log_prob(xi, condition=one_hot_channels[:, :, i])
-            logqi += remap_jac
-
-            qi = tf.math.exp(logqi)
-            logqs.append(logqi)
-            qs.append(qi)
-
-            # Get multi-channel weights
-            if self.train_mcw:
-                if self.use_weight_init:
-                    if weight_prior is not None:
-                        init_weights = weight_prior(yi)
-                        assert init_weights.shape[1] == self.n_channels
-                    else:
-                        init_weights = (
-                            1
-                            / self.n_channels
-                            * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                        )
-                    alphas = self.mcw_model([yi, init_weights])
-                else:
-                    alphas = self.mcw_model(yi)
-            else:
-                if weight_prior is not None:
-                    alphas = weight_prior(yi)
-                    assert alphas.shape[1] == self.n_channels
-                else:
-                    alphas = (
-                        1
-                        / self.n_channels
-                        * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                    )
-
-            # Get true integrand
-            pi = alphas[:, i] * tf.abs(func_vals[:, i])
-            meani, vari = tf.nn.moments(pi / qi, axes=[0])
-            pi = pi / meani
-            ps.append(pi)
+            mask = channels == i
+            meani, vari = tf.nn.moments(pi[mask] / qi[mask], axes=[0])
+            p_true[mask] = p_unnormed[mask] / meani
             means.append(meani)
             vars.append(vari)
-
-        # Get concatenated stuff all in shape (nsamples, n_channels)
-        q_test = tf.stack(qs, axis=-1)
-        logq = tf.stack(logqs, axis=-1)
-        p_true = tf.stack(ps, axis=-1)
         logp = tf.math.log(p_true + _EPSILON)
 
-        # TODO: Understand why this where returns an error.
-        # cond = tf.less(p_true, _EPSILON)
-        # logp = tf.where(
-        #     cond, tf.math.log(p_true), tf.math.log(p_true + _EPSILON)
-        # )
-
-        return p_true, q_test, logp, logq, sum(means), sum(vars)
+        return p_true, q_test, logp, logq, means, vars
 
     @tf.function
     def _get_integrand(
