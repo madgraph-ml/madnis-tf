@@ -417,7 +417,7 @@ class MultiChannelIntegrator:
         means, vars = tf.nn.moments(integrands, axes=[0])
         mean, var = tf.reduce_sum(means), tf.reduce_sum(vars)
         
-        return mean, tf.sqrt(self.n_channels * var / (nsamples - 1.0))
+        return mean, tf.sqrt(var / (nsamples - 1.0))
 
 
     @tf.function
