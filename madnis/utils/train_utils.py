@@ -3,6 +3,7 @@ Implementation of functions that are important for training.
 """
 
 import tensorflow as tf
+from typing import List
 
 
 def integrate(integrand: tf.Tensor):
@@ -30,7 +31,7 @@ def integrate(integrand: tf.Tensor):
     return mean, tf.sqrt(var / (nsamples - 1.0))
 
 
-def parse_schedule(sched_str: str) -> list[str]:
+def parse_schedule(sched_str: str) -> List[str]:
     """Parses strings that describe two-stage training schedules.
 
     This function parses string with a compact syntax to describe training
