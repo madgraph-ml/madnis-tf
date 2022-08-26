@@ -122,28 +122,32 @@ class MultiChannelIntegrator:
         self.stored_dataset = None
 
     @tf.function
-    def _compute_analytic_mappings(x, logq, channels):
+    def _compute_analytic_mappings(self, x, logq, channels):
         if not self.use_analytic_mappings:
             return x, logq
 
-        y = tf.zeros_like(x)
-        new_logq = tf.zeros_like(logq)
-
-        for i in range(self.n_channels):
-            mask = channels == i
+        xs = tf.dynamic_partition(x, channels, self.n_channels)
+        idx = tf.dynamic_partition(tf.range(x.shape[0]), channels, self.n_channels)
+        ys = []
+        jacs = []
+        for i, xi in enumerate(xs):
             yi, _ = self.mappings[i].inverse(x[mask])
-            y[mask] = yi
-            new_logq[mask] = logq[mask] + self.mappings[i].log_prob(yi)
+            ys.append(yi)
+            jacs.append(self.mappings[i].log_prob(yi))
 
-        return y, new_logq
+        y = tf.dynamic_stitch(idx, ys)
+        jac = tf.dynamic_stitch(idx, jacs)
+        return t, logq + jac
 
     @tf.function
     def _get_samples(self, nsamples: int, channel_weights: tf.Tensor):
         assert channel_weights.shape == (self.n_channels, )
-        channels = tf.random.categorical(tf.math.log(channel_weights)[None,:], nsamples)[0]
-        one_hot_channels = tf.one_hot(channels, self.n_channels)
+        channels = tf.random.categorical(
+            tf.math.log(channel_weights)[None,:], nsamples, dtype=tf.int32
+        )[0]
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         x, logq = self.flow.sample_and_log_prob(nsamples, condition=one_hot_channels)
-        y, logq = self._compute_analytic_mappings(xi, logq, channels)
+        y, logq = self._compute_analytic_mappings(x, logq, channels)
         return x, tf.math.exp(logq), self._func(y), channels
 
     @tf.function
@@ -156,7 +160,7 @@ class MultiChannelIntegrator:
         return_integrand: bool = False,
     ):
         nsamples = samples.shape[0]
-        one_hot_channels = tf.one_hot(channels, self.n_channels)
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         logq = self.flow.log_prob(samples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
         q_test = tf.math.exp(logq)
@@ -169,7 +173,7 @@ class MultiChannelIntegrator:
                 else:
                     init_weights = (
                         1 / self.n_channels
-                        * tf.ones((nsamples, ), dtype=self._dtype)
+                        * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
                     )
                 alphas = self.mcw_model([y, init_weights])
             else:
@@ -181,31 +185,35 @@ class MultiChannelIntegrator:
             else:
                 alphas = (
                     1 / self.n_channels
-                    * tf.ones((nsamples, ), dtype=self._dtype)
+                    * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
                 )
+        alphas = tf.gather(alphas, channels, batch_dims=1)
 
         if return_integrand:
             return alphas * func_vals / q_test
 
         p_unnormed = alphas * tf.abs(func_vals)
-        if normalize_p_true:
-            p_true = tf.zeros_like(p_unnormed)
-        else:
-            p_true = p_unnormed
+        p_trues = []
         means = []
         vars = []
-        for i in range(self.n_channels):
-            mask = channels == i
-            meani, vari = tf.nn.moments(pi[mask] / qi[mask], axes=[0])
-            if normalize_p_true:
-                p_true[mask] = p_unnormed[mask] / meani
+        counts = []
+        ps = tf.dynamic_partition(p_unnormed, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_test, channels, self.n_channels)
+        idx = tf.dynamic_partition(tf.range(nsamples), channels, self.n_channels)
+        for pi, qi in zip(ps, qs):
+            meani, vari = tf.nn.moments(pi / qi, axes=[0])
+            p_trues.append(pi / meani)
             means.append(meani)
             vars.append(vari)
+            counts.append(tf.cast(tf.shape(pi)[0], self._dtype))
+        p_true = tf.dynamic_stitch(idx, p_trues)
         logp = tf.math.log(p_true + _EPSILON)
 
         return (
             p_true, q_test, logp, logq,
-            tf.convert_to_tensor(means), tf.convert_to_tensor(vars)
+            tf.convert_to_tensor(means),
+            tf.convert_to_tensor(vars),
+            tf.convert_to_tensor(counts)
         )
 
     @tf.function
@@ -221,7 +229,7 @@ class MultiChannelIntegrator:
 
         # Optimize the Flow
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, _, _ = self._get_probs(
+            p_true, q_test, logp, logq, _, _, _ = self._get_probs(
                 samples, func_vals, channels, weight_prior
             )
             flow_loss = self.flow_loss_func(
@@ -235,7 +243,7 @@ class MultiChannelIntegrator:
         # Optimize the channel weight
         if self.train_mcw:
             with tf.GradientTape() as tape:
-                p_true, q_test, logp, logq, means, vars = self._get_probs(
+                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
                     samples, func_vals, channels
                 )
                 mcw_loss = self.mcw_loss_func(
@@ -248,13 +256,14 @@ class MultiChannelIntegrator:
             )
             loss += mcw_loss
 
-        return loss, means, vars
+        return loss, means, vars, counts
 
     def delete_samples(self):
         """ Delete all stored samples. """
         del self.stored_samples[:]
         del self.stored_q_sample[:]
         del self.stored_func_vals[:]
+        del self.stored_channels[:]
         self.stored_dataset = None
 
     def train_one_step(
@@ -278,12 +287,12 @@ class MultiChannelIntegrator:
         samples, q_sample, func_vals, channels = self._get_samples(nsamples, channel_weights)
         self._store_samples(samples, q_sample, func_vals, channels)
 
-        loss, means, vars = self._optimization_step(
+        loss, means, vars, counts = self._optimization_step(
             samples, q_sample, func_vals, channels, weight_prior
         )
 
         if integral:
-            return loss, tf.reduce_sum(means), tf.sqrt(tf.reduce_sum(vars) / (nsamples - 1.0))
+            return loss, tf.reduce_sum(means), tf.sqrt(tf.reduce_sum(vars / (counts - 1.)))
 
         return loss
 
@@ -309,9 +318,9 @@ class MultiChannelIntegrator:
             )
 
         losses = []
-        for ys, qs, fs in self.stored_dataset:
-            loss, _, _ = self._optimization_step(
-                ys, qs, fs, channels, weight_prior
+        for ys, qs, fs, cs in self.stored_dataset:
+            loss, _, _, _ = self._optimization_step(
+                ys, qs, fs, cs, weight_prior
             )
             losses.append(loss)
 
@@ -338,11 +347,17 @@ class MultiChannelIntegrator:
         """
         channel_weights = tf.fill((self.n_channels, ), 1.) # Have to weight by variance here
         samples, q_sample, func_vals, channels = self._get_samples(nsamples, channel_weights)
-        integrand = self._get_probs(
+        integrands = self._get_probs(
             samples, func_vals, channels, weight_prior, return_integrand=True
         )
-        mean, var = tf.nn.moments(integrand, axes=[0])
-        return mean, tf.sqrt(var / (nsamples - 1.0))
+        mean = 0.
+        var = 0.
+        integs = tf.dynamic_partition(integrands, channels, self.n_channels)
+        for integ in integs:
+            meani, vari = tf.nn.moments(integ, axes=[0])
+            mean += meani
+            var += vari / (tf.cast(tf.shape(integ)[0], self._dtype) - 1.)
+        return mean, tf.sqrt(var)
 
     @tf.function
     def sample_weights(
