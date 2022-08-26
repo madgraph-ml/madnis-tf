@@ -131,13 +131,13 @@ class MultiChannelIntegrator:
         ys = []
         jacs = []
         for i, xi in enumerate(xs):
-            yi, _ = self.mappings[i].inverse(x[mask])
+            yi, _ = self.mappings[i].inverse(xi)
             ys.append(yi)
             jacs.append(self.mappings[i].log_prob(yi))
 
         y = tf.dynamic_stitch(idx, ys)
         jac = tf.dynamic_stitch(idx, jacs)
-        return t, logq + jac
+        return y, logq + jac
 
     @tf.function
     def _get_samples(self, nsamples: int, channel_weights: tf.Tensor):
@@ -389,7 +389,8 @@ class MultiChannelIntegrator:
         )
 
         if yield_samples:
-            return weight, sample
+            return weight, samples
+        
         return weight
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
