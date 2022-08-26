@@ -22,11 +22,17 @@ def integrate(integrand: tf.Tensor):
         tuple of 2 tf.tensors: mean and mc error
 
     """
-    dims = integrand.shape
+    if len(integrand.shape) == 1:
+        n_channels = 1
+        nsamples = integrand.shape[0]
+    else:
+        n_channels = integrand.shape[0]
+        nsamples = integrand.shape[0]
+        
     means, vars = tf.nn.moments(integrand, axes=[0])
     mean, var = tf.reduce_sum(means), tf.reduce_sum(vars)
 
-    return mean, tf.sqrt(dims[1] * var / (dims[0] - 1.0))
+    return mean, tf.sqrt(n_channels * var / (nsamples - 1.0))
 
 
 def parse_schedule(sched_str):

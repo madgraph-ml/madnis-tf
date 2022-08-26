@@ -250,7 +250,8 @@ class AllInOneBlock(Transform):
         # number of elements of the first channel of the first batch member
         # Fix n_pixels
         # n_pixels = tf.size(x) / self.channels
-        log_jac_det += 1 * global_scaling_jac
+        n_pixels = tf.size(x_out[0,...,:1], out_type=x_out.dtype)
+        log_jac_det += 1 * global_scaling_jac * n_pixels
 
         if not jac:
             return x_out
@@ -283,8 +284,8 @@ class AllInOneBlock(Transform):
         # trick to get the total number of non-channel dimensions:
         # number of elements of the first channel of the first batch member
         # Fix n_pixels
-        # n_pixels = tf.size(x) / self.channels
-        log_jac_det += (-1) * global_scaling_jac
+        n_pixels = tf.size(x_out[0,...,:1], out_type=x_out.dtype)
+        log_jac_det += (-1) * global_scaling_jac * n_pixels
 
         if not jac:
             return x_out
