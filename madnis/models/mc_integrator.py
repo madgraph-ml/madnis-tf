@@ -66,6 +66,7 @@ class MultiChannelIntegrator:
         # Define optimizers
         if len(optimizer) > 1:
             assert self.mcw_model is not None
+            assert self.flow is not None
             self.flow_optimizer = optimizer[0]
             self.mcw_optimizer = optimizer[1]
         else:
