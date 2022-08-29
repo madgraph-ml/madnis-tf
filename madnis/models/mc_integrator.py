@@ -29,7 +29,7 @@ class MultiChannelIntegrator:
         n_channels: int = 2,
         loss_func: str = "chi2",
         sample_capacity: int = 0,
-        uniform_channel_ratio: float = 1.,
+        uniform_channel_ratio: float = 1.0,
         variance_history_length: int = 20,
         **kwargs,
     ):
@@ -64,7 +64,7 @@ class MultiChannelIntegrator:
 
         self._func = func
         self.dist = dist
-        
+
         # Define flow or base mapping
         if isinstance(dist, Flow):
             self.train_flow = True
@@ -92,10 +92,12 @@ class MultiChannelIntegrator:
                 self.flow_optimizer = optimizer[0]
                 self.mcw_optimizer = None
         else:
-            raise ValueError(f"Number of given optimziers: {len(optimizer)}, must be either 2 or 1.")
+            raise ValueError(
+                f"Number of given optimziers: {len(optimizer)}, must be either 2 or 1."
+            )
 
         self.use_weight_init = use_weight_init
-        
+
         self.n_channels = n_channels
         if self.n_channels < 2:
             self.train_mcw = False
@@ -133,7 +135,7 @@ class MultiChannelIntegrator:
         samples: tf.Tensor,
         q_sample: tf.Tensor,
         func_vals: tf.Tensor,
-        channels: tf.Tensor
+        channels: tf.Tensor,
     ):
         if self.sample_capacity == 0:
             return
@@ -142,10 +144,10 @@ class MultiChannelIntegrator:
         self.stored_q_sample.append(q_sample)
         self.stored_func_vals.append(func_vals)
         self.stored_channels.append(channels)
-        del self.stored_samples[:-self.sample_capacity]
-        del self.stored_q_sample[:-self.sample_capacity]
-        del self.stored_func_vals[:-self.sample_capacity]
-        del self.stored_channels[:-self.sample_capacity]
+        del self.stored_samples[: -self.sample_capacity]
+        del self.stored_q_sample[: -self.sample_capacity]
+        del self.stored_func_vals[: -self.sample_capacity]
+        del self.stored_channels[: -self.sample_capacity]
         self.stored_dataset = None
 
     @tf.function
@@ -168,23 +170,22 @@ class MultiChannelIntegrator:
 
     @tf.function
     def _get_samples(
-        self,
-        nsamples: int,
-        channel_weights: tf.Tensor,
-        uniform_channel_ratio: float
+        self, nsamples: int, channel_weights: tf.Tensor, uniform_channel_ratio: float
     ):
-        assert channel_weights.shape == (self.n_channels, )
+        assert channel_weights.shape == (self.n_channels,)
         # Split up nsamples * uniform_channel_ratio equally among all the channels
         n_uniform = int(nsamples * uniform_channel_ratio)
         uniform_channels = tf.tile(
-            tf.range(self.n_channels), (n_uniform//self.n_channels+1, )
+            tf.range(self.n_channels), (n_uniform // self.n_channels + 1,)
         )[:n_uniform]
         # Sample the rest of the events from the distribution given by channel_weights
         # after correcting for the uniformly distributed samples
         normed_weights = channel_weights / tf.reduce_sum(channel_weights)
-        probs = tf.maximum(normed_weights - uniform_channel_ratio/self.n_channels, 1e-15)
+        probs = tf.maximum(
+            normed_weights - uniform_channel_ratio / self.n_channels, 1e-15
+        )
         sampled_channels = tf.random.categorical(
-            tf.math.log(probs)[None,:], nsamples - n_uniform, dtype=tf.int32
+            tf.math.log(probs)[None, :], nsamples - n_uniform, dtype=tf.int32
         )[0]
         channels = tf.concat((uniform_channels, sampled_channels), axis=0)
 
@@ -215,7 +216,8 @@ class MultiChannelIntegrator:
                     assert init_weights.shape[1] == self.n_channels
                 else:
                     init_weights = (
-                        1 / self.n_channels
+                        1
+                        / self.n_channels
                         * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
                     )
                 alphas = self.mcw_model([y, init_weights])
@@ -227,7 +229,8 @@ class MultiChannelIntegrator:
                 assert alphas.shape[1] == self.n_channels
             else:
                 alphas = (
-                    1 / self.n_channels
+                    1
+                    / self.n_channels
                     * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
                 )
         alphas = tf.gather(alphas, channels, batch_dims=1)
@@ -253,10 +256,13 @@ class MultiChannelIntegrator:
         logp = tf.math.log(p_true + _EPSILON)
 
         return (
-            p_true, q_test, logp, logq,
+            p_true,
+            q_test,
+            logp,
+            logq,
             tf.convert_to_tensor(means),
             tf.convert_to_tensor(vars),
-            tf.convert_to_tensor(counts)
+            tf.convert_to_tensor(counts),
         )
 
     @tf.function
@@ -264,14 +270,14 @@ class MultiChannelIntegrator:
         self,
         samples: tf.Tensor,
         q_sample: tf.Tensor,
-        func_vals: tf.Tensor, 
+        func_vals: tf.Tensor,
         channels: tf.Tensor,
-        weight_prior: Callable
+        weight_prior: Callable,
     ):
         loss = 0
         if not self.train_flow and not self.train_mcw:
             raise ValueError("No network defined which can be optimized")
-        
+
         # Optimize the Flow
         if self.train_flow:
             with tf.GradientTape() as tape:
@@ -306,7 +312,7 @@ class MultiChannelIntegrator:
 
     def _get_variance_weights(self):
         if len(self.variance_history) < self.variance_history_length:
-            return tf.fill((self.n_channels, ), 1.)
+            return tf.fill((self.n_channels,), 1.0)
 
         count_hist = tf.convert_to_tensor(self.count_history, dtype=self._dtype)
         var_hist = tf.convert_to_tensor(self.variance_history, dtype=self._dtype)
@@ -315,7 +321,7 @@ class MultiChannelIntegrator:
         return w
 
     def delete_samples(self):
-        """ Delete all stored samples. """
+        """Delete all stored samples."""
         del self.stored_samples[:]
         del self.stored_q_sample[:]
         del self.stored_func_vals[:]
@@ -349,11 +355,15 @@ class MultiChannelIntegrator:
         )
         self.variance_history.append(vars)
         self.count_history.append(counts)
-        del self.variance_history[:-self.variance_history_length]
-        del self.count_history[:-self.variance_history_length]
+        del self.variance_history[: -self.variance_history_length]
+        del self.count_history[: -self.variance_history_length]
 
         if integral:
-            return loss, tf.reduce_sum(means), tf.sqrt(tf.reduce_sum(vars / (counts - 1.)))
+            return (
+                loss,
+                tf.reduce_sum(means),
+                tf.sqrt(tf.reduce_sum(vars / (counts - 1.0))),
+            )
 
         return loss
 
@@ -373,16 +383,16 @@ class MultiChannelIntegrator:
             func_vals = tf.concat(self.stored_func_vals, axis=0)
             channels = tf.concat(self.stored_channels, axis=0)
             self.stored_dataset = (
-                tf.data.Dataset.from_tensor_slices((samples, q_sample, func_vals, channels))
+                tf.data.Dataset.from_tensor_slices(
+                    (samples, q_sample, func_vals, channels)
+                )
                 .shuffle(samples.shape[0])
                 .batch(batch_size, drop_remainder=True)
             )
 
         losses = []
         for ys, qs, fs, cs in self.stored_dataset:
-            loss, _, _, _ = self._optimization_step(
-                ys, qs, fs, cs, weight_prior
-            )
+            loss, _, _, _ = self._optimization_step(ys, qs, fs, cs, weight_prior)
             losses.append(loss)
 
         return tf.reduce_mean(losses)
@@ -407,19 +417,54 @@ class MultiChannelIntegrator:
 
         """
         samples, _, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.
+            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.0
         )
         integrands = self._get_probs(
             samples, func_vals, channels, weight_prior, return_integrand=True
         )
-        mean = 0.
-        var = 0.
+        mean = 0.0
+        var = 0.0
         integs = tf.dynamic_partition(integrands, channels, self.n_channels)
         for integ in integs:
             meani, vari = tf.nn.moments(integ, axes=[0])
             mean += meani
-            var += vari / (tf.cast(tf.shape(integ)[0], self._dtype) - 1.)
+            var += vari / (tf.cast(tf.shape(integ)[0], self._dtype) - 1.0)
         return mean, tf.sqrt(var)
+
+    @tf.function
+    def sample_per_channel(
+        self, nsamples: int, channel: int, weight_prior: Callable = None
+    ):
+        """Sample from the trained distribution and return their weights
+        for a single channel.
+
+        This method samples 'nsamples' points from the trained distribution
+        and computes their weights, defined as the functional value of the
+        point divided by the probability of the trained distribution of
+        that point.
+
+        Args:
+            nsamples (int): Number of samples to be drawn.
+            channel (int): the channel of the sampling.
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
+
+        Returns:
+            samples: tf.tensor of size (nsamples, ndims) of sampled points
+            true/test: tf.tensor of size (nsamples, ) of sampled weights
+
+        """
+        channels = [channel] * nsamples
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
+        samples, logq = self.dist.sample_and_log_prob(
+            nsamples, condition=one_hot_channels
+        )
+        y, logq = self._compute_analytic_mappings(samples, logq, channels)
+
+        weight = self._get_probs(
+            samples, self._func(y), channels, weight_prior, return_integrand=True
+        )
+
+        return samples, weight
 
     @tf.function
     def sample_weights(
@@ -445,7 +490,7 @@ class MultiChannelIntegrator:
 
         """
         samples, _, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.
+            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.0
         )
         weight = self._get_probs(
             samples, func_vals, channels, weight_prior, return_integrand=True
@@ -453,7 +498,7 @@ class MultiChannelIntegrator:
 
         if yield_samples:
             return weight, samples
-        
+
         return weight
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
