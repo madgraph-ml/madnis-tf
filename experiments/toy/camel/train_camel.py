@@ -12,7 +12,6 @@ from madnis.plotting.plots import plot_alphas
 from madnis.distributions.camel import Camel
 from madnis.distributions.uniform import StandardUniform
 from madnis.mappings.cauchy import CauchyDistribution
-from madnis.models.multi_channel import MultiChannelWeight
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 
@@ -57,7 +56,7 @@ args = parser.parse_args()
 MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
-STD2 = 0.1
+STD2 = 0.2
 
 # Define truth distribution
 camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.5, 0.5])
