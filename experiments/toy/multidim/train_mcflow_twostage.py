@@ -36,9 +36,12 @@ parser.add_argument("--use_prior_weights", action='store_true')
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
-parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
-parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--activation", type=str, default="leakyrelu",
+        choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--initializer", type=str, default="glorot_uniform",
+        choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--loss", type=str, default="variance",
+        choices={"variance", "neyman_chi2", "kl_divergence"})
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
@@ -52,6 +55,8 @@ parser.add_argument("--schedule", type=str, default="5g")
 parser.add_argument("--sample_capacity", type=int, default=2000)
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--uniform_channel_ratio", type=float, default=1.)
+parser.add_argument("--variance_history_length", type=int, default=100)
 
 args = parser.parse_args()
 
@@ -162,6 +167,8 @@ BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
 SAMPLE_CAPACITY = args.sample_capacity
+UNIFORM_CHANNEL_RATIO = args.uniform_channel_ratio
+VARIANCE_HISTORY_LENGTH = args.variance_history_length
 
 # Number of samples
 #TRAIN_SAMPLES = args.train_samples
@@ -178,8 +185,17 @@ opt1 = tf.keras.optimizers.Adam(lr_schedule)
 opt2 = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelIntegrator(
-    multi_camel, flow, [opt1, opt2], mcw_model=mcw_net, use_weight_init=PRIOR,
-    n_channels=N_CHANNELS, loss_func=LOSS, sample_capacity=SAMPLE_CAPACITY)
+    multi_camel,
+    flow,
+    [opt1, opt2],
+    mcw_model=mcw_net,
+    use_weight_init=PRIOR,
+    n_channels=N_CHANNELS,
+    loss_func=LOSS,
+    sample_capacity=SAMPLE_CAPACITY,
+    uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
+    variance_history_length=VARIANCE_HISTORY_LENGTH
+)
 
 ################################
 # Pre train - integration
