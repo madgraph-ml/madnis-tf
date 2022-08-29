@@ -12,6 +12,7 @@ from madnis.mappings.cauchy_2d import CauchyRingMap, CauchyLineMap
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
+from madnis.plotting.distributions import DistributionPlot
 from vegasflow import VegasFlow
 
 # Use double precision
@@ -26,7 +27,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 parser = argparse.ArgumentParser()
 
 # Data params
-parser.add_argument("--train_samples", type=int, default=128 * 10000)
+parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
@@ -43,7 +44,7 @@ parser.add_argument("--channels", type=int, default=2)
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=1024)
+parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=5e-4)
 
 args = parser.parse_args()
@@ -136,8 +137,8 @@ if PRIOR:
 LOSS = args.loss
 
 # Number of samples
-TRAIN_SAMPLES = args.train_samples
-ITERS = TRAIN_SAMPLES // BATCH_SIZE
+#TRAIN_SAMPLES = args.train_samples
+ITERS = args.train_batches
 
 # Decay of learning rate
 DECAY_RATE = 0.01
@@ -149,6 +150,21 @@ opt = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelIntegrator(
     line_ring, flow, [opt], use_weight_init=PRIOR, n_channels=N_CHANNELS, loss_func=LOSS)
+
+################################
+# Pre train - plot sampling
+################################
+
+log_dir = f'./plots/{N_CHANNELS}_channels/'
+
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+for i in range(N_CHANNELS):
+    x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
+
+    dist = DistributionPlot(x0, x0, f'pre-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
+    dist.plot()
 
 ################################
 # Pre train - integration
@@ -191,6 +207,16 @@ end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
+
+################################
+# After train - plot sampling
+################################
+
+for i in range(N_CHANNELS):
+    x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
+
+    dist = DistributionPlot(x0, x0, f'after-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
+    dist.plot()
 
 ################################
 # After train - integration

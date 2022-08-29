@@ -12,8 +12,8 @@ from .plots import plot_2d_distribution, plot_2d_distribution_single, plot_distr
 from .observables import Observable
 
 
-class Distribution(Observable):
-	"""Custom Distribution class.
+class DistributionPlot(Observable):
+	"""Custom Distribution plotting class.
 
 	Defines which Observables will be plotted depending on the
 	specified dataset.
@@ -29,7 +29,7 @@ class Distribution(Observable):
 		weights: np.ndarray=None,
 		which_plots: List[bool]=[True, False, False, True],
     ):
-		super(Distribution, self).__init__()
+		super().__init__()
 		self.real_data = real_data
 		self.gen_data = gen_data
 		self.weights = weights
