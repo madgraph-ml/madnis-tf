@@ -80,6 +80,9 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     """Plot the alphas"""
 
     plt.rc("figure", figsize=(6.6, 6))
+    plt.rc("text", usetex=True)
+    plt.rc("font", family="serif")
+    FONTSIZE = 16
 
     # Define as numpy
     p_values = p_values
@@ -130,18 +133,24 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     )
     axs[0].minorticks_on()
     axs[1].minorticks_on()
+    
+    
+    for j in range(2):
+        for label in ( [axs[j].yaxis.get_offset_text()] +
+                        axs[j].get_xticklabels() + axs[j].get_yticklabels()):
+            label.set_fontsize(FONTSIZE)
 
 
     # Upper panel
     #
     
-    axs[0].plot(xs, truth, color="black", markersize=12, label=r"$\mathrm{Camel}(p)$")
-    axs[0].plot(xs, m1, color="red", markersize=12, label=r"$g_1(p)$")
-    axs[0].plot(xs, m2, color="blue", markersize=12, label=r"$g_2(p)$")
+    axs[0].plot(xs, truth, color="black", markersize=12, label=r"$\mathrm{Camel}(x)$")
+    axs[0].plot(xs, m1, color="red", markersize=12, label=r"$g_1(x)$")
+    axs[0].plot(xs, m2, color="blue", markersize=12, label=r"$g_2(x)$")
 
 
-    axs[0].legend(loc="upper left", frameon=False, prop={"size": int(FONTSIZE-6)})
-    axs[0].set_ylabel(r"Probability density")
+    axs[0].legend(loc="upper left", frameon=False, prop={"size": int(FONTSIZE-2)})
+    axs[0].set_ylabel(r"Probability density", fontsize = FONTSIZE)
     maxi = np.max([np.max(m1), np.max(m2), np.max(truth)])
     axs[0].set_ylim(top=maxi * 1.1)
     
@@ -153,9 +162,9 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     axs[1].plot(xs, amg1, color="red", markersize=12, label=r"$\alpha_{\mathrm{opt},1}(x)$", linestyle="dotted")
     axs[1].plot(xs, amg2, color="blue", markersize=12, label=r"$\alpha_{\mathrm{opt},2}(x)$", linestyle="dotted")
 
-    axs[1].legend(loc="upper center", ncol=4, frameon=False, prop={"size": int(FONTSIZE-8)})
-    axs[1].set_xlabel(r"$p$")
-    axs[1].set_ylabel(r"Channel weights")
+    axs[1].legend(loc="upper center", ncol=4, frameon=False, prop={"size": int(FONTSIZE-6)})
+    axs[1].set_xlabel(r"$x$", fontsize = FONTSIZE)
+    axs[1].set_ylabel(r"Channel weights", fontsize = FONTSIZE)
     axs[1].set_ylim(bottom=-0.05, top=1.22)
     name = f"{prefix}_alphas"
     fig.savefig(f"{name}.pdf", format="pdf")

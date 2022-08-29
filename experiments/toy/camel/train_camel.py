@@ -7,12 +7,13 @@ import sys
 
 from mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
-from plots import plot_alphas
+from madnis.plotting.plots import plot_alphas
 
 from madnis.distributions.camel import Camel
-from madnis.distributions.normal import Normal
+from madnis.distributions.uniform import StandardUniform
 from madnis.mappings.cauchy import CauchyDistribution
 from madnis.models.multi_channel import MultiChannelWeight
+from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 
 # Use double precision
@@ -27,7 +28,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 parser = argparse.ArgumentParser()
 
 # Data params
-parser.add_argument("--train_samples", type=int, default=128 * 10000)
+parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
@@ -39,9 +40,12 @@ parser.add_argument("--initializer", type=str, default="glorot_uniform", choices
 
 # Train params
 parser.add_argument("--epochs", type=int, default=10)
+parser.add_argument("--sample_capacity", type=int, default=2000)
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--uniform_channel_ratio", type=float, default=1.0)
+parser.add_argument("--variance_history_length", type=int, default=100)
 
 args = parser.parse_args()
 
@@ -53,10 +57,10 @@ args = parser.parse_args()
 MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
-STD2 = 0.2
+STD2 = 0.1
 
 # Define truth distribution
-camel = Camel([MEAN1, MEAN2], [STD1, STD2])
+camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.5, 0.5])
 
 # Define the channel mappings
 GAMMA1 = np.sqrt(2.) * STD1
@@ -137,10 +141,13 @@ EPOCHS = args.epochs
 BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
+SAMPLE_CAPACITY = args.sample_capacity
+UNIFORM_CHANNEL_RATIO = args.uniform_channel_ratio
+VARIANCE_HISTORY_LENGTH = args.variance_history_length
 
 # Number of samples
-TRAIN_SAMPLES = args.train_samples
-ITERS = TRAIN_SAMPLES // BATCH_SIZE
+#TRAIN_SAMPLES = args.train_samples
+ITERS = args.train_batches
 
 # Decay of learning rate
 DECAY_RATE = 0.01
@@ -150,8 +157,22 @@ DECAY_STEP = ITERS
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
-integrator = MultiChannelWeight(
-    camel, mcw_net, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
+base_dist = StandardUniform((DIMS_IN,))
+
+integrator = MultiChannelIntegrator(
+    camel,
+    base_dist,
+    [opt],
+    mappings=[map_1, map_2],
+    mcw_model=mcw_net,
+    use_weight_init=PRIOR,
+    n_channels=N_CHANNELS,
+    loss_func=LOSS,
+    sample_capacity=SAMPLE_CAPACITY,
+    uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
+    variance_history_length=VARIANCE_HISTORY_LENGTH
+)
+
 
 ################################
 # Pre train - plot alphas
@@ -168,7 +189,6 @@ m1 = map_1.prob(p)
 m2 = map_2.prob(p)
 plot_alphas(p, alphas, truth, [m1, m2], prefix=f"pre_{PREFIX}")
 
-
 ################################
 # Pre train - integration
 ################################
@@ -183,7 +203,6 @@ print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
 print("--------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
-
 
 ################################
 # Train the network

@@ -49,7 +49,7 @@ class Camel(Distribution):
             if len(peak_ratios) != self.npeaks:
                 raise ValueError("Length of lists do not match.")
             self.ratios = tf.constant(
-                peak_ratios / tf.reduce_sum(peak_ratios), dtype=self._dtype
+                peak_ratios / tf.cast(tf.reduce_sum(peak_ratios), dtype=self._dtype), dtype=self._dtype
             )
 
     def _prob(self, x, condition):
@@ -125,7 +125,7 @@ class CuttedCamel(Distribution):
             if len(peak_ratios) != self.npeaks:
                 raise ValueError("Length of lists do not match.")
             self.ratios = tf.constant(
-                peak_ratios / tf.reduce_sum(peak_ratios), dtype=self._dtype
+                peak_ratios / tf.cast(tf.reduce_sum(peak_ratios), dtype=self._dtype), dtype=self._dtype
             )
 
     def _prob(self, x, condition):
@@ -228,7 +228,7 @@ class MultiDimCamel(Distribution):
             if len(peak_ratios) != self.npeaks:
                 raise ValueError("Length of lists do not match.")
             self.ratios = tf.constant(
-                peak_ratios / tf.reduce_sum(peak_ratios), dtype=self._dtype
+                peak_ratios / tf.cast(tf.reduce_sum(peak_ratios), dtype=self._dtype), dtype=self._dtype
             )
 
         # Define the norm for all peaks
@@ -309,7 +309,7 @@ class NormalizedMultiDimCamel(Distribution):
             if len(peak_ratios) != self.npeaks:
                 raise ValueError("Length of lists do not match.")
             self.ratios = tf.constant(
-                peak_ratios / tf.reduce_sum(peak_ratios), dtype=self._dtype
+                peak_ratios / tf.cast(tf.reduce_sum(peak_ratios), dtype=self._dtype), dtype=self._dtype
             )
 
         # Define the norm for all peaks

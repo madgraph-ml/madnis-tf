@@ -21,7 +21,7 @@ class MultiChannelIntegrator:
     def __init__(
         self,
         func: Union[Callable, Distribution],
-        flow: Flow,
+        dist: Distribution,
         optimizer: List[tf.keras.optimizers.Optimizer],
         mcw_model: tf.keras.Model = None,
         mappings: List[Mapping] = None,
@@ -37,8 +37,9 @@ class MultiChannelIntegrator:
         Args:
             func (Union[Callable, Distribution]):
                 Function to be integrated
-            flow (Flow):
-                Trainable flow model to match the function
+            dist (Distribution):
+                Trainable flow distribution to match the function
+                or a fixed base distribution.
             optimizer (List[tf.keras.optimizers.Optimizer]):
                 A list of optimizers for each of the two models
             mcw_model (tf.keras.Model, optional):
@@ -62,7 +63,13 @@ class MultiChannelIntegrator:
         self._dtype = tf.keras.backend.floatx()
 
         self._func = func
-        self.flow = flow
+        self.dist = dist
+        
+        # Define flow or base mapping
+        if isinstance(dist, Flow):
+            self.train_flow = True
+        else:
+            self.train_flow = False
 
         # Define mcw model if given
         self.mcw_model = mcw_model
@@ -74,12 +81,18 @@ class MultiChannelIntegrator:
         # Define optimizers
         if len(optimizer) > 1:
             assert self.mcw_model is not None
-            assert self.flow is not None
+            assert isinstance(self.dist, Flow)
             self.flow_optimizer = optimizer[0]
             self.mcw_optimizer = optimizer[1]
+        elif len(optimizer) == 1:
+            if self.mcw_model is not None:
+                self.flow_optimizer = None
+                self.mcw_optimizer = optimizer[0]
+            else:
+                self.flow_optimizer = optimizer[0]
+                self.mcw_optimizer = None
         else:
-            self.flow_optimizer = optimizer[0]
-            self.mcw_optimizer = None
+            raise ValueError(f"Number of given optimziers: {len(optimizer)}, must be either 2 or 1.")
 
         self.use_weight_init = use_weight_init
         
@@ -176,7 +189,7 @@ class MultiChannelIntegrator:
         channels = tf.concat((uniform_channels, sampled_channels), axis=0)
 
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
-        x, logq = self.flow.sample_and_log_prob(nsamples, condition=one_hot_channels)
+        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(x, logq, channels)
         return x, tf.math.exp(logq), self._func(y), channels
 
@@ -191,7 +204,7 @@ class MultiChannelIntegrator:
     ):
         nsamples = samples.shape[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
-        logq = self.flow.log_prob(samples, condition=one_hot_channels)
+        logq = self.dist.log_prob(samples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
         q_test = tf.math.exp(logq)
 
@@ -256,19 +269,22 @@ class MultiChannelIntegrator:
         weight_prior: Callable
     ):
         loss = 0
-
+        if not self.train_flow and not self.train_mcw:
+            raise ValueError("No network defined which can be optimized")
+        
         # Optimize the Flow
-        with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, _, _, _ = self._get_probs(
-                samples, func_vals, channels, weight_prior
-            )
-            flow_loss = self.flow_loss_func(
-                p_true, q_test, logp, logq, q_sample=q_sample
-            )
+        if self.train_flow:
+            with tf.GradientTape() as tape:
+                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
+                    samples, func_vals, channels, weight_prior
+                )
+                flow_loss = self.flow_loss_func(
+                    p_true, q_test, logp, logq, q_sample=q_sample
+                )
 
-        grads = tape.gradient(flow_loss, self.flow.trainable_weights)
-        self.flow_optimizer.apply_gradients(zip(grads, self.flow.trainable_weights))
-        loss += flow_loss
+            grads = tape.gradient(flow_loss, self.dist.trainable_weights)
+            self.flow_optimizer.apply_gradients(zip(grads, self.dist.trainable_weights))
+            loss += flow_loss
 
         # Optimize the channel weight
         if self.train_mcw:
@@ -390,7 +406,7 @@ class MultiChannelIntegrator:
             tuple of 2 tf.tensors: mean and mc error
 
         """
-        samples, q_sample, func_vals, channels = self._get_samples(
+        samples, _, func_vals, channels = self._get_samples(
             nsamples, self._get_variance_weights(), uniform_channel_ratio=0.
         )
         integrands = self._get_probs(
@@ -428,7 +444,7 @@ class MultiChannelIntegrator:
             (samples: tf.tensor of size (nsamples, ndims) of sampled points)
 
         """
-        samples, q_sample, func_vals, channels = self._get_samples(
+        samples, _, func_vals, channels = self._get_samples(
             nsamples, self._get_variance_weights(), uniform_channel_ratio=0.
         )
         weight = self._get_probs(
@@ -469,13 +485,15 @@ class MultiChannelIntegrator:
 
     def save_weights(self, path: str):
         """Save the networks."""
-        self.flow.save_weights(path + "flow")
+        if self.train_flow:
+            self.dist.save_weights(path + "flow")
         if self.train_mcw:
             self.mcw_model.save_weights(path + "mcw")
 
     def load_weights(self, path: str):
         """Load the networks."""
-        self.flow.load_weights(path + "flow")
+        if self.train_flow:
+            self.dist.load_weights(path + "flow")
         if self.train_mcw:
             self.mcw_model.load_weight(path + "mcw")
         print("Models loaded successfully")
