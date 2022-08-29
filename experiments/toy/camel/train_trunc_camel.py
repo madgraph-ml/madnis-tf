@@ -56,7 +56,7 @@ args = parser.parse_args()
 MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
-STD2 = 0.2
+STD2 = 0.1
 CUT = 2.0
 
 # Define truth distribution

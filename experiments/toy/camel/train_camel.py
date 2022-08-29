@@ -32,8 +32,8 @@ parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
 parser.add_argument("--use_prior_weights", action='store_true')
-parser.add_argument("--units", type=int, default=16)
-parser.add_argument("--layers", type=int, default=3)
+parser.add_argument("--units", type=int, default=32)
+parser.add_argument("--layers", type=int, default=5)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 
@@ -56,7 +56,7 @@ args = parser.parse_args()
 MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
-STD2 = 0.2
+STD2 = 0.1
 
 # Define truth distribution
 camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.5, 0.5])
