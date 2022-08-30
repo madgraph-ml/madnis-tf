@@ -283,7 +283,7 @@ class MultiChannelIntegrator:
         if self.train_flow:
             with tf.GradientTape() as tape:
                 p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
-                    samples, func_vals, channels, weight_prior
+                    samples, q_sample, func_vals, channels, weight_prior
                 )
                 flow_loss = self.flow_loss_func(
                     p_true, q_test, logp, logq, q_sample=q_sample
@@ -297,7 +297,7 @@ class MultiChannelIntegrator:
         if self.train_mcw:
             with tf.GradientTape() as tape:
                 p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
-                    samples, func_vals, channels
+                    samples, q_sample, func_vals, channels
                 )
                 mcw_loss = self.mcw_loss_func(
                     p_true, q_test, logp, logq, q_sample=q_sample
