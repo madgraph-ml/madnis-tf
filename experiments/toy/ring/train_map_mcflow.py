@@ -10,9 +10,11 @@ from madnis.utils.train_utils import integrate
 
 from madnis.distributions.gaussians_2d import TwoChannelLineRing
 from madnis.mappings.cauchy_2d import CauchyRingMap, CauchyLineMap
+from madnis.mappings.unit_hypercube import RealsToUnit
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
+from madnis.plotting.distributions import DistributionPlot
 from vegasflow import VegasFlow
 
 # Use double precision
@@ -42,6 +44,9 @@ parser.add_argument("--loss", type=str, default="variance", choices={"variance",
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
+
+# Define the number of channels
+parser.add_argument("--channels", type=int, default=2)
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
@@ -77,6 +82,7 @@ GAMMA2 = np.sqrt(40.) * SIGMA2
 
 map_1 = CauchyRingMap(RADIUS, GAMMA0)
 map_2 = CauchyLineMap([MEAN1, MEAN2], [GAMMA1, GAMMA2], ALPHA)
+identity = RealsToUnit((2,))
 
 ################################
 # Naive integration
@@ -105,7 +111,7 @@ print("-----------------------------------------------------------\n")
 # Define the flow network
 ################################
 
-N_CHANNELS = 2  # number of Mappings
+N_CHANNELS = args.channels  # number of Mappings
 PRIOR = args.use_prior_weights
 
 FLOW_META = {
@@ -183,9 +189,37 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt1 = tf.keras.optimizers.Adam(lr_schedule)
 opt2 = tf.keras.optimizers.Adam(lr_schedule)
 
+MAPPINGS = [map_1, map_2]
+N_MAPS = len(MAPPINGS)
+for i in range(N_CHANNELS-N_MAPS):
+    MAPPINGS.append(identity)
+    
 integrator = MultiChannelIntegrator(
-    line_ring, flow, [opt1, opt2], mcw_model=mcw_net, mappings=[map_1, map_2], use_weight_init=PRIOR, n_channels=N_CHANNELS, loss_func=LOSS)
+    line_ring, 
+    flow, 
+    [opt1, opt2], 
+    mcw_model=mcw_net, 
+    mappings=MAPPINGS, 
+    use_weight_init=PRIOR, 
+    n_channels=N_CHANNELS, 
+    loss_func=LOSS
+)
 
+################################
+# Pre train - plot sampling
+################################
+
+log_dir = f'./plots/with_mappings/{N_CHANNELS}_channels/'
+
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+for i in range(N_CHANNELS):
+    x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
+
+    dist = DistributionPlot(x0, x0, f'pre-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
+    dist.plot()
+    
 ################################
 # Pre train - integration
 ################################
@@ -228,6 +262,16 @@ print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
+################################
+# After train - plot sampling
+################################
+
+for i in range(N_CHANNELS):
+    x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
+
+    dist = DistributionPlot(x0, x0, f'after-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
+    dist.plot()
+    
 ################################
 # After train - integration
 ################################

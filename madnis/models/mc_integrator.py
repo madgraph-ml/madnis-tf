@@ -156,7 +156,7 @@ class MultiChannelIntegrator:
             return x, logq
 
         xs = tf.dynamic_partition(x, channels, self.n_channels)
-        idx = tf.dynamic_partition(tf.range(x.shape[0]), channels, self.n_channels)
+        idx = tf.dynamic_partition(tf.range(tf.shape(x)[0]), channels, self.n_channels)
         ys = []
         jacs = []
         for i, xi in enumerate(xs):
@@ -203,7 +203,7 @@ class MultiChannelIntegrator:
         weight_prior: Callable = None,
         return_integrand: bool = False,
     ):
-        nsamples = samples.shape[0]
+        nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         logq = self.dist.log_prob(samples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
@@ -386,7 +386,7 @@ class MultiChannelIntegrator:
                 tf.data.Dataset.from_tensor_slices(
                     (samples, q_sample, func_vals, channels)
                 )
-                .shuffle(samples.shape[0])
+                .shuffle(tf.shape(samples)[0])
                 .batch(batch_size, drop_remainder=True)
             )
 
