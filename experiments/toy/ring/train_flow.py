@@ -165,6 +165,7 @@ for i in range(N_CHANNELS):
 
     dist = DistributionPlot(x0, x0, f'pre-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
     dist.plot()
+    
 
 ################################
 # Pre train - integration

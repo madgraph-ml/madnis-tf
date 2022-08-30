@@ -42,7 +42,7 @@ class Identity(Mapping):
         del condition, x_or_z, inverse
         return 1.
     
-    def _logdet(self, x_or_z, condition=None, inverse=False):
+    def _log_det(self, x_or_z, condition=None, inverse=False):
         # Note: the condition is ignored.
         del condition, x_or_z, inverse
         return 0.

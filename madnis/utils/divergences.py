@@ -94,7 +94,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             mean2 = tf.reduce_mean(
@@ -148,7 +148,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -199,7 +199,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -249,7 +249,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -301,7 +301,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         sample_factor = tf.stop_gradient(q_test) / tf.stop_gradient(q_sample)
         if self.train_mcw:
@@ -348,7 +348,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -400,7 +400,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -456,7 +456,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.alpha is None:
             raise ValueError("Must give an alpha value to use Chernoff " "Divergence.")
@@ -514,7 +514,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             return tf.reduce_mean(
@@ -567,7 +567,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         sample_factor = tf.stop_gradient(q_test) / tf.stop_gradient(q_sample)
         if self.train_mcw:
@@ -623,7 +623,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.alpha is None:
             raise ValueError(
@@ -698,7 +698,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((q_test.shape[0],), dtype=self._dtype)
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
 
         if self.train_mcw:
             logm = tf.math.log(0.5 * (tf.stop_gradient(q_test) + p_true))
