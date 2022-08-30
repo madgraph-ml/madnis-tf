@@ -455,16 +455,12 @@ class MultiChannelIntegrator:
         """
         channels = [channel] * nsamples
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
-        samples, logq = self.dist.sample_and_log_prob(
-            nsamples, condition=one_hot_channels
-        )
-        y, logq = self._compute_analytic_mappings(samples, logq, channels)
-
+        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(x, logq, channels)
         weight = self._get_probs(
-            samples, self._func(y), channels, weight_prior, return_integrand=True
+            x, self._func(y), channels, weight_prior, return_integrand=True
         )
-
-        return samples, weight
+        return y, weight
 
     @tf.function
     def sample_weights(
