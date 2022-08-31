@@ -107,24 +107,27 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         var = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 mean2 = tf.reduce_mean(
                     pi ** 2 / (tf.stop_gradient(qti * qsi)),
                     axis=0,
                 )
                 mean = tf.reduce_mean(pi / tf.stop_gradient(qsi), axis=0)
-                var += sigi * (mean2 - mean ** 2)
+                var += sigi * (mean2 - mean ** 2) * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 mean2 = tf.reduce_mean(
                     tf.stop_gradient(pi) ** 2 / (qti * tf.stop_gradient(qsi)),
                     axis=0,
                 )
                 mean = tf.reduce_mean(tf.stop_gradient(pi / qsi), axis=0)
-                var += sigi * (mean2 - mean ** 2)
+                var += sigi * (mean2 - mean ** 2) * tf.stop_gradient(ni / n_samples)
 
         return var
 
@@ -170,22 +173,25 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         chi2 = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 chi2i = tf.reduce_mean(
                     (pi - tf.stop_gradient(qti)) ** 2 / (tf.stop_gradient(qti * qsi)),
                     axis=0,
                 )
-                chi2 += sigi * chi2i
+                chi2 += sigi * chi2i * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 chi2i = tf.reduce_mean(
                     (tf.stop_gradient(pi) - qti) ** 2 / (qti * tf.stop_gradient(qsi)),
                     axis=0,
                 )
-                chi2 += sigi * chi2i
+                chi2 += sigi * chi2i * tf.stop_gradient(ni / n_samples)
 
         return chi2
 
@@ -231,22 +237,25 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         chi2 = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 chi2i = tf.reduce_mean(
                     (tf.stop_gradient(qti) - pi) ** 2 / (pi * tf.stop_gradient(qsi)),
                     axis=0,
                 )
-                chi2 += sigi * chi2i
+                chi2 += sigi * chi2i * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 chi2i = tf.reduce_mean(
                     (qti - tf.stop_gradient(pi)) ** 2 / (tf.stop_gradient(pi * qsi)),
                     axis=0,
                 )
-                chi2 += sigi * chi2i
+                chi2 += sigi * chi2i * tf.stop_gradient(ni / n_samples)
 
         return chi2
 
@@ -292,22 +301,25 @@ class Divergence:
         ps = tf.dynamic_partition(p_true, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         kl = 0
         if self.train_mcw:
             for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 kli = tf.reduce_mean(
                     pi / tf.stop_gradient(qsi) * (logpi - tf.stop_gradient(logqi)),
                     axis=0,
                 )
-                kl += sigi * kli
+                kl += sigi * kli * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 kli = tf.reduce_mean(
                     tf.stop_gradient(pi / qsi) * (tf.stop_gradient(logpi) - logqi),
                     axis=0,
                 )
-                kl += sigi * kli
+                kl += sigi * kli * tf.stop_gradient(ni / n_samples)
 
         return kl
 
@@ -353,22 +365,25 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         rkl = 0
         if self.train_mcw:
             for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 rkli = tf.reduce_mean(
                     tf.stop_gradient(qti / qsi) * (tf.stop_gradient(logqi) - logpi),
                     axis=0,
                 )
-                rkl += sigi * rkli
+                rkl += sigi * rkli * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 rkli = tf.reduce_mean(
                     qti / tf.stop_gradient(qsi) * (logqi - tf.stop_gradient(logpi)),
                     axis=0,
                 )
-                rkl += sigi * rkli
+                rkl += sigi * rkli * tf.stop_gradient(ni / n_samples)
 
         return rkl
 
@@ -414,26 +429,29 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         hell = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 helli = tf.reduce_mean(
                     2.0
                     * (tf.math.sqrt(pi) - tf.stop_gradient(tf.math.sqrt(qti))) ** 2
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                hell += sigi * helli
+                hell += sigi * helli * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 helli = tf.reduce_mean(
                     2.0
                     * (tf.stop_gradient(tf.math.sqrt(pi)) - tf.math.sqrt(qti)) ** 2
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                hell += sigi * helli
+                hell += sigi * helli * tf.stop_gradient(ni / n_samples)
 
         return hell
 
@@ -480,30 +498,33 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         jeff = 0
         if self.train_mcw:
             for logpi, logqi, pi, qsi, qti, sigi in zip(
                 logps, logqs, ps, qs, qt, sigmas
             ):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 jeffi = tf.reduce_mean(
                     (pi - tf.stop_gradient(qti))
                     * (logpi - tf.stop_gradient(logqi))
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                jeff += sigi * jeffi
+                jeff += sigi * jeffi * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, pi, qsi, qti, sigi in zip(
                 logps, logqs, ps, qs, qt, sigmas
             ):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 jeffi = tf.reduce_mean(
                     (tf.stop_gradient(pi) - qti)
                     * (tf.stop_gradient(logpi) - logqi)
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                jeff += sigi * jeffi
+                jeff += sigi * jeffi * tf.stop_gradient(ni / n_samples)
 
         return jeff
 
@@ -557,29 +578,32 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
         prefactor = 4.0 / (1 - self.alpha ** 2)
 
         vlad = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 int = tf.reduce_mean(
                     tf.pow(pi, (1.0 - self.alpha) / 2.0)
                     * tf.stop_gradient(tf.pow(qti, (1.0 + self.alpha) / 2.0))
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                vlad += sigi * prefactor * (1 - int)
+                vlad += sigi * (1 - int) * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 int = tf.reduce_mean(
                     tf.stop_gradient(tf.pow(pi, (1.0 - self.alpha) / 2.0))
                     * tf.pow(qti, (1.0 + self.alpha) / 2.0)
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                vlad += sigi * prefactor * (1 - int)
+                vlad += sigi * (1 - int) * tf.stop_gradient(ni / n_samples)
 
-        return vlad
+        return prefactor * vlad
 
     def exponential(
         self,
@@ -623,22 +647,25 @@ class Divergence:
         ps = tf.dynamic_partition(p_true, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         exp = 0
         if self.train_mcw:
             for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 expi = tf.reduce_mean(
                     pi / tf.stop_gradient(qsi) * (logpi - tf.stop_gradient(logqi)) ** 2,
                     axis=0,
                 )
-                exp += sigi * expi
+                exp += sigi * expi * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 expi = tf.reduce_mean(
                     tf.stop_gradient(pi / qsi) * (tf.stop_gradient(logpi) - logqi) ** 2,
                     axis=0,
                 )
-                exp += sigi * expi
+                exp += sigi * expi * tf.stop_gradient(ni / n_samples)
 
         return exp
 
@@ -685,25 +712,28 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         exp2 = 0
         if self.train_mcw:
             for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 exp2i = tf.reduce_mean(
                     tf.stop_gradient(qti / qsi)
                     * (tf.stop_gradient(logqi) - logpi) ** 2,
                     axis=0,
                 )
-                exp2 += sigi * exp2i
+                exp2 += sigi * exp2i * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 exp2i = tf.reduce_mean(
                     qti
                     / tf.stop_gradient(qsi)
                     * (logqi - tf.stop_gradient(logpi)) ** 2,
                     axis=0,
                 )
-                exp2 += sigi * exp2i
+                exp2 += sigi * exp2i * tf.stop_gradient(ni / n_samples)
 
         return exp2
 
@@ -763,17 +793,17 @@ class Divergence:
         if not 0 < self.beta < 1:
             raise ValueError("Beta must be between 0 and 1.")
 
-        logps = tf.dynamic_partition(logp, channels, self.n_channels)
-        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
         ps = tf.dynamic_partition(p_true, channels, self.n_channels)
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
         prefactor = 2.0 / ((1 - self.alpha) * (1 - self.beta))
 
         ab_prod = 0
         if self.train_mcw:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 ab_prodi = tf.reduce_mean(
                     (1 - tf.pow(tf.stop_gradient(qti) / pi, (1 - self.alpha) / 2.0))
                     * (1 - tf.pow(tf.stop_gradient(qti) / pi, (1 - self.beta) / 2.0))
@@ -781,16 +811,17 @@ class Divergence:
                     / tf.stop_gradient(qsi),
                     axis=0,
                 )
-                ab_prod += sigi * ab_prodi
+                ab_prod += sigi * ab_prodi * tf.stop_gradient(ni / n_samples)
         else:
             for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 ab_prodi = tf.reduce_mean(
                     (1 - tf.pow(qti / tf.stop_gradient(pi), (1 - self.alpha) / 2.0))
                     * (1 - tf.pow(qti / tf.stop_gradient(pi), (1 - self.beta) / 2.0))
                     * tf.stop_gradient(pi / qsi),
                     axis=0,
                 )
-                ab_prod += sigi * ab_prodi
+                ab_prod += sigi * ab_prodi * tf.stop_gradient(ni / n_samples)
 
         return prefactor * ab_prod
 
@@ -837,12 +868,14 @@ class Divergence:
         qt = tf.dynamic_partition(q_test, channels, self.n_channels)
         qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
         sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+        n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         js = 0
         if self.train_mcw:
             for logpi, logqi, pi, qsi, qti, sigi in zip(
                 logps, logqs, ps, qs, qt, sigmas
             ):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 logm = tf.math.log(0.5 * (tf.stop_gradient(qti) + pi))
                 jsi = tf.reduce_mean(
                     0.5
@@ -853,11 +886,12 @@ class Divergence:
                     ),
                     axis=0,
                 )
-                js += sigi * jsi
+                js += sigi * jsi * tf.stop_gradient(ni / n_samples)
         else:
             for logpi, logqi, pi, qsi, qti, sigi in zip(
                 logps, logqs, ps, qs, qt, sigmas
             ):
+                ni = tf.cast(tf.shape(qsi)[0], self._dtype)
                 logm = tf.math.log(0.5 * (qti + tf.stop_gradient(pi)))
                 jsi = tf.reduce_mean(
                     0.5
@@ -868,7 +902,7 @@ class Divergence:
                     ),
                     axis=0,
                 )
-                js += sigi * jsi
+                js += sigi * jsi * tf.stop_gradient(ni / n_samples)
 
         return js
 
