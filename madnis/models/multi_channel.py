@@ -110,34 +110,33 @@ class MultiChannelWeight:
         return x, tf.math.exp(logq), self._func(y), channels
     
     @tf.function
-    def _get_probs(self, samples: List[tf.Tensor], weight_prior: Callable = None):
+    def _get_probs(self, samples: List[tf.Tensor], channels, weight_prior: Callable = None):
         ps = []
         qs = []
-        logqs = []
         means = []
         vars = []
-        nsamples = samples[0].shape[0]
+        nsamples = tf.shape(samples)[0] // self.n_channels
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
+        logq = self.dist.log_prob(samples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(samples, logq, channels)
+        q_test = tf.math.exp(logq)
 
         for i in range(self.n_channels):
-            # Channel dependent mapping
-            logqi = self.mappings[i].log_prob(samples[i])
-            qi = tf.math.exp(logqi)
-            qs.append(qi[..., None])
-            logqs.append(logqi[..., None])
-
+            yi = y[i::self.n_channels]
+            qi = q_test[i::self.n_channels]
             # Get multi-channel weights
             if self.use_weight_init:
                 if weight_prior is not None:
-                    init_weights = weight_prior(samples[i])
+                    init_weights = weight_prior(yi)
                     assert init_weights.shape[1] == self.n_channels
                 else:
                     init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                alphas = self.mcw_model([samples[i], init_weights])
+                alphas = self.mcw_model([yi, init_weights])
             else:
-                alphas = self.mcw_model(samples[i])
+                alphas = self.mcw_model(yi)
 
             # Get true integrand
-            pi = alphas[:, i] * tf.abs(self._func(samples[i]))
+            pi = alphas[:, i] * tf.abs(self._func(yi))
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
             pi = pi / meani
             ps.append(pi[..., None])
@@ -146,9 +145,7 @@ class MultiChannelWeight:
 
         # Get concatenated stuff all in shape (nsamples, n_channels)
         p_true = tf.concat(ps, axis=-1)
-        q_test = tf.concat(qs, axis=-1)
         
-        logq = tf.concat(logqs, axis=-1)
         logp = tf.math.log(p_true + _EPSILON)
         
         # TODO: Understand why this where returns an error.
@@ -215,15 +212,13 @@ class MultiChannelWeight:
         #    # Channel dependent flow sampling
         #    sample = self.mappings[i].sample(nsamples)
         #    samples.append(sample)
-        x, q_sample, func_vals, channels = self._get_samples(
+        samples, q_sample, func_vals, channels = self._get_samples(
             nsamples, tf.ones((self.n_channels,), dtype=self._dtype), uniform_channel_ratio=1.0
         )
-        y, _ = self._compute_analytic_mappings(x, 0., channels)
-        samples = [y[i::self.n_channels] for i in range(self.n_channels)]
             
         # Optimize the channel weight 
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, weight_prior)
+            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, channels, weight_prior)
             p_true = tf.reshape(p_true, (-1,))
             q_test = tf.reshape(q_test, (-1,))
             logq = tf.reshape(logq, (-1,))
