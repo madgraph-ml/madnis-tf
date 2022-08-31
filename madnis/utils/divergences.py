@@ -120,7 +120,7 @@ class Divergence:
                     / (qti * tf.stop_gradient(qsi)),
                     axis=0,
                 )
-                mean += tf.reduce_mean(sigi * pi / tf.stop_gradient(qsi), axis=0)
+                mean += tf.reduce_mean(sigi * tf.stop_gradient(pi / qsi), axis=0)
                 var += mean2 - mean ** 2
 
         return var
@@ -172,6 +172,7 @@ class Divergence:
                 / (tf.stop_gradient(q_test) * tf.stop_gradient(q_sample)),
                 axis=0,
             )
+            mean = tf.reduce_mean(sigma * p_true / tf.stop_gradient(q_sample), axis=0)
         else:
             mean2 = tf.reduce_mean(
                 sigma
@@ -179,8 +180,8 @@ class Divergence:
                 / (q_test * tf.stop_gradient(q_sample)),
                 axis=0,
             )
+            mean = tf.reduce_mean(sigma * tf.stop_gradient(p_true / q_sample), axis=0)
 
-        mean = tf.reduce_mean(sigma * p_true / tf.stop_gradient(q_sample), axis=0)
         return mean2 - mean ** 2
 
     def neyman_chi2(
