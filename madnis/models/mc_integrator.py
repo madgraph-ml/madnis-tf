@@ -286,7 +286,7 @@ class MultiChannelIntegrator:
                     samples, q_sample, func_vals, channels, weight_prior
                 )
                 flow_loss = self.flow_loss_func(
-                    p_true, q_test, logp, logq, q_sample=q_sample
+                    p_true, q_test, logp, logq, q_sample=q_sample, channels=channels
                 )
 
             grads = tape.gradient(flow_loss, self.dist.trainable_weights)
@@ -300,7 +300,7 @@ class MultiChannelIntegrator:
                     samples, q_sample, func_vals, channels
                 )
                 mcw_loss = self.mcw_loss_func(
-                    p_true, q_test, logp, logq, q_sample=q_sample
+                    p_true, q_test, logp, logq, q_sample=q_sample, channels=channels
                 )
 
             grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)

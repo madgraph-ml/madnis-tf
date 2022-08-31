@@ -57,6 +57,74 @@ class Divergence:
             )
         ]
 
+    def variance2(
+        self,
+        p_true: tf.Tensor,
+        q_test: tf.Tensor,
+        logp: tf.Tensor,
+        logq: tf.Tensor,
+        sigma: tf.Tensor = None,
+        q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
+    ):
+        """Implement variance loss.
+
+        This function returns the variance loss for two given sets
+        of functions, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
+        estimator is divided by an additional factor of ``q_test``.
+
+        **Remark:**
+        In the variance loss the ``p_true`` function does not have to be normalized to 1.
+
+        tf.stop_gradient is used such that the correct gradient is returned
+        when the variance is used as loss function.
+
+        Arguments:
+            p_true (tf.tensor): true function/probability. Does not have to be normalized.
+            q_test (tf.tensor): estimated function/probability
+            logp (tf.tensor): not used in variance
+            logq (tf.tensor): not used in variance
+            sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
+            q_sample (tf.tensor): sampling probability
+
+        Returns:
+            tf.tensor: computed variance loss
+
+        """
+        del logp, logq
+        if q_sample is None:
+            q_sample = q_test
+        if sigma is None:
+            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+
+        ps = tf.dynamic_partition(p_true, channels, 2)
+        qt = tf.dynamic_partition(q_test, channels, 2)
+        qs = tf.dynamic_partition(q_sample, channels, 2)
+        sigmas = tf.dynamic_partition(sigma, channels, 2)
+        var = 0
+        if self.train_mcw:
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                mean2 = tf.reduce_mean(
+                    sigi
+                    * pi ** 2
+                    / (tf.stop_gradient(qti) * tf.stop_gradient(qsi)),
+                    axis=0,
+                )
+                mean = tf.reduce_mean(sigi * pi / tf.stop_gradient(qsi), axis=0)
+                var += (mean2 - mean ** 2)
+        else:
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                mean2 += tf.reduce_mean(
+                    sigi
+                    * tf.stop_gradient(pi) ** 2
+                    / (qti * tf.stop_gradient(qsi)),
+                    axis=0,
+                )
+                mean += tf.reduce_mean(sigi * pi / tf.stop_gradient(qsi), axis=0)
+                var += mean2 - mean ** 2
+
+        return var
+
     def variance(
         self,
         p_true: tf.Tensor,
@@ -65,6 +133,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement variance loss.
 
@@ -122,6 +191,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Neyman chi2 divergence.
 
@@ -173,6 +243,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Pearson chi2 divergence.
 
@@ -224,6 +295,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Kullback-Leibler (KL) divergence.
 
@@ -276,6 +348,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement reverse Kullback-Leibler (RKL) divergence.
 
@@ -322,6 +395,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Hellinger distance.
 
@@ -375,6 +449,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Jeffreys divergence.
 
@@ -427,6 +502,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Chernoff divergence.
 
@@ -489,6 +565,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Exponential divergence.
 
@@ -541,6 +618,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Exponential divergence with ``p_true`` and ``q_test`` interchanged.
 
@@ -593,6 +671,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement (alpha, beta)-product divergence.
 
@@ -673,6 +752,7 @@ class Divergence:
         logq: tf.Tensor,
         sigma: tf.Tensor = None,
         q_sample: tf.Tensor = None,
+        channels: tf.Tensor = None,
     ):
         """Implement Jensen-Shannon (JS) divergence.
 
