@@ -248,7 +248,7 @@ for e, etype in enumerate(SCHEDULE):
 
         print(f"Epoch #{e+1}: delete samples")
 
-    if time.time() - start_time > args.max_train_time:
+    if args.max_train_time is not None and time.time() - start_time > args.max_train_time:
         break
 
 end_time = time.time()
@@ -271,5 +271,5 @@ print("-------------------------------------------------------------\n")
 
 if args.result_file is not None:
     with open(args.result_file, "a") as f:
-        f.write(f"{res:.8f} {err:.8f} {end_time - start_time}" +
-                f"{integrator.training_statistics} {integrator.weight_updates}")
+        f.write(f"{res:.8f} {err:.8f} {end_time - start_time} " +
+                f"{integrator.training_statistics} {integrator.weight_updates}\n")
