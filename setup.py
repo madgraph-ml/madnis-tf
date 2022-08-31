@@ -8,7 +8,7 @@ with open("README.rst", "r") as fh:
 setup(
     name="MadNIS",
     version="0.1.2",
-    author="Ramon Winterhalder",
+    author="Ramon Winterhalder, Theo Heimel",
     author_email="ramon.winterhalder@uclouvain.be",
     description="Machine learning for neural multi-channel importance sampling in MadGraph",
     long_description=long_description,
