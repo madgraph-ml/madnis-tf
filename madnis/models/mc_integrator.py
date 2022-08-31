@@ -137,6 +137,16 @@ class MultiChannelIntegrator:
         func_vals: tf.Tensor,
         channels: tf.Tensor,
     ):
+        """
+        Stores the generated samples and probabilites
+        to re-use for the two-stage training.
+
+        Args:
+            samples (tf.Tensor): Samples generated either uniformly or by the flow.
+            q_sample (tf.Tensor): Test probability of all mappings (analytic + flow)
+            func_vals (tf.Tensor): True probability
+            channels (tf.Tensor): Tensor encoding which channel to use with shape (nsamples,).
+        """
         if self.sample_capacity == 0:
             return
 
@@ -151,7 +161,19 @@ class MultiChannelIntegrator:
         self.stored_dataset = None
 
     @tf.function
-    def _compute_analytic_mappings(self, x, logq, channels):
+    def _compute_analytic_mappings(self, x: tf.Tensor, logq: tf.Tensor, channels: tf.Tensor):
+        """Computes the remapped output and log determinant of possible
+        fixed analytic mappings used.
+
+        Args:
+            x (tf.Tensor: Input coming either from an uniform distribution or from a flow.
+            logq (tf.Tensor: Log probability of the uniform distribution or the flow.
+            channels (tf.Tensor): Tensor encoding which channel to use with shape (nsamples,).
+
+        Returns:
+            y (tf.Tensor): final sample output after all mappings.
+            logq (tf.Tensor): combined log probability of all mappings.
+        """
         if not self.use_analytic_mappings:
             return x, logq
 
@@ -171,7 +193,20 @@ class MultiChannelIntegrator:
     @tf.function
     def _get_samples(
         self, nsamples: int, channel_weights: tf.Tensor, uniform_channel_ratio: float
-    ):
+    ):  
+        """
+        Args:
+            nsamples (int): Numper of samples to be generated.
+            channel_weights (tf.Tensor): Importance of each channel with shape (n_channels,1)
+            uniform_channel_ratio (float): ratio of samples which are distributed
+                uniformly across all channels. If > 0, this guarantees that no channel is empty.
+
+        Returns:
+            x (tf.Tensor): output generated either uniformly or by the flow.
+            q (tf.Tensor): test probability of all mappings (analytic + flow)
+            p (tf.Tensor): true probability/function.
+            channels (tf.Tensor): tensor encoding which channel to use with shape (nsamples,).
+        """
         assert channel_weights.shape == (self.n_channels,)
         # Split up nsamples * uniform_channel_ratio equally among all the channels
         n_uniform = int(nsamples * uniform_channel_ratio)

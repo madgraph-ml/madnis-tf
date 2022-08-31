@@ -125,6 +125,8 @@ class Divergence:
 
         return var
 
+    # TODO: Check if this all actually correct with q_sample and q_test
+    # Fine for now as long as q_sample = q_test.
     def variance(
         self,
         p_true: tf.Tensor,
