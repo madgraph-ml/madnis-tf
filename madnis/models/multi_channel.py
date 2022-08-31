@@ -62,10 +62,11 @@ class MultiChannelWeight:
 
         # Define the loss functions
         self.divergence = Divergence(train_mcw=True, **kwargs)
-        self.loss_func = self.divergence(loss_func)
+        self.mcw_loss_func = self.divergence(loss_func)
         self.dist = dist
 
         self.train_mcw = True
+        self.train_flow = False
 
     @tf.function
     def _compute_analytic_mappings(self, x, logq, channels):
@@ -182,6 +183,51 @@ class MultiChannelWeight:
             tf.convert_to_tensor(vars),
             tf.convert_to_tensor(counts),
         )
+
+    @tf.function
+    def _optimization_step(
+        self,
+        samples: tf.Tensor,
+        q_sample: tf.Tensor,
+        func_vals: tf.Tensor,
+        channels: tf.Tensor,
+        weight_prior: Callable,
+    ):
+        loss = 0
+        if not self.train_flow and not self.train_mcw:
+            raise ValueError("No network defined which can be optimized")
+
+        # Optimize the Flow
+        if self.train_flow:
+            with tf.GradientTape() as tape:
+                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
+                    samples, q_sample, func_vals, channels, weight_prior
+                )
+                flow_loss = self.flow_loss_func(
+                    p_true, q_test, logp, logq, q_sample=q_sample, channels=channels
+                )
+
+            grads = tape.gradient(flow_loss, self.dist.trainable_weights)
+            self.flow_optimizer.apply_gradients(zip(grads, self.dist.trainable_weights))
+            loss += flow_loss
+
+        # Optimize the channel weight
+        if self.train_mcw:
+            with tf.GradientTape() as tape:
+                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
+                    samples, q_sample, func_vals, channels
+                )
+                mcw_loss = self.mcw_loss_func(
+                    p_true, q_test, logp, logq, q_sample=q_sample, channels=channels
+                )
+
+            grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
+            self.mcw_optimizer.apply_gradients(
+                zip(grads, self.mcw_model.trainable_weights)
+            )
+            loss += mcw_loss
+
+        return loss, means, vars, counts
     
     @tf.function
     def _get_integrand(self, nsamples: int, weight_prior: Callable = None):
@@ -233,25 +279,13 @@ class MultiChannelWeight:
             _type_: _description_
         """
         
-        # Get the samples (outside of gradientape! More important for flows)
-        #samples = []
-        #for i in range(self.n_channels):
-        #    # Channel dependent flow sampling
-        #    sample = self.mappings[i].sample(nsamples)
-        #    samples.append(sample)
         samples, q_sample, func_vals, channels = self._get_samples(
             nsamples, tf.ones((self.n_channels,), dtype=self._dtype), uniform_channel_ratio=1.0
         )
+        loss, means, vars, counts = self._optimization_step(
+            samples, q_sample, func_vals, channels, weight_prior
+        )
             
-        # Optimize the channel weight 
-        with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
-                samples, q_sample, func_vals, channels, weight_prior
-            )
-            loss = self.loss_func(p_true, q_test, logp, logq, q_sample=q_sample, channels=channels)
-
-        grads = tape.gradient(loss, self.mcw_model.trainable_weights)
-        self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
         mean = tf.reduce_sum(means)
         var = tf.reduce_sum(vars)
 
