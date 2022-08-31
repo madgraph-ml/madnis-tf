@@ -10,6 +10,7 @@ from madnis.utils.train_utils import integrate
 from madnis.plotting.plots import plot_alphas
 
 from madnis.distributions.camel import Camel
+from madnis.distributions.uniform import StandardUniform
 from madnis.distributions.normal import Normal
 from madnis.mappings.cauchy import CauchyDistribution
 from madnis.models.multi_channel import MultiChannelWeight
@@ -150,8 +151,10 @@ DECAY_STEP = ITERS
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
+base_dist = StandardUniform((DIMS_IN,))
+
 integrator = MultiChannelWeight(
-    camel, mcw_net, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS)
+    camel, mcw_net, [map_1, map_2], opt, use_weight_init=PRIOR, loss_func=LOSS, dist=base_dist)
 
 ################################
 # Pre train - plot alphas

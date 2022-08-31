@@ -27,6 +27,7 @@ class MultiChannelWeight:
         use_weight_init: bool = True,
         n_channels: int = 2,
         loss_func: str = "variance",
+        dist = None,
         **kwargs,
     ):
         """
@@ -50,6 +51,7 @@ class MultiChannelWeight:
         self.mcw_model = mcw_model
         self.mcw_optimizer = optimizer
         self.mappings = mappings
+        self.use_analytic_mappings = True
 
         self.use_weight_init = use_weight_init
         
@@ -61,6 +63,51 @@ class MultiChannelWeight:
         # Define the loss functions
         self.divergence = Divergence(train_mcw=True, **kwargs)
         self.loss_func = self.divergence(loss_func)
+        self.dist = dist
+
+    @tf.function
+    def _compute_analytic_mappings(self, x, logq, channels):
+        if not self.use_analytic_mappings:
+            return x, logq
+
+        xs = tf.dynamic_partition(x, channels, self.n_channels)
+        idx = tf.dynamic_partition(tf.range(tf.shape(x)[0]), channels, self.n_channels)
+        ys = []
+        jacs = []
+        for i, xi in enumerate(xs):
+            yi, _ = self.mappings[i].inverse(xi)
+            ys.append(yi)
+            jacs.append(self.mappings[i].log_prob(yi))
+
+        y = tf.dynamic_stitch(idx, ys)
+        jac = tf.dynamic_stitch(idx, jacs)
+        return y, logq + jac
+
+    @tf.function
+    def _get_samples(
+        self, nsamples: int, channel_weights: tf.Tensor, uniform_channel_ratio: float
+    ):
+        assert channel_weights.shape == (self.n_channels,)
+        # Split up nsamples * uniform_channel_ratio equally among all the channels
+        n_uniform = int(nsamples * uniform_channel_ratio)
+        uniform_channels = tf.tile(
+            tf.range(self.n_channels), (n_uniform // self.n_channels + 1,)
+        )[:n_uniform]
+        # Sample the rest of the events from the distribution given by channel_weights
+        # after correcting for the uniformly distributed samples
+        normed_weights = channel_weights / tf.reduce_sum(channel_weights)
+        probs = tf.maximum(
+            normed_weights - uniform_channel_ratio / self.n_channels, 1e-15
+        )
+        sampled_channels = tf.random.categorical(
+            tf.math.log(probs)[None, :], nsamples - n_uniform, dtype=tf.int32
+        )[0]
+        channels = tf.concat((uniform_channels, sampled_channels), axis=0)
+
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
+        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(x, logq, channels)
+        return x, tf.math.exp(logq), self._func(y), channels
     
     @tf.function
     def _get_probs(self, samples: List[tf.Tensor], weight_prior: Callable = None):
@@ -163,11 +210,16 @@ class MultiChannelWeight:
         """
         
         # Get the samples (outside of gradientape! More important for flows)
-        samples = []
-        for i in range(self.n_channels):
-            # Channel dependent flow sampling
-            sample = self.mappings[i].sample(nsamples)
-            samples.append(sample)
+        #samples = []
+        #for i in range(self.n_channels):
+        #    # Channel dependent flow sampling
+        #    sample = self.mappings[i].sample(nsamples)
+        #    samples.append(sample)
+        x, q_sample, func_vals, channels = self._get_samples(
+            nsamples, tf.ones((self.n_channels,), dtype=self._dtype), uniform_channel_ratio=1.0
+        )
+        y, _ = self._compute_analytic_mappings(x, 0., channels)
+        samples = [y[i::self.n_channels] for i in range(self.n_channels)]
             
         # Optimize the channel weight 
         with tf.GradientTape() as tape:
@@ -177,7 +229,7 @@ class MultiChannelWeight:
             logq = tf.reshape(logq, (-1,))
             logp = tf.reshape(logp, (-1,))
             channels = tf.tile(tf.range(self.n_channels), (nsamples, ))
-            loss = self.loss_func(p_true, q_test, logp, logq, channels=channels)
+            loss = self.loss_func(p_true, q_test, logp, logq, q_sample=q_sample, channels=channels)
 
         grads = tape.gradient(loss, self.mcw_model.trainable_weights)
         self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
