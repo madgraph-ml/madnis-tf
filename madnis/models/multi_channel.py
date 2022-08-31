@@ -65,6 +65,8 @@ class MultiChannelWeight:
         self.loss_func = self.divergence(loss_func)
         self.dist = dist
 
+        self.train_mcw = True
+
     @tf.function
     def _compute_analytic_mappings(self, x, logq, channels):
         if not self.use_analytic_mappings:
@@ -110,51 +112,76 @@ class MultiChannelWeight:
         return x, tf.math.exp(logq), self._func(y), channels
     
     @tf.function
-    def _get_probs(self, samples: List[tf.Tensor], channels, weight_prior: Callable = None):
-        ps = []
-        qs = []
-        means = []
-        vars = []
-        nsamples = tf.shape(samples)[0] // self.n_channels
+    def _get_probs(
+        self,
+        samples: tf.Tensor,
+        q_sample: tf.Tensor,
+        func_vals: tf.Tensor,
+        channels: tf.Tensor,
+        weight_prior: Callable = None,
+        return_integrand: bool = False,
+    ):
+        nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         logq = self.dist.log_prob(samples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
         q_test = tf.math.exp(logq)
 
-        for i in range(self.n_channels):
-            yi = y[i::self.n_channels]
-            qi = q_test[i::self.n_channels]
-            # Get multi-channel weights
+        if self.train_mcw:
             if self.use_weight_init:
                 if weight_prior is not None:
-                    init_weights = weight_prior(yi)
+                    init_weights = weight_prior(y)
                     assert init_weights.shape[1] == self.n_channels
                 else:
-                    init_weights = 1 / self.n_channels * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
-                alphas = self.mcw_model([yi, init_weights])
+                    init_weights = (
+                        1
+                        / self.n_channels
+                        * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                    )
+                alphas = self.mcw_model([y, init_weights])
             else:
-                alphas = self.mcw_model(yi)
+                alphas = self.mcw_model(y)
+        else:
+            if weight_prior is not None:
+                alphas = weight_prior(y)
+                assert alphas.shape[1] == self.n_channels
+            else:
+                alphas = (
+                    1
+                    / self.n_channels
+                    * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                )
+        alphas = tf.gather(alphas, channels, batch_dims=1)
 
-            # Get true integrand
-            pi = alphas[:, i] * tf.abs(self._func(yi))
+        if return_integrand:
+            return alphas * func_vals / q_sample
+
+        p_unnormed = alphas * tf.abs(func_vals)
+        p_trues = []
+        means = []
+        vars = []
+        counts = []
+        ps = tf.dynamic_partition(p_unnormed, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        idx = tf.dynamic_partition(tf.range(nsamples), channels, self.n_channels)
+        for pi, qi in zip(ps, qs):
             meani, vari = tf.nn.moments(pi / qi, axes=[0])
-            pi = pi / meani
-            ps.append(pi[..., None])
+            p_trues.append(pi / meani)
             means.append(meani)
             vars.append(vari)
-
-        # Get concatenated stuff all in shape (nsamples, n_channels)
-        p_true = tf.concat(ps, axis=-1)
-        
+            counts.append(tf.cast(tf.shape(pi)[0], self._dtype))
+        p_true = tf.dynamic_stitch(idx, p_trues)
         logp = tf.math.log(p_true + _EPSILON)
-        
-        # TODO: Understand why this where returns an error.
-        # cond = tf.less(p_true, _EPSILON)
-        # logp = tf.where(
-        #     cond, tf.math.log(p_true), tf.math.log(p_true + _EPSILON)
-        # )
-        
-        return p_true, q_test, logp, logq, sum(means), sum(vars)
+
+        return (
+            p_true,
+            q_test,
+            logp,
+            logq,
+            tf.convert_to_tensor(means),
+            tf.convert_to_tensor(vars),
+            tf.convert_to_tensor(counts),
+        )
     
     @tf.function
     def _get_integrand(self, nsamples: int, weight_prior: Callable = None):
@@ -218,16 +245,15 @@ class MultiChannelWeight:
             
         # Optimize the channel weight 
         with tf.GradientTape() as tape:
-            p_true, q_test, logp, logq, mean, var = self._get_probs(samples, channels, weight_prior)
-            p_true = tf.reshape(p_true, (-1,))
-            q_test = tf.reshape(q_test, (-1,))
-            logq = tf.reshape(logq, (-1,))
-            logp = tf.reshape(logp, (-1,))
-            channels = tf.tile(tf.range(self.n_channels), (nsamples, ))
+            p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
+                samples, q_sample, func_vals, channels, weight_prior
+            )
             loss = self.loss_func(p_true, q_test, logp, logq, q_sample=q_sample, channels=channels)
 
         grads = tape.gradient(loss, self.mcw_model.trainable_weights)
         self.mcw_optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
+        mean = tf.reduce_sum(means)
+        var = tf.reduce_sum(vars)
 
         if integral:
             return loss, mean, tf.sqrt(var / (nsamples - 1.0))
