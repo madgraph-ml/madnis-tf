@@ -373,7 +373,7 @@ class Divergence:
             tf.tensor: computed RKL divergence
 
         """
-        del p_true, q_test
+        del p_true
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
@@ -644,7 +644,7 @@ class Divergence:
             tf.tensor: computed Exponential2 divergence
 
         """
-        del p_true, q_test
+        del p_true
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
