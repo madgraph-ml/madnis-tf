@@ -111,10 +111,10 @@ class MultiChannelIntegrator:
             self.use_analytic_mappings = False
 
         # Define the loss functions
-        self.flow_divergence = Divergence(**kwargs)
+        self.flow_divergence = Divergence(n_channels=self.n_channels, **kwargs)
         self.flow_loss_func = self.flow_divergence(loss_func)
 
-        self.mcw_divergence = Divergence(train_mcw=True, **kwargs)
+        self.mcw_divergence = Divergence(train_mcw=True, n_channels=self.n_channels, **kwargs)
         self.mcw_loss_func = self.mcw_divergence(loss_func)
 
         self.uniform_channel_ratio = uniform_channel_ratio

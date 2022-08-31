@@ -29,6 +29,7 @@ class Divergence:
         alpha: float = None,
         beta: float = None,
         train_mcw: bool = False,
+        n_channels: int = 1,
     ):
         """
         Args:
@@ -39,11 +40,14 @@ class Divergence:
             train_mcw (bool, optional): returns losses such that the multi-channel
                 weight can be trained. Requires different handling of tf.stop_gradient.
                 Defaults to False.
+            n_channels (int, optional): the number of channels used for the integration.
+                Defaults to 1.
 
         """
         self.alpha = alpha
         self.beta = beta
         self.train_mcw = train_mcw
+        self.n_channels = n_channels
         self._dtype = tf.keras.backend.floatx()
         self.divergences = [
             x
@@ -53,80 +57,11 @@ class Divergence:
                 and "alpha" not in x
                 and "beta" not in x
                 and "train_mcw" not in x
+                and "n_channels" not in x
                 and "_dtype" not in x
             )
         ]
 
-    def variance2(
-        self,
-        p_true: tf.Tensor,
-        q_test: tf.Tensor,
-        logp: tf.Tensor,
-        logq: tf.Tensor,
-        sigma: tf.Tensor = None,
-        q_sample: tf.Tensor = None,
-        channels: tf.Tensor = None,
-    ):
-        """Implement variance loss.
-
-        This function returns the variance loss for two given sets
-        of functions, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
-
-        **Remark:**
-        In the variance loss the ``p_true`` function does not have to be normalized to 1.
-
-        tf.stop_gradient is used such that the correct gradient is returned
-        when the variance is used as loss function.
-
-        Arguments:
-            p_true (tf.tensor): true function/probability. Does not have to be normalized.
-            q_test (tf.tensor): estimated function/probability
-            logp (tf.tensor): not used in variance
-            logq (tf.tensor): not used in variance
-            sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
-            q_sample (tf.tensor): sampling probability
-
-        Returns:
-            tf.tensor: computed variance loss
-
-        """
-        del logp, logq
-        if q_sample is None:
-            q_sample = q_test
-        if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
-
-        ps = tf.dynamic_partition(p_true, channels, 2)
-        qt = tf.dynamic_partition(q_test, channels, 2)
-        qs = tf.dynamic_partition(q_sample, channels, 2)
-        sigmas = tf.dynamic_partition(sigma, channels, 2)
-        var = 0
-        if self.train_mcw:
-            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
-                mean2 = tf.reduce_mean(
-                    sigi
-                    * pi ** 2
-                    / (tf.stop_gradient(qti) * tf.stop_gradient(qsi)),
-                    axis=0,
-                )
-                mean = tf.reduce_mean(sigi * pi / tf.stop_gradient(qsi), axis=0)
-                var += (mean2 - mean ** 2)
-        else:
-            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
-                mean2 += tf.reduce_mean(
-                    sigi
-                    * tf.stop_gradient(pi) ** 2
-                    / (qti * tf.stop_gradient(qsi)),
-                    axis=0,
-                )
-                mean += tf.reduce_mean(sigi * tf.stop_gradient(pi / qsi), axis=0)
-                var += mean2 - mean ** 2
-
-        return var
-
-    # TODO: Check if this all actually correct with q_sample and q_test
-    # Fine for now as long as q_sample = q_test.
     def variance(
         self,
         p_true: tf.Tensor,
@@ -154,8 +89,9 @@ class Divergence:
             q_test (tf.tensor): estimated function/probability
             logp (tf.tensor): not used in variance
             logq (tf.tensor): not used in variance
-            sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed variance loss
@@ -165,26 +101,32 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        var = 0
         if self.train_mcw:
-            mean2 = tf.reduce_mean(
-                sigma
-                * p_true ** 2
-                / (tf.stop_gradient(q_test) * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
-            mean = tf.reduce_mean(sigma * p_true / tf.stop_gradient(q_sample), axis=0)
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                mean2 = tf.reduce_mean(
+                    pi ** 2 / (tf.stop_gradient(qti * qsi)),
+                    axis=0,
+                )
+                mean = tf.reduce_mean(pi / tf.stop_gradient(qsi), axis=0)
+                var += sigi * (mean2 - mean ** 2)
         else:
-            mean2 = tf.reduce_mean(
-                sigma
-                * tf.stop_gradient(p_true) ** 2
-                / (q_test * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
-            mean = tf.reduce_mean(sigma * tf.stop_gradient(p_true / q_sample), axis=0)
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                mean2 = tf.reduce_mean(
+                    tf.stop_gradient(pi) ** 2 / (qti * tf.stop_gradient(qsi)),
+                    axis=0,
+                )
+                mean = tf.reduce_mean(tf.stop_gradient(pi / qsi), axis=0)
+                var += sigi * (mean2 - mean ** 2)
 
-        return mean2 - mean ** 2
+        return var
 
     def neyman_chi2(
         self,
@@ -212,6 +154,7 @@ class Divergence:
             logq (tf.tensor): not used in chi2
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Neyman chi2 divergence
@@ -221,22 +164,30 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        chi2 = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * (p_true - tf.stop_gradient(q_test)) ** 2
-                / (tf.stop_gradient(q_test) * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                chi2i = tf.reduce_mean(
+                    (pi - tf.stop_gradient(qti)) ** 2 / (tf.stop_gradient(qti * qsi)),
+                    axis=0,
+                )
+                chi2 += sigi * chi2i
         else:
-            return tf.reduce_mean(
-                sigma
-                * (tf.stop_gradient(p_true) - q_test) ** 2
-                / (q_test * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                chi2i = tf.reduce_mean(
+                    (tf.stop_gradient(pi) - qti) ** 2 / (qti * tf.stop_gradient(qsi)),
+                    axis=0,
+                )
+                chi2 += sigi * chi2i
+
+        return chi2
 
     def pearson_chi2(
         self,
@@ -264,6 +215,7 @@ class Divergence:
             logq (tf.tensor): not used in chi2
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Pearson chi2 divergence
@@ -273,22 +225,30 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        chi2 = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * (tf.stop_gradient(q_test) - p_true) ** 2
-                / (p_true * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                chi2i = tf.reduce_mean(
+                    (tf.stop_gradient(qti) - pi) ** 2 / (pi * tf.stop_gradient(qsi)),
+                    axis=0,
+                )
+                chi2 += sigi * chi2i
         else:
-            return tf.reduce_mean(
-                sigma
-                * (q_test - tf.stop_gradient(p_true)) ** 2
-                / (tf.stop_gradient(p_true) * tf.stop_gradient(q_sample)),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                chi2i = tf.reduce_mean(
+                    (qti - tf.stop_gradient(pi)) ** 2 / (tf.stop_gradient(pi * qsi)),
+                    axis=0,
+                )
+                chi2 += sigi * chi2i
+
+        return chi2
 
     def kl_divergence(
         self,
@@ -316,6 +276,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed KL divergence
@@ -324,24 +285,31 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        kl = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * p_true
-                / tf.stop_gradient(q_sample)
-                * (logp - tf.stop_gradient(logq)),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                kli = tf.reduce_mean(
+                    pi / tf.stop_gradient(qsi) * (logpi - tf.stop_gradient(logqi)),
+                    axis=0,
+                )
+                kl += sigi * kli
         else:
-            return tf.reduce_mean(
-                sigma
-                * tf.stop_gradient(p_true)
-                / tf.stop_gradient(q_sample)
-                * (tf.stop_gradient(logp) - logq),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                kli = tf.reduce_mean(
+                    tf.stop_gradient(pi / qsi) * (tf.stop_gradient(logpi) - logqi),
+                    axis=0,
+                )
+                kl += sigi * kli
+
+        return kl
 
     def reverse_kl(
         self,
@@ -368,6 +336,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed RKL divergence
@@ -377,18 +346,31 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
-        sample_factor = tf.stop_gradient(q_test) / tf.stop_gradient(q_sample)
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        rkl = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma * sample_factor * (tf.stop_gradient(logq) - logp), axis=0
-            )
+            for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                rkli = tf.reduce_mean(
+                    tf.stop_gradient(qti / qsi) * (tf.stop_gradient(logqi) - logpi),
+                    axis=0,
+                )
+                rkl += sigi * rkli
         else:
-            return tf.reduce_mean(
-                sigma * sample_factor * (1 + tf.stop_gradient(logq - logp)) * logq,
-                axis=0,
-            )
+            for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                rkli = tf.reduce_mean(
+                    qti / tf.stop_gradient(qsi) * (logqi - tf.stop_gradient(logpi)),
+                    axis=0,
+                )
+                rkl += sigi * rkli
+
+        return rkl
 
     def hellinger(
         self,
@@ -416,6 +398,7 @@ class Divergence:
             logq (tf.tensor): not used in hellinger
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Hellinger distance
@@ -425,24 +408,34 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        hell = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * 2.0
-                * (tf.math.sqrt(p_true) - tf.stop_gradient(tf.math.sqrt(q_test))) ** 2
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                helli = tf.reduce_mean(
+                    2.0
+                    * (tf.math.sqrt(pi) - tf.stop_gradient(tf.math.sqrt(qti))) ** 2
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                hell += sigi * helli
         else:
-            return tf.reduce_mean(
-                sigma
-                * 2.0
-                * (tf.stop_gradient(tf.math.sqrt(p_true)) - tf.math.sqrt(q_test)) ** 2
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                helli = tf.reduce_mean(
+                    2.0
+                    * (tf.stop_gradient(tf.math.sqrt(pi)) - tf.math.sqrt(qti)) ** 2
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                hell += sigi * helli
+
+        return hell
 
     def jeffreys(
         self,
@@ -470,6 +463,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Jeffreys divergence
@@ -478,24 +472,40 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        jeff = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * (p_true - tf.stop_gradient(q_test))
-                * (logp - tf.stop_gradient(logq))
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, qti, sigi in zip(
+                logps, logqs, ps, qs, qt, sigmas
+            ):
+                jeffi = tf.reduce_mean(
+                    (pi - tf.stop_gradient(qti))
+                    * (logpi - tf.stop_gradient(logqi))
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                jeff += sigi * jeffi
         else:
-            return tf.reduce_mean(
-                sigma
-                * (tf.stop_gradient(p_true) - q_test)
-                * (tf.stop_gradient(logp) - logq)
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, qti, sigi in zip(
+                logps, logqs, ps, qs, qt, sigmas
+            ):
+                jeffi = tf.reduce_mean(
+                    (tf.stop_gradient(pi) - qti)
+                    * (tf.stop_gradient(logpi) - logqi)
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                jeff += sigi * jeffi
+
+        return jeff
 
     def chernoff(
         self,
@@ -523,6 +533,7 @@ class Divergence:
             logq (tf.tensor): not used in Chernoff
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Chernoff divergence
@@ -535,30 +546,40 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
         if self.alpha is None:
             raise ValueError("Must give an alpha value to use Chernoff " "Divergence.")
         if not 0 < self.alpha < 1:
             raise ValueError("Alpha must be between 0 and 1.")
 
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
         prefactor = 4.0 / (1 - self.alpha ** 2)
+
+        vlad = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * tf.pow(p_true, (1.0 - self.alpha) / 2.0)
-                * tf.stop_gradient(tf.pow(q_test, (1.0 + self.alpha) / 2.0))
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                int = tf.reduce_mean(
+                    tf.pow(pi, (1.0 - self.alpha) / 2.0)
+                    * tf.stop_gradient(tf.pow(qti, (1.0 + self.alpha) / 2.0))
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                vlad += sigi * prefactor * (1 - int)
         else:
-            return tf.reduce_mean(
-                sigma
-                * tf.stop_gradient(tf.pow(p_true, (1.0 - self.alpha) / 2.0))
-                * tf.pow(q_test, (1.0 + self.alpha) / 2.0)
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                int = tf.reduce_mean(
+                    tf.stop_gradient(tf.pow(pi, (1.0 - self.alpha) / 2.0))
+                    * tf.pow(qti, (1.0 + self.alpha) / 2.0)
+                    / tf.stop_gradient(qsi),
+                    axis=0,
+                )
+                vlad += sigi * prefactor * (1 - int)
+
+        return vlad
 
     def exponential(
         self,
@@ -586,6 +607,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Exponential divergence
@@ -594,24 +616,31 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        exp = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma
-                * p_true
-                / tf.stop_gradient(q_sample)
-                * (logp - tf.stop_gradient(logq)) ** 2,
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                expi = tf.reduce_mean(
+                    pi / tf.stop_gradient(qsi) * (logpi - tf.stop_gradient(logqi)) ** 2,
+                    axis=0,
+                )
+                exp += sigi * expi
         else:
-            return tf.reduce_mean(
-                sigma
-                * tf.stop_gradient(p_true)
-                / tf.stop_gradient(q_sample)
-                * (tf.stop_gradient(logp) - logq) ** 2,
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, sigi in zip(logps, logqs, ps, qs, sigmas):
+                expi = tf.reduce_mean(
+                    tf.stop_gradient(pi / qsi) * (tf.stop_gradient(logpi) - logqi) ** 2,
+                    axis=0,
+                )
+                exp += sigi * expi
+
+        return exp
 
     def exponential2(
         self,
@@ -639,6 +668,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Exponential2 divergence
@@ -648,23 +678,34 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
-        sample_factor = tf.stop_gradient(q_test) / tf.stop_gradient(q_sample)
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        exp2 = 0
         if self.train_mcw:
-            return tf.reduce_mean(
-                sigma * sample_factor * (tf.stop_gradient(logq) - logp) ** 2, axis=0
-            )
+            for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                exp2i = tf.reduce_mean(
+                    tf.stop_gradient(qti / qsi)
+                    * (tf.stop_gradient(logqi) - logpi) ** 2,
+                    axis=0,
+                )
+                exp2 += sigi * exp2i
         else:
-            return tf.reduce_mean(
-                sigma
-                * sample_factor
-                * (
-                    2 * tf.stop_gradient(logq - logp) * logq
-                    + tf.stop_gradient(logq - logp) ** 2 * logq
-                ),
-                axis=0,
-            )
+            for logpi, logqi, qsi, qti, sigi in zip(logps, logqs, qs, qt, sigmas):
+                exp2i = tf.reduce_mean(
+                    qti
+                    / tf.stop_gradient(qsi)
+                    * (logqi - tf.stop_gradient(logpi)) ** 2,
+                    axis=0,
+                )
+                exp2 += sigi * exp2i
+
+        return exp2
 
     def ab_product(
         self,
@@ -692,6 +733,7 @@ class Divergence:
             logq (tf.tensor): not used in ab_product
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed (alpha, beta)-product divergence
@@ -705,7 +747,7 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
         if self.alpha is None:
             raise ValueError(
@@ -721,31 +763,36 @@ class Divergence:
         if not 0 < self.beta < 1:
             raise ValueError("Beta must be between 0 and 1.")
 
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
         prefactor = 2.0 / ((1 - self.alpha) * (1 - self.beta))
+
+        ab_prod = 0
         if self.train_mcw:
-            return prefactor * tf.reduce_mean(
-                sigma
-                * (
-                    1
-                    - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.alpha) / 2.0)
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ab_prodi = tf.reduce_mean(
+                    (1 - tf.pow(tf.stop_gradient(qti) / pi, (1 - self.alpha) / 2.0))
+                    * (1 - tf.pow(tf.stop_gradient(qti) / pi, (1 - self.beta) / 2.0))
+                    * pi
+                    / tf.stop_gradient(qsi),
+                    axis=0,
                 )
-                * (1 - tf.pow(tf.stop_gradient(q_test) / p_true, (1 - self.beta) / 2.0))
-                * p_true
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+                ab_prod += sigi * ab_prodi
         else:
-            return prefactor * tf.reduce_mean(
-                sigma
-                * (
-                    1
-                    - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.alpha) / 2.0)
+            for pi, qsi, qti, sigi in zip(ps, qs, qt, sigmas):
+                ab_prodi = tf.reduce_mean(
+                    (1 - tf.pow(qti / tf.stop_gradient(pi), (1 - self.alpha) / 2.0))
+                    * (1 - tf.pow(qti / tf.stop_gradient(pi), (1 - self.beta) / 2.0))
+                    * tf.stop_gradient(pi / qsi),
+                    axis=0,
                 )
-                * (1 - tf.pow(q_test / tf.stop_gradient(p_true), (1 - self.beta) / 2.0))
-                * tf.stop_gradient(p_true)
-                / tf.stop_gradient(q_sample),
-                axis=0,
-            )
+                ab_prod += sigi * ab_prodi
+
+        return prefactor * ab_prod
 
     def js_divergence(
         self,
@@ -773,6 +820,7 @@ class Divergence:
             logq (tf.tensor): logarithm of the estimated probability
             sigma (tf.tensor): loss weights with shape (nsamples,). Defaults to None.
             q_sample (tf.tensor): sampling probability
+            channels (tf.tensor): encoding which channel to use with shape (nsamples,).
 
         Returns:
             tf.tensor: computed Jensen-Shannon divergence
@@ -781,27 +829,48 @@ class Divergence:
         if q_sample is None:
             q_sample = q_test
         if sigma is None:
-            sigma = tf.ones((tf.shape(q_test)[0],), dtype=self._dtype)
+            sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
+        logps = tf.dynamic_partition(logp, channels, self.n_channels)
+        logqs = tf.dynamic_partition(logq, channels, self.n_channels)
+        ps = tf.dynamic_partition(p_true, channels, self.n_channels)
+        qt = tf.dynamic_partition(q_test, channels, self.n_channels)
+        qs = tf.dynamic_partition(q_sample, channels, self.n_channels)
+        sigmas = tf.dynamic_partition(sigma, tf.range(self.n_channels), self.n_channels)
+
+        js = 0
         if self.train_mcw:
-            logm = tf.math.log(0.5 * (tf.stop_gradient(q_test) + p_true))
-            return 0.5 * tf.reduce_mean(
-                sigma * p_true * (logp - logm) / tf.stop_gradient(q_sample)
-                + (q_test * (tf.stop_gradient(logq) - logm)),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, qti, sigi in zip(
+                logps, logqs, ps, qs, qt, sigmas
+            ):
+                logm = tf.math.log(0.5 * (tf.stop_gradient(qti) + pi))
+                jsi = tf.reduce_mean(
+                    0.5
+                    / tf.stop_gradient(qsi)
+                    * (
+                        pi * (logpi - logm)
+                        + tf.stop_gradient(qti) * (tf.stop_gradient(logqi) - logm)
+                    ),
+                    axis=0,
+                )
+                js += sigi * jsi
         else:
-            logm = tf.math.log(0.5 * (q_test + tf.stop_gradient(p_true)))
-            return tf.reduce_mean(
-                sigma
-                * 0.5
-                / tf.stop_gradient(q_sample)
-                * (
-                    (tf.stop_gradient(p_true) * (tf.stop_gradient(logp) - logm))
-                    + (q_test * (logq - logm))
-                ),
-                axis=0,
-            )
+            for logpi, logqi, pi, qsi, qti, sigi in zip(
+                logps, logqs, ps, qs, qt, sigmas
+            ):
+                logm = tf.math.log(0.5 * (qti + tf.stop_gradient(pi)))
+                jsi = tf.reduce_mean(
+                    0.5
+                    / tf.stop_gradient(qsi)
+                    * (
+                        tf.stop_gradient(pi) * (tf.stop_gradient(logpi) - logm)
+                        + qti * (logqi - logm)
+                    ),
+                    axis=0,
+                )
+                js += sigi * jsi
+
+        return js
 
     def __call__(self, name):
         func = getattr(self, name, None)
