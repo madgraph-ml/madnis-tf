@@ -122,6 +122,9 @@ class MultiChannelIntegrator:
         self.variance_history = []
         self.count_history = []
 
+        self.training_statistics = 0
+        self.weight_updates = 0
+
         self.sample_capacity = sample_capacity
         if sample_capacity > 0:
             self.stored_samples = []
@@ -350,10 +353,12 @@ class MultiChannelIntegrator:
             nsamples, self._get_variance_weights(), self.uniform_channel_ratio
         )
         self._store_samples(samples, q_sample, func_vals, channels)
+        self.training_statistics += nsamples
 
         loss, means, vars, counts = self._optimization_step(
             samples, q_sample, func_vals, channels, weight_prior
         )
+        self.weight_updates += 1
         self.variance_history.append(vars)
         self.count_history.append(counts)
         del self.variance_history[: -self.variance_history_length]
@@ -394,6 +399,7 @@ class MultiChannelIntegrator:
         losses = []
         for ys, qs, fs, cs in self.stored_dataset:
             loss, _, _, _ = self._optimization_step(ys, qs, fs, cs, weight_prior)
+            self.weight_updates += 1
             losses.append(loss)
 
         return tf.reduce_mean(losses)

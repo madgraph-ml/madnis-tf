@@ -51,6 +51,8 @@ parser.add_argument("--batch_size", type=int, default=1024)
 parser.add_argument("--lr", type=float, default=5e-4)
 parser.add_argument("--uniform_channel_ratio", type=float, default=1.)
 parser.add_argument("--variance_history_length", type=int, default=100)
+parser.add_argument("--result_file", type=str, default=None)
+parser.add_argument("--max_train_time", type=float, default=None)
 
 args = parser.parse_args()
 
@@ -234,6 +236,9 @@ for e, etype in enumerate(SCHEDULE):
 
         print(f"Epoch #{e+1}: delete samples")
 
+    if time.time() - start_time > args.max_train_time:
+        break
+
 end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
@@ -251,3 +256,8 @@ print("---------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                             ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
 print("-------------------------------------------------------------\n")
+
+if args.result_file is not None:
+    with open(args.result_file, "a") as f:
+        f.write(f"{res:.8f} {err:.8f} {end_time - start_time}" +
+                f"{integrator.training_statistics} {integrator.weight_updates}")
