@@ -5,9 +5,9 @@ import tensorflow as tf
 
 from .base import Transform
 from .splines.rational_quadratic import rational_quadratic_spline
+from ..utils.tfutils import sum_except_batch
 
 import warnings
-from scipy.stats import special_ortho_group
 import numpy as np
 
 
@@ -29,7 +29,7 @@ class RationalQuadraticSplineBlock(Transform):
         right=1.0,
         bottom=0.0,
         top=1.0,
-        permute_soft: bool = False,
+        with_permute: bool = True,
         seed: Union[int, None] = None,
         min_bin_width=DEFAULT_MIN_BIN_WIDTH,
         min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
@@ -78,23 +78,11 @@ class RationalQuadraticSplineBlock(Transform):
         self.min_derivative = min_derivative
 
         # Define the permutation matrix
-        # either some random rotation matrix
-        # or a hard permutation instead.
-        if permute_soft and self.channels > 512:
-            warnings.warn(
-                (
-                    "Soft permutation will take a very long time to initialize "
-                    f"with {self.channels} feature channels. Consider using hard permutation instead."
-                )
-            )
-
-        if permute_soft:
-            w = special_ortho_group.rvs(self.channels, random_state=seed)
-        else:
-            np.random.seed(seed)
-            w = np.zeros((self.channels, self.channels))
-            for i, j in enumerate(np.random.permutation(self.channels)):
-                w[i, j] = 1.0
+        self.with_permute = with_permute
+        np.random.seed(seed)
+        w = np.zeros((self.channels, self.channels))
+        for i, j in enumerate(np.random.permutation(self.channels)):
+            w[i, j] = 1.0
 
         self.w_perm = self.add_weight(
             "w_perm",
@@ -109,6 +97,8 @@ class RationalQuadraticSplineBlock(Transform):
             initializer=tf.keras.initializers.Constant(w.T),
             trainable=False,
         )
+        
+        self.permute_function = lambda x, w: tf.linalg.matvec(w, x, transpose_a=True)
 
         if subnet_constructor is None:
             raise ValueError(
@@ -123,8 +113,8 @@ class RationalQuadraticSplineBlock(Transform):
         )
 
     def _permute(self, x, rev=False):
-        """Performs the permutation and scaling after the coupling operation.
-        Returns transformed outputs and the LogJacDet of the scaling operation."""
+        """Performs the random permutation coupling operation.
+        As the logdet = 0, we do not return it."""
         if rev:
             x_permute = self.permute_function(x, self.w_perm_inv)
             return x_permute
@@ -137,12 +127,12 @@ class RationalQuadraticSplineBlock(Transform):
         coupling subnetwork, perform the RQS coupling operation.
         Returns both the transformed inputs and the LogJacDet."""
 
-        # the entire coupling coefficient tensor is scaled down by
+        # split into different contributions
         unnormalized_widths = a[..., : self.num_bins]
         unnormalized_heights = a[..., self.num_bins : 2 * self.num_bins]
         unnormalized_derivatives = a[..., 2 * self.num_bins :]
 
-        y, jac = rational_quadratic_spline(
+        y, ldj_elementwise = rational_quadratic_spline(
             x,
             unnormalized_widths,
             unnormalized_heights,
@@ -156,8 +146,10 @@ class RationalQuadraticSplineBlock(Transform):
             min_bin_height=self.min_bin_height,
             min_derivative=self.min_derivative,
         )
+        
+        ldj = sum_except_batch(ldj_elementwise)
 
-        return y, jac
+        return y, ldj
 
     def call(self, x, c=None, jac=True):
 
@@ -178,7 +170,8 @@ class RationalQuadraticSplineBlock(Transform):
         x_out = tf.concat([x1, x2], -1)
 
         # Permutation
-        x_out = self._permute(x_out, rev=False)
+        if self.with_permute:
+            x_out = self._permute(x_out, rev=False)
 
         if not jac:
             return x_out
@@ -187,7 +180,8 @@ class RationalQuadraticSplineBlock(Transform):
 
     def inverse(self, x, c=None, jac=True):
         # Permutation
-        x = self._permute(x, rev=True)
+        if self.with_permute:
+            x = self._permute(x, rev=True)
 
         x1, x2 = tf.split(x, self.splits, axis=-1)
 
