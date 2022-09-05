@@ -7,11 +7,11 @@ import numpy as np
 import tensorflow as tf
 from scipy.stats import special_ortho_group
 
-from .base import Transform
+from .base import CouplingTransform
 
 
 # pylint: disable=C0103, R1729, E1124, E1120, W0221
-class AllInOneBlock(Transform):
+class AllInOneBlock(CouplingTransform):
     """Module combining the most common operations in a normalizing flow or
     similar model. It combines affine coupling, permutation, and
     global affine transformation ('ActNorm'). It can also be used as
@@ -68,7 +68,7 @@ class AllInOneBlock(Transform):
             Int seed for the permutation (numpy is used for RNG). If seed is
             None, do not reseed RNG.
         """
-        super().__init__(dims_in, dims_c)
+        super().__init__(dims_in, dims_c, clamp, clamp_activation=(lambda u: u))
 
         self.channels = self.dims_in[-1]
         # rank of the tensors means 1d, 2d, 3d tensor etc.
@@ -89,13 +89,10 @@ class AllInOneBlock(Transform):
             [self.dims_c[i][-1] for i in range(len(self.dims_c))]
         )
 
-        split_len1 = self.channels // 2
-        split_len2 = self.channels - self.channels // 2
-        self.splits = [split_len1, split_len2]
+        self.splits = [self.split_len1, self.split_len2]
 
         self.permute_function = lambda x, w: tf.linalg.matvec(w, x, transpose_a=True)
 
-        self.clamp = clamp
         self.GIN = gin_block
         self.reverse_pre_permute = reverse_permutation
 

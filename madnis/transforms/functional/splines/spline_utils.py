@@ -43,12 +43,10 @@ def _shift_output(outputs, logabsdet, left, right, top, bottom, inverse):
 
     if inverse:
         outputs = outputs * (right - left) + left
-        logabsdet = logabsdet - \
-            tf.math.log(top - bottom) + tf.math.log(right - left)
+        logabsdet = logabsdet - tf.math.log(top - bottom) + tf.math.log(right - left)
     else:
         outputs = outputs * (top - bottom) + bottom
-        logabsdet = logabsdet + \
-            tf.math.log(top - bottom) - tf.math.log(right - left)
+        logabsdet = logabsdet + tf.math.log(top - bottom) - tf.math.log(right - left)
 
     return outputs, logabsdet
 
@@ -73,18 +71,19 @@ def _knot_positions(bin_sizes, range_min):
 def _gather_squeeze(params, indices):
     rank = len(indices.shape)
     if rank is None:
-        raise ValueError('`indices` must have a statically known rank.')
+        raise ValueError("`indices` must have a statically known rank.")
     return tf.gather(params, indices, axis=-1, batch_dims=rank - 1)[..., 0]
 
 
 def _search_sorted(cdf, inputs):
-    return tf.maximum(tf.zeros([], dtype=tf.int32),
-                      tf.searchsorted(
-                          cdf[..., :-1],
-                          inputs[..., tf.newaxis],
-                          side='right',
-                          out_type=tf.int32) - 1)
+    return tf.maximum(
+        tf.zeros([], dtype=tf.int32),
+        tf.searchsorted(
+            cdf[..., :-1], inputs[..., tf.newaxis], side="right", out_type=tf.int32
+        )
+        - 1,
+    )
 
 
 def _cube_root(x):
-    return tf.sign(x) * tf.exp(tf.math.log(tf.abs(x))/3.0)
+    return tf.sign(x) * tf.exp(tf.math.log(tf.abs(x)) / 3.0)

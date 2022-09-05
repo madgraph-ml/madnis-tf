@@ -5,13 +5,70 @@
 # pylint: disable=too-many-arguments, too-many-locals
 
 import tensorflow as tf
-from .spline import _knot_positions, _gather_squeeze, _search_sorted
-from .spline import _check_bounds, _shift_output
+from .spline_utils import _knot_positions, _gather_squeeze, _search_sorted
+from .spline_utils import _check_bounds, _shift_output
 
 
-def linear_spline(inputs, unnormalized_pdf,
-                  inverse=False,
-                  left=0., right=1., bottom=0., top=1.):
+def unconstrained_linear_spline(
+    inputs,
+    unnormalized_pdf,
+    inverse=False,
+    left=0.0,
+    right=1.0,
+    bottom=0.0,
+    top=1.0,
+):
+
+    if not inverse:
+        inside_interval_mask = tf.math.reduce_all(
+            (inputs >= left) & (inputs <= right), axis=-1
+        )
+    else:
+        inside_interval_mask = tf.math.reduce_all(
+            (inputs >= bottom) & (inputs <= top), axis=-1
+        )
+
+    outputs = []
+    logabsdets = []
+    splittings = tf.cast(inside_interval_mask, tf.int32)
+
+    ins = tf.dynamic_partition(inputs, splittings, 2)
+    unnorm_pdfs = tf.dynamic_partition(unnormalized_pdf, splittings, 2)
+    idx = tf.dynamic_partition(tf.range(tf.shape(inputs)[0]), splittings, 2)
+
+    # Logs and outputs outside of domain
+    logabsdets.append(tf.zeros_like(ins[0]))
+    outputs.append(ins[0])
+
+    # Logs and outputs inside of domain
+    outputs_inside, logabsdet_inside = linear_spline(
+        inputs=ins[1],
+        unnormalized_pdf=unnorm_pdfs[1],
+        left=left,
+        right=right,
+        bottom=bottom,
+        top=top,
+    )
+
+    outputs.append(outputs_inside)
+    logabsdets.append(logabsdet_inside)
+
+    # Combine all of them
+    output = tf.dynamic_stitch(idx, outputs)
+    logabsdet = tf.dynamic_stitch(idx, logabsdets)
+
+    return output, logabsdet
+
+
+def linear_spline(
+    inputs,
+    unnormalized_pdf,
+    inverse=False,
+    left=0.0,
+    right=1.0,
+    bottom=0.0,
+    top=1.0,
+):
     r""" Implementation of linear spline.
 
         Calculates a set of input points given an unnormalized pdf distribution.
@@ -57,10 +114,10 @@ def linear_spline(inputs, unnormalized_pdf,
 
     if inverse:
         inv_bin_idx = _search_sorted(cdf, inputs)
-        bin_boundaries = tf.cast(tf.linspace(
-            0., 1., num_bins+1), dtype=tf.float64)
-        slopes = ((cdf[..., 1:] - cdf[..., :-1])
-                  / (bin_boundaries[..., 1:] - bin_boundaries[..., :-1]))
+        bin_boundaries = tf.cast(tf.linspace(0.0, 1.0, num_bins + 1), dtype=tf.float64)
+        slopes = (cdf[..., 1:] - cdf[..., :-1]) / (
+            bin_boundaries[..., 1:] - bin_boundaries[..., :-1]
+        )
         offsets = cdf[..., 1:] - slopes * bin_boundaries[..., 1:]
 
         input_slopes = _gather_squeeze(slopes, inv_bin_idx)
