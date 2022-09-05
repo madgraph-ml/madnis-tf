@@ -3,11 +3,10 @@ import tensorflow as tf
 from typing import Dict
 
 # Import Model blocks
-from madnis.distributions.base import Distribution
 from madnis.distributions.uniform import StandardUniform
 from madnis.mappings.flow import Flow
-from madnis.transforms.all_in_one_block import AllInOneBlock
-from madnis.transforms.rqs_block import RationalQuadraticSplineBlock
+from madnis.transforms.coupling.all_in_one_block import AllInOneBlock
+from madnis.transforms.coupling.coupling_splines import RationalQuadraticSplineBlock
 from madnis.transforms.permutation import PermuteRandom
 from madnis.transforms.nonlinearities import Sigmoid, Logit
 
@@ -90,5 +89,9 @@ class RQSVegasFlow(Flow):
                     num_bins=bins
                 )
             )
-
+            transforms.append(PermuteRandom(self.dims_in,dims_c=self.dims_c))
+        
+        # Remove last shuffle as it is useless
+        transforms.pop()
+        
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
