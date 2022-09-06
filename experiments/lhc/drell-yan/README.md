@@ -3,7 +3,7 @@
 We start by considering the following process
 
 $$
-\mathrm{q} {\mathrm{q}} \to \mathrm{Z}/\gamma \to \mathrm{e}^{-} \mathrm{e}^{+},
+\mathrm{q} \bar{\mathrm{q}} \to \mathrm{Z}/\gamma \to \mathrm{e}^{-} \mathrm{e}^{+},
 $$
 
 and we only consider the interference term as shown below.
