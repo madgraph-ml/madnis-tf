@@ -89,7 +89,7 @@ class RQSVegasFlow(Flow):
                     num_bins=bins
                 )
             )
-            transforms.append(PermuteRandom(self.dims_in,dims_c=self.dims_c))
+            transforms.append(PermuteRandom(self.dims_in, dims_c=self.dims_c))
         
         # Remove last shuffle as it is useless
         transforms.pop()
