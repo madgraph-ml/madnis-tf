@@ -9,7 +9,7 @@ $$
 and we only consider the interference term as shown below.
 
 <div align="center">
-<img src="dy-int.png" width="300">
+<img src="dy-int.png" width="400">
 </div>
 
 ## Installation and download
