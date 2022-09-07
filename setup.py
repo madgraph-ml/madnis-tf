@@ -5,7 +5,7 @@ HTTPS_GITHUB_URL = "https://github.com/ramonpeter/MadNIS"
 with open("README.rst", "r") as fh:
     long_description = fh.read()
     
-requirements = ['tensorflow, lhereader']
+requirements = ['lhereader']
 
 setup(
     name="MadNIS",
@@ -23,5 +23,4 @@ setup(
     ],
     python_requires='>=3.6',
     packages=find_packages(),
-    install_requires=requirements,
 )
