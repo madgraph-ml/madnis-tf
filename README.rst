@@ -10,9 +10,6 @@ Monte Carlo integrator using TensorFlow 2.
 Installation
 -------------
 
-Download + Install
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 .. code:: sh
 
    # clone the repository
