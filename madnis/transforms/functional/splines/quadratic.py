@@ -6,10 +6,68 @@
 # pylint: disable=too-many-statements, invalid-name
 
 import tensorflow as tf
-from .spline import _padded, _knot_positions, _gather_squeeze, _search_sorted
+from .spline_utils import _padded, _knot_positions, _gather_squeeze, _search_sorted
 
 DEFAULT_MIN_BIN_WIDTH = 1e-3
 DEFAULT_MIN_BIN_HEIGHT = 1e-3
+
+def unconstrained_quadratic_spline(
+    inputs,
+    unnormalized_widths,
+    unnormalized_heights,
+    inverse=False,
+    left=0.0,
+    right=1.0,
+    bottom=0.0,
+    top=1.0,
+    min_bin_width=DEFAULT_MIN_BIN_WIDTH,
+    min_bin_height=DEFAULT_MIN_BIN_HEIGHT,
+):
+
+    if not inverse:
+        inside_interval_mask = tf.math.reduce_all(
+            (inputs >= left) & (inputs <= right), axis=-1
+        )
+    else:
+        inside_interval_mask = tf.math.reduce_all(
+            (inputs >= bottom) & (inputs <= top), axis=-1
+        )
+
+    outputs = []
+    logabsdets = []
+    splittings = tf.cast(inside_interval_mask, tf.int32)
+
+    ins = tf.dynamic_partition(inputs, splittings, 2)
+    unnorm_wds = tf.dynamic_partition(unnormalized_widths, splittings, 2)
+    unnorm_hts = tf.dynamic_partition(unnormalized_heights, splittings, 2)
+    idx = tf.dynamic_partition(tf.range(tf.shape(inputs)[0]), splittings, 2)
+
+    # Logs and outputs outside of domain
+    logabsdets.append(tf.zeros_like(ins[0]))
+    outputs.append(ins[0])
+
+    # Logs and outputs inside of domain
+    outputs_inside, logabsdet_inside = quadratic_spline(
+        inputs=ins[1],
+        unnormalized_widths=unnorm_wds[1],
+        unnormalized_heights=unnorm_hts[1],
+        inverse=inverse,
+        left=left,
+        right=right,
+        bottom=bottom,
+        top=top,
+        min_bin_width=min_bin_width,
+        min_bin_height=min_bin_height,
+    )
+
+    outputs.append(outputs_inside)
+    logabsdets.append(logabsdet_inside)
+
+    # Combine all of them
+    output = tf.dynamic_stitch(idx, outputs)
+    logabsdet = tf.dynamic_stitch(idx, logabsdets)
+
+    return output, logabsdet
 
 
 def quadratic_spline(inputs,

@@ -29,7 +29,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 parser = argparse.ArgumentParser()
 
 # Data params
-parser.add_argument("--train_samples", type=int, default=128 * 10000)
+parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
@@ -50,7 +50,7 @@ parser.add_argument("--channels", type=int, default=2)
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=1024)
+parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
 
 args = parser.parse_args()
@@ -176,8 +176,10 @@ if PRIOR:
 LOSS = args.loss
 
 # Number of samples
-TRAIN_SAMPLES = args.train_samples
-ITERS = TRAIN_SAMPLES // BATCH_SIZE
+# Number of samples
+# TRAIN_SAMPLES = args.train_batches
+# ITERS = TRAIN_SAMPLES // BATCH_SIZE
+ITERS = args.train_batches
 
 # Decay of learning rate
 DECAY_RATE = 0.01
@@ -189,7 +191,7 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt1 = tf.keras.optimizers.Adam(lr_schedule)
 opt2 = tf.keras.optimizers.Adam(lr_schedule)
 
-MAPPINGS = [map_1, map_2]
+MAPPINGS = []
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
     MAPPINGS.append(identity)
@@ -209,7 +211,7 @@ integrator = MultiChannelIntegrator(
 # Pre train - plot sampling
 ################################
 
-log_dir = f'./plots/with_mappings/{N_CHANNELS}_channels/'
+log_dir = f'./plots/no_mappings/{N_CHANNELS}_channels/'
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)

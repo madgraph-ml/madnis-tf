@@ -50,14 +50,14 @@ class PermuteRandom(Transform):
             trainable=False,
         )
 
-    def call(self, x, jac=True):  # pylint: disable=W0221
+    def call(self, x, c=None, jac=True):  # pylint: disable=W0221
         y = self.permute_function(x, self.w_perm)
         if jac:
             return y, 0.0
 
         return y
 
-    def inverse(self, x, jac=True):  # pylint: disable=W0221
+    def inverse(self, x, c=None, jac=True):  # pylint: disable=W0221
         y = self.permute_function(x, self.w_perm_inv)
         if jac:
             return y, 0.0
@@ -100,14 +100,14 @@ class SoftPermute(Transform):
             trainable=False,
         )
 
-    def call(self, x, jac=True):  # pylint: disable=W0221
+    def call(self, x, c=None, jac=True):  # pylint: disable=W0221
         y = self.permute_function(x, self.w_perm)
         if jac:
             return y, 0.0
 
         return y
 
-    def inverse(self, x, jac=True):  # pylint: disable=W0221
+    def inverse(self, x, c=None, jac=True):  # pylint: disable=W0221
         y = self.permute_function(x, self.w_perm_inv)
         if jac:
             return y, 0.0
