@@ -3,10 +3,9 @@ import tensorflow as tf
 from typing import Dict
 
 # Import Model blocks
-from madnis.distributions.base import Distribution
 from madnis.distributions.uniform import StandardUniform
 from madnis.mappings.flow import Flow
-from madnis.transforms.all_in_one_block import AllInOneBlock
+from madnis.transforms.coupling.all_in_one_block import AllInOneBlock
 from madnis.transforms.nonlinearities import Sigmoid, Logit
 
 

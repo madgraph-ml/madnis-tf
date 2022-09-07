@@ -57,7 +57,7 @@ MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
 STD2 = 0.1
-CUT = 2.0
+CUT = 2.5
 
 # Define truth distribution
 camel = CuttedCamel([MEAN1, MEAN2], [STD1, STD2], cut=CUT)
