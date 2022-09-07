@@ -16,6 +16,6 @@ and we only consider the interference term as shown below.
 
 In order to download the datasets just run
 
-```python
+```bash
 python get_data.py
 ```
