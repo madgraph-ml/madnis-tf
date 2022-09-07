@@ -50,3 +50,16 @@ For now, only a single channel can be evaluated at a time.
     - Note: the number of random number should be at least 12 (but only the first 7 are used for the generation of the momenta and therefore are relevant, the rest ist linked to color etc.)
 - `get_number_of_random_used` get the actual number of random number used for the last call to madevent_api
 - `get_momenta` returns the momenta for the last call to madevent_api
+
+## Tensorflow-Madgraph API
+
+To compile the Tensorflow-Madgraph API modify the make_opts and the makefile found in `SubProcesses/P1_gg_wpqq` as needed. Then run:
+```bash
+cd Source
+make
+cd ../SubProcesses/P1_gg_wpqq
+make madevent_tf.so
+```
+
+A short python test script is supplied in `test_tf.py`, where a batch of 128 events are generated. The Tensorflow-Madgraph interface is defined
+in the files: `madevent_api.f` and `madevent_api.cc`, both of which are in the `SubProcesses/P1_gg_wpqq` directory.
