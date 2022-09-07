@@ -427,7 +427,7 @@ class MultiChannelIntegrator:
                 tf.data.Dataset.from_tensor_slices(
                     (samples, q_sample, func_vals, channels)
                 )
-                .shuffle(tf.shape(samples)[0])
+                .shuffle(tf.shape(samples, out_type=tf.dtypes.int64)[0])
                 .batch(batch_size, drop_remainder=True)
             )
 
