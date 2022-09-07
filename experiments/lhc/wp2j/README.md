@@ -63,3 +63,29 @@ make madevent_tf.so
 
 A short python test script is supplied in `test_tf.py`, where a batch of 128 events are generated. The Tensorflow-Madgraph interface is defined
 in the files: `madevent_api.f` and `madevent_api.cc`, both of which are in the `SubProcesses/P1_gg_wpqq` directory.
+
+### For MacOS M1 users
+
+Note that when using MacOS the standard g++ compiler is clang. When using clang, the command `-lgfortran` does not work
+out of the box and we need to add the library path to the compiler. Assuming you installed gfortran with homebrew
+by
+
+```bash
+brew install gcc
+```
+
+Then, check where it was installed
+
+```bash
+which gfortran
+```
+
+On a M1 chip you should get `/opt/homebrew/bin/gfortran` 
+
+Now it is best to modify the .bash_profile with 
+
+```bash
+export LIBRARY_PATH=$LIBRARY_PATH:/opt/homebrew/bin/gfortran/var/homebrew/linked/gcc/lib/gcc/current/
+```
+
+
