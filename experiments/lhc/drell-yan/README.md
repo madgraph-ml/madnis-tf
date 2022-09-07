@@ -12,6 +12,10 @@ and we only consider the interference term as shown below.
 <img src="dy-int.png" width="400">
 </div>
 
-## Installation and download
+## Download dataset
 
-Download the data files with.....
+In order to download the datasets just run
+
+```python
+python get_data.py
+```
