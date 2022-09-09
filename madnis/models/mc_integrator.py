@@ -529,7 +529,7 @@ class MultiChannelIntegrator:
 
         """
         samples, q_sample, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.0
+            nsamples, self._get_variance_weights(), uniform_channel_ratio=1.0
         )
         weight = self._get_probs(
             samples, q_sample, func_vals, channels, weight_prior, return_integrand=True

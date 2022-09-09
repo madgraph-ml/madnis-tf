@@ -41,7 +41,7 @@ parser.add_argument("--activation", type=str, default="leakyrelu",
 parser.add_argument("--initializer", type=str, default="glorot_uniform",
         choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance",
-        choices={"variance", "neyman_chi2", "kl_divergence"})
+        choices={"variance", "neyman_chi2", "kl_divergence", "exponential"})
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
@@ -178,7 +178,7 @@ ITERS = args.train_batches
 
 # Decay of learning rate
 DECAY_RATE = 0.01
-DECAY_STEP = ITERS
+DECAY_STEP = 2*ITERS
 
 # Prepare scheduler and optimzer
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
@@ -205,11 +205,13 @@ integrator = MultiChannelIntegrator(
 
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
+acceptance = integrator.acceptance(5000)
 
 print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
 print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
+print(f" Unweighting efficiency: {acceptance:.4f}                    ")
 print("------------------------------------------------------------\n")
 
 
@@ -262,14 +264,17 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
+acceptance = integrator.acceptance(5000)
 
 print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
 print("---------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                             ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
+print(f" Unweighting efficiency: {acceptance:.4f}                     ")
 print("-------------------------------------------------------------\n")
 
 if args.result_file is not None:
     with open(args.result_file, "a") as f:
         f.write(f"{res:.8f} {err:.8f} {end_time - start_time} " +
-                f"{integrator.training_statistics} {integrator.weight_updates}\n")
+                f"{integrator.training_statistics} {integrator.weight_updates} " +
+                f"{acceptance:.4f}\n")
