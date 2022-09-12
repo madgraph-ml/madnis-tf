@@ -113,7 +113,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = RQSVegasFlow(
+flow = VegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,

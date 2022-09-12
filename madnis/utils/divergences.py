@@ -1,17 +1,32 @@
 """ Implementation of the divergences. """
 
 import tensorflow as tf
+from functools import wraps
 
-def wrap_divergence(func):
-    def wrapped_func(
+
+def wrapped_multi_channel(func):
+    """Implement multi-channel decorator.
+
+    This decorator wraps the function to implement multi-channel
+    functionality by splitting into the different contributions and
+    summing up the different channel contributions
+
+    Arguments:
+        func: function to be wrapped
+
+    Returns:
+        Callable: decoratated divergence
+    """
+    @wraps(func)
+    def wrapped_divergence(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        sigma: tf.Tensor = None,
+        channels: tf.Tensor,
         q_sample: tf.Tensor = None,
-        channels: tf.Tensor = None
+        sigma: tf.Tensor = None,
     ):
         if q_sample is None:
             q_sample = q_test
@@ -35,13 +50,16 @@ def wrap_divergence(func):
         n_samples = tf.cast(tf.shape(q_sample)[0], self._dtype)
 
         loss = 0
-        for logpi, logqi, pi, qti, qsi, sigi in zip(logps, logqs, ps, qs, q_samps, sigmas):
+        for logpi, logqi, pi, qti, qsi, sigi in zip(
+            logps, logqs, ps, qs, q_samps, sigmas
+        ):
             ni = tf.cast(tf.shape(qsi)[0], self._dtype)
             loss += sigi * func(self, pi, qti, logpi, logqi, qsi) * ni / n_samples
 
         return loss
 
-    return wrapped_func
+    return wrapped_divergence
+
 
 class Divergence:
     """Divergence class container.
@@ -57,10 +75,11 @@ class Divergence:
 
     **Remarks:**:
     - All losses are set-up in such a way, that they can be used
-      to optimize the ``q_test`` distribution for importance sampling.
+      to either optimize the ``q_test`` distribution for importance sampling
+      or the multi-channel weight (``train_mcw = True``)
 
     - It uses importance sampling explicitly, i.e. the estimator is divided
-      by an additional factor of ``q_test``.
+      by an additional factor of ``q_sample``.
 
     """
 
@@ -102,20 +121,20 @@ class Divergence:
             )
         ]
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def variance(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement variance loss.
 
         This function returns the variance loss for two given sets
         of functions, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         **Remark:**
         In the variance loss the ``p_true`` function does not have to be normalized to 1.
@@ -128,32 +147,32 @@ class Divergence:
             q_test (tf.tensor): estimated function/probability
             logp (tf.tensor): not used in variance
             logq (tf.tensor): not used in variance
-            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
-            q_sample (tf.tensor): sampling probability
             channels (tf.tensor): encoding which channel to use with shape (nsamples,).
+            q_sample (tf.tensor): sampling probability
+            sigma (tf.tensor): loss weights with shape (n_channels,). Defaults to None.
 
         Returns:
             tf.tensor: computed variance loss
 
         """
-        mean2 = tf.reduce_mean(p_true ** 2 / (q_test * q_sample), axis=0)
+        mean2 = tf.reduce_mean(p_true**2 / (q_test * q_sample), axis=0)
         mean = tf.reduce_mean(p_true / q_sample, axis=0)
-        return mean2 - mean ** 2
+        return mean2 - mean**2
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def neyman_chi2(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Neyman chi2 divergence.
 
         This function returns the Neyman chi2 divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the chi2 is used as loss function.
@@ -173,20 +192,20 @@ class Divergence:
         """
         return tf.reduce_mean((p_true - q_test) ** 2 / (q_test * q_sample), axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def pearson_chi2(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Pearson chi2 divergence.
 
         This function returns the Pearson chi2 divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the chi2 is used as loss function.
@@ -206,20 +225,20 @@ class Divergence:
         """
         return tf.reduce_mean((q_test - p_true) ** 2 / (p_true * q_sample), axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def kl_divergence(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Kullback-Leibler (KL) divergence.
 
         This function returns the Kullback-Leibler divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the KL is used as loss function.
@@ -239,19 +258,20 @@ class Divergence:
         """
         return tf.reduce_mean(p_true / q_sample * (logp - logq), axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def reverse_kl(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement reverse Kullback-Leibler (RKL) divergence.
 
         This function returns the reverse Kullback-Leibler divergence for two given sets
-        of probabilities, ``p_true`` and ``q_test``.
+        of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the RKL is used as loss function.
@@ -271,20 +291,20 @@ class Divergence:
         """
         return tf.reduce_mean(q_test / q_sample * (logq - logp), axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def hellinger(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Hellinger distance.
 
         This function returns the Hellinger distance for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Hellinger is used as loss function.
@@ -307,20 +327,20 @@ class Divergence:
             axis=0,
         )
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def jeffreys(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Jeffreys divergence.
 
         This function returns the Jeffreys divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Jeffreys is used as loss function.
@@ -340,20 +360,20 @@ class Divergence:
         """
         return tf.reduce_mean((p_true - q_test) * (logp - logq) / q_sample, axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def chernoff(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Chernoff divergence.
 
         This function returns the Chernoff divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Chernoff is used as loss function.
@@ -378,29 +398,32 @@ class Divergence:
             raise ValueError("Must give an alpha value to use Chernoff " "Divergence.")
         if not 0 < self.alpha < 1:
             raise ValueError("Alpha must be between 0 and 1.")
-        prefactor = 4.0 / (1 - self.alpha ** 2)
+        prefactor = 4.0 / (1 - self.alpha**2)
 
-        return prefactor * (1 - tf.reduce_mean(
-            tf.pow(p_true, (1.0 - self.alpha) / 2.0)
-            * tf.pow(q_test, (1.0 + self.alpha) / 2.0)
-            / q_sample,
-            axis=0,
-        ))
+        return prefactor * (
+            1
+            - tf.reduce_mean(
+                tf.pow(p_true, (1.0 - self.alpha) / 2.0)
+                * tf.pow(q_test, (1.0 + self.alpha) / 2.0)
+                / q_sample,
+                axis=0,
+            )
+        )
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def exponential(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Exponential divergence.
 
         This function returns the Exponential divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Exponential is used as loss function.
@@ -420,20 +443,20 @@ class Divergence:
         """
         return tf.reduce_mean(p_true / q_sample * (logp - logq) ** 2, axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def exponential2(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Exponential divergence with ``p_true`` and ``q_test`` interchanged.
 
         This function returns the Exponential2 divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Exponential2 is used as loss function.
@@ -453,14 +476,14 @@ class Divergence:
         """
         return tf.reduce_mean(q_test / q_sample * (logq - logp) ** 2, axis=0)
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def ab_product(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement (alpha, beta)-product divergence.
 
@@ -509,23 +532,23 @@ class Divergence:
             * (1 - tf.pow(q_test / p_true, (1 - self.beta) / 2.0))
             * p_true
             / q_sample,
-            axis=0
+            axis=0,
         )
 
-    @wrap_divergence
+    @wrapped_multi_channel
     def js_divergence(
         self,
         p_true: tf.Tensor,
         q_test: tf.Tensor,
         logp: tf.Tensor,
         logq: tf.Tensor,
-        q_sample: tf.Tensor
+        q_sample: tf.Tensor,
     ):
         """Implement Jensen-Shannon (JS) divergence.
 
         This function returns the Jensen-Shannon divergence for two given sets
         of probabilities, ``p_true`` and ``q_test``. It uses importance sampling, i.e. the
-        estimator is divided by an additional factor of ``q_test``.
+        estimator is divided by an additional factor of ``q_sample``.
 
         tf.stop_gradient is used such that the correct gradient is returned
         when the Jensen-Shannon is used as loss function.
@@ -545,8 +568,7 @@ class Divergence:
         """
         logm = tf.math.log(0.5 * (q_test + p_true))
         return tf.reduce_mean(
-            0.5 / q_sample * (p_true * (logp - logm) + q_test * (logq - logm)),
-            axis=0
+            0.5 / q_sample * (p_true * (logp - logm) + q_test * (logq - logm)), axis=0
         )
 
     def __call__(self, name):
@@ -554,6 +576,6 @@ class Divergence:
         if func is not None:
             return func
         raise NotImplementedError(
-            f"The requested loss function {name} is not implemented. " +
-            f"Allowed options are {self.divergences}."
+            f"The requested loss function {name} is not implemented. "
+            + f"Allowed options are {self.divergences}."
         )
