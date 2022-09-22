@@ -31,6 +31,7 @@ class MultiChannelIntegrator:
         sample_capacity: int = 0,
         uniform_channel_ratio: float = 1.0,
         variance_history_length: int = 20,
+        integrand_has_channels: bool = False,
         **kwargs,
     ):
         """
@@ -58,11 +59,17 @@ class MultiChannelIntegrator:
             variance_history_length (int, optional):
                 How many of the previous batches to take into account to compute the variances
                 for weighting the channels of the next batch
+            integrand_has_channels (bool, optional):
+                Whether to pass the channel number to the integrand as the second argument.
+                Defaults to False.
             kwargs: Additional arguments that need to be passed to the loss
         """
         self._dtype = tf.keras.backend.floatx()
 
-        self._func = func
+        if integrand_has_channels:
+            self._func = func
+        else:
+            self._func = lambda x, c: func(x)
         self.dist = dist
 
         # Define flow or base mapping
@@ -227,7 +234,7 @@ class MultiChannelIntegrator:
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(x, logq, channels)
-        return x, tf.math.exp(logq), self._func(y), channels
+        return x, tf.math.exp(logq), self._func(y, channels), channels
 
     @tf.function
     def _get_probs(
@@ -495,7 +502,8 @@ class MultiChannelIntegrator:
         y, logq = self._compute_analytic_mappings(x, logq, channels)
         q_sample = tf.math.exp(logq)
         weight = self._get_probs(
-            x, q_sample, self._func(y), channels, weight_prior, return_integrand=True
+            x, q_sample, self._func(y, channels), channels, weight_prior,
+            return_integrand=True
         )
         return y, weight
 
