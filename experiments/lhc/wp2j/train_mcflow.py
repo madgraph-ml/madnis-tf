@@ -1,4 +1,5 @@
 import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 import numpy as np
 import argparse
@@ -15,7 +16,6 @@ import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 #########
 # Setup #
@@ -55,7 +55,7 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 7  # dimensionality of data space
+DIMS_IN = 10  # dimensionality of data space
 N_CHANNELS = 8  # number of Channels
 
 #cwd = os.getcwd()
@@ -63,7 +63,8 @@ os.chdir("MadNis_example")
 madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
 #os.chdir(cwd)
 def integrand(x, channels):
-    return madgraph.call_madgraph(x, tf.one_hot(channels, N_CHANNELS, dtype=tf.int32))
+    #return madgraph.call_madgraph(x, tf.one_hot(channels, N_CHANNELS, dtype=tf.int32))
+    return madgraph.call_madgraph(x, channels)
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
