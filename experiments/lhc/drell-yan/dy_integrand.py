@@ -28,7 +28,7 @@ class DrellYan:
     def __init__(
         self,
         isq: str,
-        e_beam: float = 13000.0,
+        e_had: float = 13000.0,
         mw: float = MW,
         mz: float = MZ,
         wz: float = WZ,
@@ -46,8 +46,8 @@ class DrellYan:
         self._dtype = tf.keras.backend.floatx()
 
         # Input parameters
-        self.e_beam = e_beam
-        self.s_beam = e_beam**2
+        self.e_had = e_had
+        self.s_had = e_had**2
         self.mw = mw
         self.mz = mz
         self.wz = wz
@@ -129,7 +129,7 @@ class DrellYan:
         q2 = tf.ones_like(x1) * self.muf
         pdf_1 = self.pdf.xfxQ2(self.pid, x1, q2) / x1
         pdf_2 = self.pdf.xfxQ2(-self.pid, x2, q2) / x2
-        return pdf_1 * pdf_2 * self.partonic_weight(cos_theta, x1 * x2 * self.s_beam)
+        return pdf_1 * pdf_2 * self.partonic_weight(cos_theta, x1 * x2 * self.s_had)
 
     def call(self, p):
         # Current
@@ -140,8 +140,8 @@ class DrellYan:
         e_tot = e1 + e2
 
         cos_theta = pz1 / e1
-        x1 = (e_tot + pz_tot) / (2 * self.e_beam)
-        x2 = (e_tot - pz_tot) / (2 * self.e_beam)
+        x1 = (e_tot + pz_tot) / (self.e_had)
+        x2 = (e_tot - pz_tot) / (self.e_had)
 
         # alternative?
         # x1, x2, cos_theta, phi = tf.unstack(p, axis=-1)
