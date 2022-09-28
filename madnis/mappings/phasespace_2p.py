@@ -12,7 +12,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
     def __init__(
         self,
         sqrt_s_min: float = 50.,
-        e_beam: float = 13000.,
+        e_beam: float = 6500.,
         s_mass: float = 0.,
         s_gamma: float = 0.,
         nu: float = 0.95,
@@ -55,7 +55,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 self.s_mass * self.s_gamma * tf.math.tan(self.y1 + (self.y2 - self.y1)*r1)
                 + self.s_mass**2
             )
-            jac = tf.math.log(
+            logdet = tf.math.log(
                 self.s_mass * self.s_gamma / (
                     (self.y2 - self.y1) *
                     ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
