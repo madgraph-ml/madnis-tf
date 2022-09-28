@@ -1,5 +1,4 @@
 import numpy as np
-import lhapdf
 
 
 # Inputs
@@ -19,8 +18,6 @@ V_l = -1/2 + 2 * sw2
 A_l = -1/2
 
 # make pdf
-pdf = lhapdf.mkPDF("NNPDF30_lo_as_0118_nf_4", 0)
-
 def Q_f(q: str):
     if q == 'u' or q == 'c':
         return 2/3
@@ -53,7 +50,7 @@ def prop_2(s: float):
 
 def a0(s: float, q: str):
     m_yy = Q_f(q)**2
-    m_yZ = - 2* Q_f(q) * V_l* V_q(q) * prop_1(s)
+    m_yZ = - 2 * Q_f(q) * V_l* V_q(q) * prop_1(s)
     m_ZZ = (V_q(q)**2 + A_q(q)**2) * (V_l**2 + A_l**2) * prop_2(s)
     return  m_yy + m_yZ + m_ZZ
 
