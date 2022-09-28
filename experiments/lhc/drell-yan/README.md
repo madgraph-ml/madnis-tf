@@ -1,21 +1,16 @@
-# Drell-Yan process
+# Drell-Yan
 
-We start by considering the following process
+We start by considering the following simple process
 
 $$
-\mathrm{q} \bar{\mathrm{q}} \to \mathrm{Z}/\gamma \to \mathrm{e}^{-} \mathrm{e}^{+},
+q \bar{q} \to \mathrm{Z}/\gamma \to \ell^{-} \ell^{+},
 $$
 
-and we only consider the interference term as shown below.
+where $q =\mathrm{u}, \mathrm{d}, \mathrm{c}, \mathrm{s}$.
+We provide the corresponding full amplitude and weight by a tensorflow function. This makes this integrand differentiable and allows for optimized training methods.
 
-<div align="center">
-<img src="dy-int.png" width="400">
-</div>
+## PDF implementation
 
-## Download dataset
+In order to have differentiable PDFs we rely on the pdfflow implementation...
 
-In order to download the datasets just run
-
-```bash
-python get_data.py
-```
+TODO: Note and explain needed packages... (LHAPD, pdfflow, etc)

@@ -10,14 +10,13 @@ from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
-from amplitude import SquaredAmplitude
+from dy_integrand import DrellYan
 from vegasflow import VegasFlow, RQSVegasFlow
 
 import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 #########
 # Setup #
@@ -61,7 +60,7 @@ DIMS_IN = 2  # dimensionality of data space
 N_CHANNELS = 2  # number of Channels
 
 # Define truth integrand
-integrand = SquaredAmplitude(fsq='u')
+integrand = DrellYan(isq='u')
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
