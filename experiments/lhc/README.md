@@ -16,3 +16,8 @@ In this folder we consider multiple LHC examples to test various aspects of our 
     - trainable multi-channel weight $\alpha_i(x,\theta)$
     - trainable conditional Flow $H(x,\varphi\vert i)$ with
     jacobian determinants $h(x,\varphi\vert i)$.
+- Quark-pair production at lepton collider in the folder `lepton`
+    - Contains the fully differentiable matrix element
+    - trainable multi-channel weight $\alpha_i(x,\theta)$
+    - trainable conditional Flow $H(x,\varphi\vert i)$ with
+    jacobian determinants $h(x,\varphi\vert i)$.
