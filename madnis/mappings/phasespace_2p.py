@@ -35,7 +35,8 @@ class TwoParticlePhasespaceDistribution(Mapping):
             self.s_mass = s_mass
             self.s_gamma = s_gamma
 
-    def _logdet(self, s, r2, r3, r4):
+    def _sublogdet(self, s, r2, r3, r4):
+        del r4
         return tf.math.log(
             -16**(-1 - r2) * self.e_beam**(-2 - 4*r2) * self.tf_pi *
             s**2 * tf.math.log(4 * self.e_beam**2) *
@@ -46,45 +47,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
             )
         )
 
-    def _forward(self, r, condition):
-        # Note: the condition is ignored.
-        del condition
-
-        r1, r2, r3, r4 = tf.unstack(r, axis=-1)
-        # Mapping of s as defined in https://arxiv.org/pdf/hep-ph/0206070.pdf (p. 17)
-        if self.massless:
-            s = (
-                r1 * self.s_max**(1-self.nu) +
-                (1 - r1) * self.s_min**(1-self.nu)
-            ) ** (1 / (1-self.nu))
-            logdet = - tf.math.log(
-                (1 - self.nu) /
-                (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
-            )
-        else:
-            s = (
-                self.s_mass * self.s_gamma * tf.math.tan(self.y1 + (self.y2 - self.y1)*r1)
-                + self.s_mass**2
-            )
-            logdet = - tf.math.log(
-                self.s_mass * self.s_gamma / (
-                    (self.y2 - self.y1) *
-                    ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
-                )
-            )
-        x1 = (s / self.s_max)**r2
-        x2 = (s / self.s_max)**(1-r2)
-        pz1 = self.e_beam * (x1*r3 + x2*(r3-1))
-        pz2 = self.e_beam * (x1*(1-r3) - x2*r3)
-        pt = tf.math.sqrt(s*r3*(1-r3))
-        phi = 2 * self.tf_pi * (r4 - 0.5)
-        px1 = pt * tf.math.cos(phi)
-        py1 = pt * tf.math.sin(phi)
-
-        p = tf.stack((px1, py1, pz1, pz2), axis=-1)
-        return p, logdet + self._logdet(s, r2, r3, r4)
-
-    def _inverse(self, p, condition):
+    def _forward(self, p, condition):
         # Note: the condition is ignored.
         del condition
 
@@ -122,4 +85,57 @@ class TwoParticlePhasespaceDistribution(Mapping):
             )
 
         r = tf.stack((r1, r2, r3, r4), axis=-1)
-        return r, -logdet - self._logdet(s, r2, r3, r4)
+        return r, -logdet - self._sublogdet(s, r2, r3, r4)
+
+    def _inverse(self, r, condition):
+        # Note: the condition is ignored.
+        del condition
+
+        r1, r2, r3, r4 = tf.unstack(r, axis=-1)
+        # Mapping of s as defined in https://arxiv.org/pdf/hep-ph/0206070.pdf (p. 17)
+        if self.massless:
+            s = (
+                r1 * self.s_max**(1-self.nu) +
+                (1 - r1) * self.s_min**(1-self.nu)
+            ) ** (1 / (1-self.nu))
+            logdet = - tf.math.log(
+                (1 - self.nu) /
+                (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
+            )
+        else:
+            s = (
+                self.s_mass * self.s_gamma * tf.math.tan(self.y1 + (self.y2 - self.y1)*r1)
+                + self.s_mass**2
+            )
+            logdet = - tf.math.log(
+                self.s_mass * self.s_gamma / (
+                    (self.y2 - self.y1) *
+                    ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
+                )
+            )
+        x1 = (s / self.s_max)**r2
+        x2 = (s / self.s_max)**(1-r2)
+        pz1 = self.e_beam * (x1*r3 + x2*(r3-1))
+        pz2 = self.e_beam * (x1*(1-r3) - x2*r3)
+        pt = tf.math.sqrt(s*r3*(1-r3))
+        phi = 2 * self.tf_pi * (r4 - 0.5)
+        px1 = pt * tf.math.cos(phi)
+        py1 = pt * tf.math.sin(phi)
+
+        p = tf.stack((px1, py1, pz1, pz2), axis=-1)
+        return p, logdet + self._sublogdet(s, r2, r3, r4)
+
+    def _log_det(self, x_or_z, condition, inverse=False):
+        if inverse:
+            # the log-det of the inverse function (log dF^{-1}/dz)
+            _, logdet = self._inverse(x_or_z, condition)
+            return logdet
+        else:
+            # the log-det of the forward pass (log dF/dx)
+            _, logdet = self._forward(x_or_z, condition)
+            return logdet
+
+    def _sample(self, num_samples, condition):
+        r_values = self.base_dist.sample(num_samples, condition)
+        sample, _ = self.inverse(r_values, condition)
+        return sample
