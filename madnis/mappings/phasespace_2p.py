@@ -35,6 +35,17 @@ class TwoParticlePhasespaceDistribution(Mapping):
             self.s_mass = s_mass
             self.s_gamma = s_gamma
 
+    def _logdet(self, s, r2, r3, r4):
+        return tf.math.log(
+            -16**(-1 - r2) * self.e_beam**(-2 - 4*r2) * self.tf_pi *
+            s**2 * tf.math.log(4 * self.e_beam**2) *
+            (
+                16 * self.e_beam**4 * (-1 + r3) * r3 + 
+                256**r2 * self.e_beam**(8*r2) * (-1 + r3) * r3 + 
+                2**(3 + 4*r2) * self.e_beam**(2 + 4*r2) * (-1 + 3*r3 - 3*r3**2)
+            )
+        )
+
     def _forward(self, r, condition):
         # Note: the condition is ignored.
         del condition
@@ -71,8 +82,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
         py1 = pt * tf.math.sin(phi)
 
         p = tf.stack((px1, py1, pz1, pz2), axis=-1)
-        logdet = 0. #self.log_det(x, inverse=False)
-        return p, logdet
+        return p, logdet + self._logdet(s, r2, r3, r4)
 
     def _inverse(self, p, condition):
         # Note: the condition is ignored.
@@ -95,12 +105,21 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 (s**(1-self.nu) - self.s_min**(1-self.nu))
                 / (self.s_max**(1-self.nu) - self.s_min**(1-self.nu))
             )
+            logdet = tf.math.log(
+                (1 - self.nu) /
+                (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
+            )
         else:
             r1 = (
                 (tf.math.atan((s - self.s_mass**2) / (self.s_mass * self.s_gamma)) - self.y1)
                 / (self.y2 - self.y1)
             )
+            logdet = tf.math.log(
+                self.s_mass * self.s_gamma / (
+                    (self.y2 - self.y1) *
+                    ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
+                )
+            )
 
         r = tf.stack((r1, r2, r3, r4), axis=-1)
-        logdet = 0. #self.log_det(z, inverse=True)
-        return r, logdet
+        return r, -logdet - self._logdet(s, r2, r3, r4)
