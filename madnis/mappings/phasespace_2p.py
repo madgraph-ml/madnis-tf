@@ -38,13 +38,10 @@ class TwoParticlePhasespaceDistribution(Mapping):
     def _sublogdet(self, s, r2, r3, r4):
         del r4
         return tf.math.log(
-            -16**(-1 - r2) * self.e_beam**(-2 - 4*r2) * self.tf_pi *
-            s**2 * tf.math.log(4 * self.e_beam**2) *
-            (
-                16 * self.e_beam**4 * (-1 + r3) * r3 + 
-                256**r2 * self.e_beam**(8*r2) * (-1 + r3) * r3 + 
-                2**(3 + 4*r2) * self.e_beam**(2 + 4*r2) * (-1 + 3*r3 - 3*r3**2)
-            )
+            self.tf_pi * (s/self.s_max)**(-2 * r2) *
+            (-r3*s + (-1 + r3) * (s/self.s_max)**(2 * r2) * self.s_max) *
+            (s - r3 * s + r3 * (s/self.s_max)**(2 * r2) * self.s_max) *
+            tf.math.log(s/self.s_max) / (4 * self.s_max)
         )
 
     def _forward(self, p, condition):
