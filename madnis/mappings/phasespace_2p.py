@@ -57,7 +57,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 r1 * self.s_max**(1-self.nu) +
                 (1 - r1) * self.s_min**(1-self.nu)
             ) ** (1 / (1-self.nu))
-            logdet = tf.math.log(
+            logdet = - tf.math.log(
                 (1 - self.nu) /
                 (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
             )
@@ -66,7 +66,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 self.s_mass * self.s_gamma * tf.math.tan(self.y1 + (self.y2 - self.y1)*r1)
                 + self.s_mass**2
             )
-            logdet = tf.math.log(
+            logdet = - tf.math.log(
                 self.s_mass * self.s_gamma / (
                     (self.y2 - self.y1) *
                     ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
@@ -105,7 +105,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 (s**(1-self.nu) - self.s_min**(1-self.nu))
                 / (self.s_max**(1-self.nu) - self.s_min**(1-self.nu))
             )
-            logdet = tf.math.log(
+            logdet = - tf.math.log(
                 (1 - self.nu) /
                 (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
             )
@@ -114,7 +114,7 @@ class TwoParticlePhasespaceDistribution(Mapping):
                 (tf.math.atan((s - self.s_mass**2) / (self.s_mass * self.s_gamma)) - self.y1)
                 / (self.y2 - self.y1)
             )
-            logdet = tf.math.log(
+            logdet = - tf.math.log(
                 self.s_mass * self.s_gamma / (
                     (self.y2 - self.y1) *
                     ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
