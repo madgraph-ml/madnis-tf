@@ -10,7 +10,7 @@ from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
-from vegasflow import VegasFlow
+from vegasflow import VegasFlow, RQSVegasFlow
 
 import sys
 
@@ -55,7 +55,7 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 10  # dimensionality of data space
+DIMS_IN = 12  # dimensionality of data space (apparently it must be 12?)
 N_CHANNELS = 8  # number of Channels
 
 #cwd = os.getcwd()
