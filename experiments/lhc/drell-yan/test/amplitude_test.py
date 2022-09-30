@@ -9,7 +9,8 @@ import sys
 tf.keras.backend.set_floatx("float64")
  
 # setting path
-sys.path.append("/Users/winterhalder/hep-projects/MadNIS/experiments/lhc/drell-yan")
+parentidrname = os.path.abspath("../")
+sys.path.append(parentidrname)
 from dy_integrand import DrellYan, MZ, WZ
 from madnis.mappings.phasespace_2p import TwoParticlePhasespaceA, TwoParticlePhasespaceB
 
@@ -62,7 +63,7 @@ weightB1 = integrandB(eventsB1) / mapB1.det(eventsB1)
 mB1 = invariant_mass(eventsB1,"convpolar")
 
 # Define histos
-rmax = 150
+rmax = 250
 rmin = 50
 bins = 50
 
