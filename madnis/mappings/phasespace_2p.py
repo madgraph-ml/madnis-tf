@@ -251,3 +251,59 @@ class TwoParticlePhasespaceB(Mapping):
         r_values = self.base_dist.sample(num_samples, condition)
         sample, _ = self.inverse(r_values, condition)
         return sample
+
+
+class TwoParticlePhasespaceFlatB(Mapping):
+
+    def __init__(
+        self,
+        **kwargs
+    ):
+        super().__init__(StandardUniform([4]), **kwargs)
+        self._shape = tf.TensorShape([4])
+        self.tf_pi = tf.constant(np.pi, dtype=self._dtype)
+
+    def _forward(self, p, condition):
+        # Note: the condition is ignored.
+        del condition
+
+        x1, x2, costheta, phi = tf.unstack(p, axis=-1)
+
+        r1 = x1
+        r2 = x2
+        r3 = (costheta + 1)/2
+        r4 = phi / (2*self.tf_pi) + 0.5
+
+        logdet = tf.math.log(4 * self.tf_pi)
+        r = tf.stack((r1, r2, r3, r4), axis=-1)
+        return r, -logdet
+
+    def _inverse(self, r, condition):
+        # Note: the condition is ignored.
+        del condition
+
+        r1, r2, r3, r4 = tf.unstack(r, axis=-1)
+
+        x1 = r1
+        x2 = r2
+        costheta = 2 * r3 - 1
+        phi = 2 * self.tf_pi * (r4 - 0.5)
+
+        logdet = tf.math.log(4 * self.tf_pi)
+        p = tf.stack((x1, x2, costheta, phi), axis=-1)
+        return p, logdet
+
+    def _log_det(self, x_or_z, condition, inverse=False):
+        if inverse:
+            # the log-det of the inverse function (log dF^{-1}/dz)
+            _, logdet = self._inverse(x_or_z, condition)
+            return logdet
+        else:
+            # the log-det of the forward pass (log dF/dx)
+            _, logdet = self._forward(x_or_z, condition)
+            return logdet
+
+    def _sample(self, num_samples, condition):
+        r_values = self.base_dist.sample(num_samples, condition)
+        sample, _ = self.inverse(r_values, condition)
+        return sample
