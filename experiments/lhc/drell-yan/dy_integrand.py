@@ -249,10 +249,9 @@ class DrellYan:
         s_parton = x1 * x2 * self.s_had
         return pdf_1 * pdf_2 * self.partonic_dxs(cos_theta, s_parton, isq)
 
-    def _cartesian_det(self, pz1, x1, x2):
+    def _cartesian_det(self, r3, x1, x2):
         s = self.s_had * x1 * x2
         r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
-        r3 = (2 * pz1 / self.e_had + x2) / (x1 + x2)
         det1 = 4 * m.pi * tf.math.log(self.s_had / s) / self.s_had
         det2 = (
             m.pi
@@ -285,9 +284,11 @@ class DrellYan:
             e_tot = e1 + e2
             x1 = (e_tot + pz_tot) / (self.e_had)
             x2 = (e_tot - pz_tot) / (self.e_had)
+            r3 = (2 * pz1 / self.e_had + x2) / (x1 + x2)
+            cos_theta = 2 * r3 - 1
 
             # Trafo determinant
-            det = self._cartesian_det(pz1, x1, x2)
+            det = self._cartesian_det(r3, x1, x2)
 
         elif self.input_format == "convpolar":
             # Map input to needed quantities
