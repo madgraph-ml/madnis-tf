@@ -1,4 +1,6 @@
 import os
+
+from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB, TwoParticlePhasespaceFlatB
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 import numpy as np
@@ -10,7 +12,7 @@ from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
-from dy_integrand import DrellYan
+from dy_integrand import DrellYan, MZ, WZ
 from vegasflow import VegasFlow, RQSVegasFlow
 
 import sys
@@ -46,7 +48,7 @@ parser.add_argument("--channels", type=int, default=2)
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
 
 args = parser.parse_args()
@@ -56,39 +58,27 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 2  # dimensionality of data space
-N_CHANNELS = 2  # number of Channels
+DIMS_IN = 4  # dimensionality of data space
+N_CHANNELS = args.channels  # number of Channels. Default is 2
+INT_SAMPLES = args.int_samples
+RES_TO_PB = 0.389379 * 1e9 # Conversion factor
 
 # Define truth integrand
-integrand = DrellYan(isq='u')
+integrand = DrellYan(["u", "d", "c", "s", "b"], input_format="convpolar")
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
 print(f" Dimensions: {DIMS_IN}                                    ")
-print(f" Channels: {N_CHANNELS} (not for naive integration)       ")
+print(f" Channels: {N_CHANNELS}                                   ")
 print("-----------------------------------------------------------\n")
 
+# Define the channel mappings
+map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
+map_y = TwoParticlePhasespaceB()
 
-################################
-# Naive integration
-################################
-
-INT_SAMPLES = args.int_samples
-#
-## Uniform sampling in range [0,1]^d
-#d = DIMS_IN
-#volume = 1.0 ** d
-#noise = tf.random.uniform((INT_SAMPLES, d), dtype=DTYPE) * volume
-#rho = 1 / volume
-#integrand = multi_camel.prob(noise) / rho  # divide by volume in this case
-#res, err = integrate(integrand)
-#relerr = err / res * 100
-#
-#print(f"\n Naive integration ({INT_SAMPLES:.1e} samples):")
-#print("-----------------------------------------------------------")
-#print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)")
-#print("-----------------------------------------------------------\n")
-
+# TODO: Make flat but consider cut m_inv > 50 GeV
+# Otherwise infinite cross section!
+map_flat = TwoParticlePhasespaceFlatB()
 
 ################################
 # Define the flow network
@@ -105,7 +95,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = RQSVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,
@@ -136,6 +126,14 @@ else:
 # Define the prior
 ################################
 
+# TODO: Add parts of Matrix-Element as prior
+# if PRIOR:
+#     # Define prior weight
+#     prior = WeightPrior([map_1,map_2], N_CHANNELS)
+#     madgraph_prior = prior.get_prior_weights
+# else:
+#     madgraph_prior = None
+
 madgraph_prior = None
 
 ################################
@@ -164,13 +162,19 @@ lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DE
 opt1 = tf.keras.optimizers.Adam(lr_schedule1)
 opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
+# Add mappings to integrator
+MAPPINGS = [map_y, map_Z]
+N_MAPS = len(MAPPINGS)
+for i in range(N_CHANNELS-N_MAPS):
+    MAPPINGS.append(map_Z)
+
 integrator = MultiChannelIntegrator(
     integrand, flow, [opt1, opt2],
     mcw_model=mcw_net,
+    mappings=MAPPINGS,
     use_weight_init=PRIOR,
     n_channels=N_CHANNELS,
-    loss_func=LOSS,
-    integrand_has_channels=True
+    loss_func=LOSS
 )
 
 ################################
@@ -180,12 +184,14 @@ integrator = MultiChannelIntegrator(
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
-print("--------------------------------------------------------------")
-print(f" Number of channels: {N_CHANNELS}                            ")
-print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
-print("------------------------------------------------------------\n")
+res *=RES_TO_PB
+err *=RES_TO_PB
 
+print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):  ")
+print("----------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                              ")
+print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
+print("----------------------------------------------------------------\n")
 
 ################################
 # Train the network
@@ -223,8 +229,11 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
-print("---------------------------------------------------------------")
-print(f" Number of channels: {N_CHANNELS}                             ")
-print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
-print("-------------------------------------------------------------\n")
+res *=RES_TO_PB
+err *=RES_TO_PB
+
+print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples): ")
+print("----------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                              ")
+print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
+print("----------------------------------------------------------------\n")
