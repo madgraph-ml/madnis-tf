@@ -249,6 +249,22 @@ class DrellYan:
         s_parton = x1 * x2 * self.s_had
         return pdf_1 * pdf_2 * self.partonic_dxs(cos_theta, s_parton, isq)
 
+    def _cartesian_det(self, pz1, x1, x2):
+        s = self.s_had * x1 * x2
+        r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
+        r3 = (2 * pz1 / self.e_had + x2) / (x1 + x2)
+        det1 = 4 * m.pi * tf.math.log(self.s_had / s) / self.s_had
+        det2 = (
+            m.pi
+            * (s / self.s_had) ** (-2 * r2)
+            * (-r3 * s + (-1 + r3) * (s / self.s_had) ** (2 * r2) * self.s_had)
+            * (s - r3 * s + r3 * (s / self.s_had) ** (2 * r2) * self.s_had)
+            * tf.math.log(s / self.s_had)
+            / (4 * self.s_had)
+        )
+        det = det1 / det2
+        return det
+
     def __call__(self, p: tf.Tensor):
         """Calculate the full hadronic event weight including pdfs and
         sum over initial-state flavors.
@@ -270,21 +286,8 @@ class DrellYan:
             x1 = (e_tot + pz_tot) / (self.e_had)
             x2 = (e_tot - pz_tot) / (self.e_had)
 
-            # Fix the weight
-            s = self.s_had * x1 * x2
-            r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
-            r3 = (2 * pz1/self.e_had + x2) / (x1 + x2)
-            cos_theta = 2*r3 - 1
-            det1 = 4 * m.pi * tf.math.log(self.s_had / s) / self.s_had
-            det2 = (
-                m.pi
-                * (s / self.s_had) ** (-2 * r2)
-                * (-r3 * s + (-1 + r3) * (s / self.s_had) ** (2 * r2) * self.s_had)
-                * (s - r3 * s + r3 * (s / self.s_had) ** (2 * r2) * self.s_had)
-                * tf.math.log(s / self.s_had)
-                / (4 * self.s_had)
-            )
-            det = det1 / det2
+            # Trafo determinant
+            det = self._cartesian_det(pz1, x1, x2)
 
         elif self.input_format == "convpolar":
             # Map input to needed quantities
