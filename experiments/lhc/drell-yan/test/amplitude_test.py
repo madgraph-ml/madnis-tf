@@ -47,19 +47,19 @@ n_events = int(1e6)
 
 # Events in shape (px1, py1, pz1, pz2)
 eventsA0 = mapA0.sample(n_events)
-weightA0 =  integrandA(eventsA0) / mapA0.det(eventsA0)
+weightA0 =  integrandA(eventsA0) / mapA0.prob(eventsA0)
 mA0 = invariant_mass(eventsA0,"cartesian")
 
 eventsA1 = mapA1.sample(n_events)
-weightA1 = integrandA(eventsA1) / mapA1.det(eventsA1)
+weightA1 = integrandA(eventsA1) / mapA1.prob(eventsA1)
 mA1 = invariant_mass(eventsA1,"cartesian")
 
 eventsB0 = mapB0.sample(n_events)
-weightB0 =  integrandB(eventsB0) / mapB0.det(eventsB0)
+weightB0 =  integrandB(eventsB0) / mapB0.prob(eventsB0)
 mB0 = invariant_mass(eventsB0,"convpolar")
 
 eventsB1 = mapB1.sample(n_events)
-weightB1 = integrandB(eventsB1) / mapB1.det(eventsB1)
+weightB1 = integrandB(eventsB1) / mapB1.prob(eventsB1)
 mB1 = invariant_mass(eventsB1,"convpolar")
 
 # Define histos
