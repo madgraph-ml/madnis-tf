@@ -36,6 +36,7 @@ class DrellYan:
         wz: float = WZ,
         gf: float = GF,
         pdfset: str = "NNPDF40_lo_as_01180",
+        input_format: str = "cartesian",
         **kwargs
     ):
         """
@@ -50,6 +51,9 @@ class DrellYan:
             gf (float, optional): Fermi constant. Defaults to GF.
             pdfset (str, optional): PDF-set to use.. Defaults to "NNPDF40_lo_as_01180".
                 Requires `lhapdf` and `lhapdf-management`.
+            input_format (str,optional): Which parametrization do the momenta have.
+                Default is `"cartesian"` which means `p = {px1,py1,pz1,pz2}`. Alternative
+                is `"convpolar"` as `p = {x1,x2,costheta,phi}`.
         """
         super().__init__(**kwargs)
         self._dtype = tf.keras.backend.floatx()
@@ -61,6 +65,9 @@ class DrellYan:
         self.mz = mz
         self.wz = wz
         self.gf = gf
+
+        # Define input format
+        self.input_format = input_format
 
         # Factorisation scale and pdfset
         self.muf = self.mz
@@ -251,20 +258,33 @@ class DrellYan:
         Returns:
             w (tf.Tensor): Returns weight of the event with shape `(1,)`.
         """
-        # Map input to needed quantities
-        px1, py1, pz1, pz2 = tf.unstack(p, axis=-1)
-        e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
-        e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
-        pz_tot = pz1 + pz2
-        e_tot = e1 + e2
+        if self.input_format == "cartesian":
+            # Map input to needed quantities
+            px1, py1, pz1, pz2 = tf.unstack(p, axis=-1)
+            e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
+            e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
+            pz_tot = pz1 + pz2
+            e_tot = e1 + e2
 
-        cos_theta = pz1 / e1
-        x1 = (e_tot + pz_tot) / (self.e_had)
-        x2 = (e_tot - pz_tot) / (self.e_had)
+            cos_theta = pz1 / e1
+            x1 = (e_tot + pz_tot) / (self.e_had)
+            x2 = (e_tot - pz_tot) / (self.e_had)
+
+            # Trafo determinant
+            det = 1.0
+
+        elif self.input_format == "convpolar":
+            # Map input to needed quantities
+            x1, x2, cos_theta, phi = tf.unstack(p, axis=-1)
+
+            # Trafo determinant
+            det = 1.0
+        else:
+            raise ValueError('Input format must be either "cartesian" or "convpolar"')
 
         # Calculat full weight
         w = 0
         for isq in self.isq:
             w += self.hadronic_dxs(x1, x2, cos_theta, isq)
 
-        return w
+        return det * w
