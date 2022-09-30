@@ -241,7 +241,9 @@ class DrellYan:
         pid = tf.cast([pid], dtype=tf.int32)
 
         # Calculate pdfs
-        q2 = tf.ones_like(x1) * self.muf
+        q2 = tf.cast(tf.ones_like(x1) * self.muf, dtype=self._dtype)
+        x1 = tf.cast(x1, dtype=self._dtype)
+        x2 = tf.cast(x2, dtype=self._dtype)
         pdf_1 = self.pdf.xfxQ2(pid, x1, q2) / x1
         pdf_2 = self.pdf.xfxQ2(-pid, x2, q2) / x2
         s_parton = x1 * x2 * self.s_had
@@ -270,8 +272,14 @@ class DrellYan:
             x1 = (e_tot + pz_tot) / (self.e_had)
             x2 = (e_tot - pz_tot) / (self.e_had)
 
+            # s = self.s_had * x1 * x2
+            # r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
+            # r3 = (2*pz1/self.e_had + x2) / (x1 + x2)
+            # det1 = 4 * m.pi * tf.math.log(self.s_had/s) / self.s_had
+            # det2 = m.pi * (s/self.s_had)**(-2 * r2) * (-r3*s + (-1 + r3) * (s/self.s_had)**(2 * r2) * self.s_had) * (s - r3 * s + r3 * (s/self.s_had)**(2 * r2) * self.s_had) * tf.math.log(s/self.s_had) / (4 * self.s_had)
+
             # Trafo determinant
-            det = 1.0
+            det = 1.0 #det1**2/det2
 
         elif self.input_format == "convpolar":
             # Map input to needed quantities
@@ -287,4 +295,4 @@ class DrellYan:
         for isq in self.isq:
             w += self.hadronic_dxs(x1, x2, cos_theta, isq)
 
-        return det * w
+        return w * det

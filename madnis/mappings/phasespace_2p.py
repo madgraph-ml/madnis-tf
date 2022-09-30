@@ -21,9 +21,9 @@ class TwoParticlePhasespaceA(Mapping):
         super().__init__(StandardUniform([4]), **kwargs)
         self._shape = tf.TensorShape([4])
 
-        self.e_beam = e_beam
-        self.s_min = sqrt_s_min**2
-        self.s_max = 4*e_beam**2
+        self.e_beam = tf.constant(e_beam, dtype=self._dtype)
+        self.s_min = tf.constant(sqrt_s_min**2, dtype=self._dtype)
+        self.s_max = tf.constant(4*e_beam**2, dtype=self._dtype)
         self.tf_pi = tf.constant(np.pi, dtype=self._dtype)
 
         self.massless = s_mass == 0.
@@ -32,8 +32,8 @@ class TwoParticlePhasespaceA(Mapping):
         else:
             self.y1 = tf.math.atan((self.s_min - s_mass**2) / (s_mass*s_gamma))
             self.y2 = tf.math.atan((self.s_max - s_mass**2) / (s_mass*s_gamma))
-            self.s_mass = s_mass
-            self.s_gamma = s_gamma
+            self.s_mass = tf.constant(s_mass, dtype=self._dtype)
+            self.s_gamma = tf.constant(s_gamma, dtype=self._dtype)
 
     def _sublogdet(self, s, r2, r3, r4):
         del r4
@@ -118,7 +118,6 @@ class TwoParticlePhasespaceA(Mapping):
         phi = 2 * self.tf_pi * (r4 - 0.5)
         px1 = pt * tf.math.cos(phi)
         py1 = pt * tf.math.sin(phi)
-
         p = tf.stack((px1, py1, pz1, pz2), axis=-1)
         return p, logdet + self._sublogdet(s, r2, r3, r4)
 
@@ -152,9 +151,9 @@ class TwoParticlePhasespaceB(Mapping):
         super().__init__(StandardUniform([4]), **kwargs)
         self._shape = tf.TensorShape([4])
 
-        self.e_beam = e_beam
-        self.s_min = sqrt_s_min**2
-        self.s_max = 4*e_beam**2
+        self.e_beam = tf.constant(e_beam, dtype=self._dtype)
+        self.s_min = tf.constant(sqrt_s_min**2, dtype=self._dtype)
+        self.s_max = tf.constant(4*e_beam**2, dtype=self._dtype)
         self.tf_pi = tf.constant(np.pi, dtype=self._dtype)
 
         self.massless = s_mass == 0.
@@ -163,8 +162,8 @@ class TwoParticlePhasespaceB(Mapping):
         else:
             self.y1 = tf.math.atan((self.s_min - s_mass**2) / (s_mass*s_gamma))
             self.y2 = tf.math.atan((self.s_max - s_mass**2) / (s_mass*s_gamma))
-            self.s_mass = s_mass
-            self.s_gamma = s_gamma
+            self.s_mass = tf.constant(s_mass, dtype=self._dtype)
+            self.s_gamma = tf.constant(s_gamma, dtype=self._dtype)
 
     def _sublogdet(self, s):
         det = 4 * self.tf_pi * tf.math.log(self.s_max/s) / self.s_max
