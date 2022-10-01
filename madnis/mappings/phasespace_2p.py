@@ -1,8 +1,5 @@
-from typing import Optional
 import numpy as np
 import tensorflow as tf
-
-from madnis.distributions.base import Distribution
 
 from ..distributions.uniform import StandardUniform
 from .base import Mapping
