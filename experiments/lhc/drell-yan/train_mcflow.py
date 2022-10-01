@@ -64,7 +64,7 @@ INT_SAMPLES = args.int_samples
 RES_TO_PB = 0.389379 * 1e9 # Conversion factor
 
 # Define truth integrand
-integrand = DrellYan(["u", "d", "c", "s", "b"], input_format="convpolar")
+integrand = DrellYan(["u", "d", "c", "s", "u", "d", "c", "s"], input_format="convpolar")
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
@@ -166,7 +166,7 @@ opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 MAPPINGS = [map_y, map_Z]
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
-    MAPPINGS.append(map_Z)
+    MAPPINGS.append(map_y)
 
 integrator = MultiChannelIntegrator(
     integrand, flow, [opt1, opt2],

@@ -10,10 +10,10 @@ warnings.filterwarnings("ignore")
 # -------------------------------------
 # Basic Inputs
 # -------------------------------------
-MW = 8.038500e01  # W-Boson Mass
-MZ = 9.110000e01  # Z-Boson Mass
-WZ = 2.441404e00  # Z-Boson Width
-GF = 1.16637e-05  # Fermi Constant
+MW = 8.041900e01   # W-Boson Mass   8.041900e01 (MG5)
+MZ = 9.118800e01   # Z-Boson Mass   9.118800e01 (MG5)
+WZ = 2.441404e00   # Z-Boson Width  2.441404e00 (MG5)
+GF = 1.166390e-05  # Fermi Constant 1.166390e-05 (MG5)
 NC = 3  # Color factor
 # -------------------------------------
 
@@ -70,15 +70,16 @@ class DrellYan:
         self.input_format = input_format
 
         # Factorisation scale and pdfset
-        self.muf = self.mz
+        self.muf2 = self.mz ** 2
         self.pdf = mkPDFs(pdfset, [0])
 
         # Basic Definitions
         self.cw2 = self.mw**2 / self.mz**2
         self.sw2 = 1 - self.cw2
 
-        # Define alpha in G_mu scheme (alpha_0 would be 1/1.279000e+02)
-        self.alpha = m.sqrt(2) * self.gf * self.mw**2 * self.sw2
+        # Definition of electroweak coupling
+        #self.alpha = m.sqrt(2) * self.gf * self.mw**2 * self.sw2 # Gf scheme
+        self.alpha = 1/1.325070e+02 # MG-Input
 
         # Define list of initial state quarks
         self.isq = isq
@@ -176,7 +177,8 @@ class DrellYan:
 
         m_sym = self.a(s, mode, isq) * (1 + cos_theta**2)
         m_asym = self.b(s, mode, isq) * cos_theta
-        return self.prop_factor(s, mode) * (m_sym + m_asym)
+        n_spins = 2
+        return n_spins**2 * self.prop_factor(s, mode) * (m_sym + m_asym)
 
     def amp2_all(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Full squared matrix element. Note the relative sign
@@ -198,10 +200,11 @@ class DrellYan:
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
 
-            dsigma/dOmega = 1/(16 PI^2) * 1/s * 1/(4 * NC) * |M|^2
+            dsigma/dOmega = 1/(64 PI^2) * 1/s * 1/(4 * NC) * |M|^2
 
         which includes:
-            - ps-weight: 1/(16 PI^2) * 1/s
+            - ps-weight: 1/(32 PI^2)
+            - 1/flux = 1/(2s)
             - averaging/summation over initial/final-state spins: 1/4
             - averaging over initial-state color: 1/NC
 
@@ -214,8 +217,9 @@ class DrellYan:
             p_dxs (tf.Tensor): partonic differential cross-section
         """
         cs_factor = 1 / (4 * NC)
-        ps_weight = 1 / (16 * m.pi**2 * s)
-        return ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
+        ps_weight = 1 / (32 * m.pi**2)
+        fluxm1 = 1 / (2 * s)
+        return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
     def hadronic_dxs(
         self,
@@ -241,7 +245,7 @@ class DrellYan:
         pid = tf.cast([pid], dtype=tf.int32)
 
         # Calculate pdfs
-        q2 = tf.cast(tf.ones_like(x1) * self.muf, dtype=self._dtype)
+        q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
         x1 = tf.cast(x1, dtype=self._dtype)
         x2 = tf.cast(x2, dtype=self._dtype)
         pdf_1 = self.pdf.xfxQ2(pid, x1, q2) / x1
@@ -304,4 +308,4 @@ class DrellYan:
         for isq in self.isq:
             w += self.hadronic_dxs(x1, x2, cos_theta, isq)
 
-        return w * det
+        return tf.constant(det, dtype=self._dtype) * w
