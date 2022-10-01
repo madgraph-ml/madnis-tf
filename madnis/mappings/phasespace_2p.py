@@ -3,6 +3,7 @@ import tensorflow as tf
 
 from ..distributions.uniform import StandardUniform
 from .base import Mapping
+from .functional.phasespace.propagators import massless_propogator, unstable_massive_propogator
 
 class TwoParticlePhasespaceA(Mapping):
 
@@ -176,26 +177,11 @@ class TwoParticlePhasespaceB(Mapping):
         r3 = (costheta + 1)/2
         r4 = phi / (2*self.tf_pi) + 0.5
 
+        # Mapping of s (see functional.phasespace.propagators for details)
         if self.massless:
-            r1 = (
-                (s**(1-self.nu) - self.s_min**(1-self.nu))
-                / (self.s_max**(1-self.nu) - self.s_min**(1-self.nu))
-            )
-            logdet = tf.math.log(
-                (1 - self.nu) /
-                (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
-            )
+            r1, logdet = massless_propogator(s, self.s_min, self.s_max, self.nu, inverse=False)
         else:
-            r1 = (
-                (tf.math.atan((s - self.s_mass**2) / (self.s_mass * self.s_gamma)) - self.y1)
-                / (self.y2 - self.y1)
-            )
-            logdet = tf.math.log(
-                self.s_mass * self.s_gamma / (
-                    (self.y2 - self.y1) *
-                    ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
-                )
-            )
+            r1, logdet = unstable_massive_propogator(s, self.s_min, self.s_max, self.s_mass, self.s_gamma, inverse=False)
 
         r = tf.stack((r1, r2, r3, r4), axis=-1)
         return r, logdet - self._sublogdet(s)
@@ -205,34 +191,19 @@ class TwoParticlePhasespaceB(Mapping):
         del condition
 
         r1, r2, r3, r4 = tf.unstack(r, axis=-1)
-        # Mapping of s as defined in https://arxiv.org/pdf/hep-ph/0206070.pdf (p. 17)
+        # Mapping of s (see functional.phasespace.propagators for details)
         if self.massless:
-            s = (
-                r1 * self.s_max**(1-self.nu) +
-                (1 - r1) * self.s_min**(1-self.nu)
-            ) ** (1 / (1-self.nu))
-            logdet = tf.math.log(
-                (1 - self.nu) /
-                (s**self.nu * (self.s_max**(1-self.nu) - self.s_min**(1-self.nu)))
-            )
+            s, logdet = massless_propogator(r1, self.s_min, self.s_max, self.nu, inverse=True)
         else:
-            s = (
-                self.s_mass * self.s_gamma * tf.math.tan(self.y1 + (self.y2 - self.y1)*r1)
-                + self.s_mass**2
-            )
-            logdet = tf.math.log(
-                self.s_mass * self.s_gamma / (
-                    (self.y2 - self.y1) *
-                    ((s - self.s_mass**2)**2 + self.s_mass**2 * self.s_gamma**2)
-                )
-            )
+            s, logdet = unstable_massive_propogator(r1, self.s_min, self.s_max, self.s_mass, self.s_gamma, inverse=True)
+        
         x1 = (s / self.s_max)**r2
         x2 = (s / self.s_max)**(1-r2)
         costheta = 2 * r3 - 1
         phi = 2 * self.tf_pi * (r4 - 0.5)
 
         p = tf.stack((x1, x2, costheta, phi), axis=-1)
-        return p, self._sublogdet(s) - logdet
+        return p, logdet + self._sublogdet(s)
 
     def _log_det(self, x_or_z, condition, inverse=False):
         if inverse:

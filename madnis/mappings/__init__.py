@@ -1,5 +1,8 @@
 """ Mappings for the MadNIS framework """
 
+# Load the subfolders
+from . import functional
+
 # Import the base class first
 from .base import *
 
