@@ -1,6 +1,6 @@
 import os
 
-from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB, TwoParticlePhasespaceFlatB
+from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 import numpy as np
@@ -65,6 +65,7 @@ RES_TO_PB = 0.389379 * 1e9 # Conversion factor
 
 # Define truth integrand
 integrand = DrellYan(["u", "d", "c", "s", "u", "d", "c", "s"], input_format="convpolar")
+#integrand = lambda x: tf.constant(1.0, dtype=DTYPE) # For testing phase-space volume
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
@@ -76,9 +77,9 @@ print("-----------------------------------------------------------\n")
 map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
 map_y = TwoParticlePhasespaceB()
 
-# TODO: Make flat but consider cut m_inv > 50 GeV
-# Otherwise infinite cross section!
-map_flat = TwoParticlePhasespaceFlatB()
+# # TODO: Make flat but consider cut m_inv > 50 GeV
+# # Otherwise infinite cross section!
+# map_flat = TwoParticlePhasespaceFlatB()
 
 ################################
 # Define the flow network
