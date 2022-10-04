@@ -245,6 +245,7 @@ class MultiChannelIntegrator:
         channels: tf.Tensor,
         weight_prior: Callable = None,
         return_integrand: bool = False,
+        return_alphas: bool = False
     ):
         nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
@@ -252,10 +253,12 @@ class MultiChannelIntegrator:
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
         q_test = tf.math.exp(logq)
 
+        alphas_prior = None
         if self.train_mcw:
             if self.use_weight_init:
                 if weight_prior is not None:
                     init_weights = weight_prior(y)
+                    alphas_prior = init_weights
                     assert init_weights.shape[1] == self.n_channels
                 else:
                     init_weights = (
@@ -269,6 +272,7 @@ class MultiChannelIntegrator:
         else:
             if weight_prior is not None:
                 alphas = weight_prior(y)
+                alphas_prior = alphas
                 assert alphas.shape[1] == self.n_channels
             else:
                 alphas = (
@@ -279,7 +283,12 @@ class MultiChannelIntegrator:
         alphas = tf.gather(alphas, channels, batch_dims=1)
 
         if return_integrand:
-            return alphas * func_vals / q_sample
+            if return_alphas:
+                if alphas_prior is not None:
+                    alphas_prior = tf.gather(alphas_prior, channels, batch_dims=1)
+                return alphas, alphas_prior, alphas * func_vals / q_sample
+            else:
+                return alphas * func_vals / q_sample
 
         p_unnormed = alphas * tf.abs(func_vals)
         p_trues = []
@@ -476,7 +485,11 @@ class MultiChannelIntegrator:
 
     @tf.function
     def sample_per_channel(
-        self, nsamples: int, channel: int, weight_prior: Callable = None
+        self,
+        nsamples: int,
+        channel: int,
+        weight_prior: Callable = None,
+        return_alphas: bool = False
     ):
         """Sample from the trained distribution and return their weights
         for a single channel.
@@ -490,6 +503,7 @@ class MultiChannelIntegrator:
             nsamples (int): Number of samples to be drawn.
             channel (int): the channel of the sampling.
             weight_prior (Callable, optional): returns the prior weights. Defaults to None.
+            return_alphas (bool): if True, also return channel weights
 
         Returns:
             samples: tf.tensor of size (nsamples, ndims) of sampled points
@@ -501,11 +515,14 @@ class MultiChannelIntegrator:
         x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(x, logq, channels)
         q_sample = tf.math.exp(logq)
-        weight = self._get_probs(
+        alphas, alphas_prior, weight = self._get_probs(
             x, q_sample, self._func(y, channels), channels, weight_prior,
-            return_integrand=True
+            return_integrand=True, return_alphas=True
         )
-        return y, weight
+        if return_alphas:
+            return y, weight, alphas, alphas_prior
+        else:
+            return y, weight
 
     @tf.function
     def sample_weights(

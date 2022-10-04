@@ -8,7 +8,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from .plots import plot_2d_distribution, plot_2d_distribution_single, plot_distribution_ratio, plot_distribution_diff_ratio
+from .plots import (plot_2d_distribution, plot_2d_distribution_single,
+        plot_distribution_ratio, plot_distribution_diff_ratio, plot_alphas_multidim)
 from .observables import Observable
 
 
@@ -20,28 +21,18 @@ class DistributionPlot(Observable):
     """
     def __init__(
         self,
-        real_data: np.ndarray,
-        gen_data: np.ndarray,
-        name: str,
         log_dir: str,
         dataset: str,
         latent: bool=False,
-        weights: np.ndarray=None,
         which_plots: List[bool]=[True, False, False, True],
     ):
         super().__init__()
-        self.real_data = real_data
-        self.gen_data = gen_data
-        self.weights = weights
-
-        self.name = name
         self.log_dir = log_dir
         self.dataset = dataset
 
         self.latent = latent
         self.which_plots = which_plots
 
-    def plot(self):
         if self.latent == True:
             self.latent_distributions()
         else:
@@ -54,6 +45,13 @@ class DistributionPlot(Observable):
             else:
                 self.basic_2d_distributions()
 
+    def plot(
+        self,
+        real_data: np.ndarray,
+        gen_data: np.ndarray,
+        name: str,
+        weights: np.ndarray=None,
+    ):
         # pylint: disable=W0702
         try:
             plt.rc("text", usetex=True)
@@ -63,39 +61,47 @@ class DistributionPlot(Observable):
             print("No latex installed")
 
         if self.which_plots[0]:
-            with PdfPages(self.log_dir + '/' + self.dataset + '_' + self.name + '_ratio.pdf') as pp:
+            with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '_ratio.pdf') as pp:
                 for observable in self.args.keys():
                     fig, axs = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios' : [4, 1], 'hspace' : 0.00}, figsize=(6.6,6))
-                    plot_distribution_ratio(axs, self.real_data, self.gen_data, self.weights, self.args[observable])
+                    plot_distribution_ratio(axs, real_data, gen_data, weights, self.args[observable])
                     fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
                     plt.close()
 
         if self.which_plots[1]:
-            with PdfPages(self.log_dir + '/' + self.dataset + '_' + self.name + '_diff_ratio.pdf') as pp:
+            with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '_diff_ratio.pdf') as pp:
                 for observable in self.args.keys():
                     fig, axs = plt.subplots(3, 1, sharex=True, gridspec_kw={'height_ratios' : [2, 1, 1], 'hspace' : 0.00}, figsize=(6.6,6))
-                    plot_distribution_diff_ratio(fig, axs, self.real_data, self.gen_data, self.weights, self.args[observable])
+                    plot_distribution_diff_ratio(fig, axs, real_data, gen_data, weights, self.args[observable])
                     fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
                     plt.close()
 
         if self.which_plots[2]:
-            with PdfPages(self.log_dir + '/' + self.dataset + '_' + self.name + '_2d.pdf') as pp:
+            with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '_2d.pdf') as pp:
                 for i, observable in enumerate(list(self.args2.keys())):
                     for observable2 in list(self.args2.keys())[i+1:]:
                         fig, axs = plt.subplots(1,3, figsize=(20,6))
-                        plot_2d_distribution(fig, axs, self.real_data, self.gen_data, self.weights, self.args[observable], self.args2[observable2])
+                        plot_2d_distribution(fig, axs, real_data, gen_data, weights, self.args[observable], self.args2[observable2])
                         plt.subplots_adjust(wspace=0.45, hspace=0.25)
                         fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
                         plt.close()
 
         if self.which_plots[3]:
-            with PdfPages(self.log_dir + '/' + self.dataset + '_' + self.name + '_2d_single.pdf') as pp:
+            with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '_2d_single.pdf') as pp:
                 for i, observable in enumerate(list(self.args2.keys())):
                     for observable2 in list(self.args2.keys())[i+1:]:
                         fig, axs = plt.subplots(1, figsize=(6.6,6))
-                        plot_2d_distribution_single(fig, axs, self.real_data, self.gen_data, self.weights, self.args[observable], self.args2[observable2])
+                        plot_2d_distribution_single(fig, axs, real_data, gen_data, weights, self.args[observable], self.args2[observable2])
                         fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
                         plt.close()
+
+    def plot_channel_weights(self, channel_data, name):
+        with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '.pdf') as pp:
+            for observable in self.args.keys():
+                fig, axs = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios' : [2, 1], 'hspace' : 0.00}, figsize=(6.6,6))
+                plot_alphas_multidim(axs, channel_data, self.args[observable])
+                fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
+                plt.close()
 
     def basic_2d_distributions(self):
         # Particle_id (always 0 in this case), observable, bins, range, x_label, log_scale
@@ -199,8 +205,6 @@ class DistributionPlot(Observable):
             #---------------------#
             'dEta' : ([0,1], self.delta_rapidity, 40, (0,5),
                      r'$\Delta\eta$', r'\Delta\eta',False),
-            'dR'   : ([0,1], self.delta_R, 40, (0,8),
-                     r'$\Delta R$', r'\Delta R',False),
             'm12'  : ([0,1], self.invariant_mass, 50, (50,150),
                      r'$M_{12}$ [GeV]', r'M_{12}',False),
         }	 
@@ -216,8 +220,6 @@ class DistributionPlot(Observable):
             #---------------------#
             'dEta' : ([0,1], self.delta_rapidity, 40, (0,5),
                       r'$\Delta\eta$', r'\Delta\eta',False),
-            'dR'   : ([0,1], self.delta_R, 40, (0,8),
-                      r'$\Delta R$', r'\Delta R',True),
             'm12'  : ([0,1], self.invariant_mass, 40, (50,150),
                       r'$M_{12}$ [GeV]', r'p_{x, j2}',True),
             #---------------------#			

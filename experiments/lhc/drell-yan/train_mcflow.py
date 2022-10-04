@@ -14,6 +14,7 @@ from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 from dy_integrand import DrellYan, MZ, WZ
 from madnis.plotting.distributions import DistributionPlot
+from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
 
 import sys
@@ -249,13 +250,23 @@ def to_four_mom(x):
     e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
     return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
 
+dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
+channel_data = []
 for i in range(N_CHANNELS):
-    x, weight = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
-    p = to_four_mom(x)
+    print(f'Sampling from channel {i}')
+    x, weight, alphas, alphas_prior = integrator.sample_per_channel(
+        10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+    p = to_four_mom(x).numpy()
+    alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
+    channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
+    print(f'Plotting distributions for channel {i}')
+    dist.plot(p, p, f'after-channel-{i}')
 
-    dist = DistributionPlot(p, p, f'after-channel-{i}', log_dir, "drell_yan",
-                            which_plots=[True, False, False, True])
-    dist.plot()
+print('Plotting channel weights')
+dist.plot_channel_weights(channel_data, 'channel-weights')
+
+print('Plotting weight distribution')
+plot_weights(channel_data, log_dir, 'drell_yan_weight-dist')
 
 ################################
 # After train - integration
