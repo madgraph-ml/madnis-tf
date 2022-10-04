@@ -86,7 +86,7 @@ def plot_weights(channel_data, log_dir=".", name=""):
     bins = np.logspace(np.log10(w_min), np.log10(w_max), 40)
 
     for i, (_, weights, _, _) in enumerate(channel_data):
-        ax1.hist(weights, bins=bins, histtype="step", density=True, label=f"chan {i}")
+        ax1.hist(weights, bins=bins, histtype="step", label=f"chan {i}")
     ax1.set_xscale("log")
     ax1.set_yscale("log")
     ax1.set_xlabel("Weight")
