@@ -197,8 +197,8 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     # Upper panel
     #
 
-    axs[0].step(x_t[:args[2]], y_t, gcolor, label='Truth', linewidth=1.0, where='mid')
-    axs[0].step(x_t[:args[2]], y_p, dcolor, label='MadNIS', linewidth=1.0, where='mid')
+    axs[0].stairs(y_t, edges=x_t, color=gcolor, label='Truth', linewidth=1.0)
+    axs[0].stairs(y_p, edges=x_t, color=dcolor, label='MadNIS', linewidth=1.0)
 
     for j in range(2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
@@ -219,7 +219,7 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     y_r [y_r==np.inf]=1
 
 
-    axs[1].step(x_t[:args[2]], y_r, dcolor, linewidth=1.0, where='mid')
+    axs[1].stairs(y_r, edges=x_t, color=dcolor, linewidth=1.0)
     axs[1].set_ylim((0.82,1.18))
     axs[1].set_yticks([0.9, 1.0, 1.1])
     axs[1].set_yticklabels([r'$0.9$', r'$1.0$', "$1.1$"])
@@ -250,8 +250,8 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
         y_p, x_p = np.histogram(y_predict, args[2], density=True, range=args[3])
         
 
-    line_dat, = axs[0].step(x_p[:args["bins"]], y_t, dcolor, label='True', linewidth=1.0, where='mid')
-    line_gen, = axs[0].step(x_p[:args["bins"]], y_p, gcolor, label='GAN', linewidth=1.0, where='mid')
+    line_dat, = axs[0].stairs(y_t, edges=x_p, color=dcolor, label='True', linewidth=1.0)
+    line_gen, = axs[0].stairs(y_p, edges=x_p, color=gcolor, label='GAN', linewidth=1.0)
 
     if args["range"] == (-3.14,3.14):
         axs[0].set_ylim((-0.02,0.3))
@@ -283,9 +283,9 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     r_statp = y_r + r_stat
     r_statm = y_r - r_stat
 
-    axs[1].step(x_p[:args["bins"]], y_r, 'black', linewidth=1.0, where='mid')
-    axs[1].step(x_p[:args["bins"]], r_statp, color='grey', label='$+- stat$', linewidth=0.5, where='mid')
-    axs[1].step(x_p[:args["bins"]], r_statm, color='grey', linewidth=0.5, where='mid')
+    axs[1].stairs(y_r, edges=x_p, color='black', linewidth=1.0)
+    axs[1].stairs(r_statp, edges=x_p, color='grey', label='$+- stat$', linewidth=0.5)
+    axs[1].stairs(r_statm, edges=x_p, color='grey', linewidth=0.5)
     axs[1].fill_between(x_p[:args["bins"]], r_statm, r_statp, facecolor='grey', alpha = 0.5, step = 'mid')
 
     axs[1].set_ylim((0.85,1.15))

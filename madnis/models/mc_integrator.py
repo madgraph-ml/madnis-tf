@@ -581,5 +581,5 @@ class MultiChannelIntegrator:
         if self.train_flow:
             self.dist.load_weights(path + "flow")
         if self.train_mcw:
-            self.mcw_model.load_weight(path + "mcw")
+            self.mcw_model.load_weights(path + "mcw")
         print("Models loaded successfully")

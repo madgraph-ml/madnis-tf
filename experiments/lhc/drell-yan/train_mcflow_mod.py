@@ -199,37 +199,37 @@ print("----------------------------------------------------------------\n")
 # Train the network
 ################################
 
-train_losses = []
-start_time = time.time()
-for e in range(EPOCHS):
-
-    batch_train_losses = []
-    # do multiple iterations.
-    for _ in range(ITERS):
-        batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
-        batch_train_losses.append(batch_loss)
-
-    train_loss = tf.reduce_mean(batch_train_losses)
-    train_losses.append(train_loss)
-
-    if (e + 1) % 1 == 0:
-        # Print metrics
-        print(
-            "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
-            )
-        )
-end_time = time.time()
-print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
-print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
-print("--- Run time: %s secs ---" % ((end_time - start_time)))
+#train_losses = []
+#start_time = time.time()
+#for e in range(EPOCHS):
+#
+#    batch_train_losses = []
+#    # do multiple iterations.
+#    for _ in range(ITERS):
+#        batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
+#        batch_train_losses.append(batch_loss)
+#
+#    train_loss = tf.reduce_mean(batch_train_losses)
+#    train_losses.append(train_loss)
+#
+#    if (e + 1) % 1 == 0:
+#        # Print metrics
+#        print(
+#            "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
+#                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+#            )
+#        )
+#end_time = time.time()
+#print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
+#print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
+#print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
 log_dir = f'./plots/'
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 #integrator.save_weights(log_dir)
-#integrator.load_weights(log_dir + "model/")
+integrator.load_weights(log_dir + "model/")
 
 ################################
 # After train - plot sampling
