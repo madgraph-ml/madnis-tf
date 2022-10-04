@@ -90,7 +90,7 @@ def plot_weights(channel_data, log_dir=".", name=""):
     ax1.set_xscale("log")
     ax1.set_yscale("log")
     ax1.set_xlabel("Weight")
-    ax1.set_ylabel("Normalized")
+    ax1.set_ylabel("Number of events")
     ax1.legend()
     fig.savefig(log_dir + "/%s.pdf" % name, dpi=120, bbox_inches="tight")
     plt.close("all")
