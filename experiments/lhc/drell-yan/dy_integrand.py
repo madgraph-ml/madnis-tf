@@ -120,17 +120,17 @@ class DrellYan:
                 * (self.V_l**2 + self.A_l**2)
                 / 4
             )
-            factor_g = 8 / m.sqrt(2) * self.gf * self.mz**2
-            return s**2 / 4 * factor_g**2 * m_ZZ
+            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            return s**2 / 4 * factor_g2**2 * m_ZZ
         elif mode == "yy":
             m_yy = 4 * self.Q_f[isq] ** 2
-            factor_e = 4 * m.pi * self.alpha
-            return s**2 / 4 * factor_e**2 * m_yy
+            factor_e2 = 4 * m.pi * self.alpha
+            return s**2 / 4 * factor_e2**2 * m_yy
         else:
-            m_yz = self.Q_f[isq] * self.V_q[isq] * self.V_l
-            factor_e = 4 * m.pi * self.alpha
-            factor_g = 8 / m.sqrt(2) * self.gf * self.mz**2
-            return s**2 / 4 * factor_g * factor_e * m_yz
+            m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
+            factor_e2 = 4 * m.pi * self.alpha
+            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            return s**2 / 4 * factor_g2 * factor_e2 * m_yz
 
     def b(self, s: tf.Tensor, mode: str, isq: str):
         if mode == "ZZ":
@@ -140,7 +140,7 @@ class DrellYan:
         elif mode == "yy":
             return 0.0
         else:
-            m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
+            m_yz = (-1) * self.Q_f[isq] * self.A_q[isq] * self.A_l
             factor_e = 4 * m.pi * self.alpha
             factor_g = 8 / m.sqrt(2) * self.gf * self.mz**2
             return s**2 / 2 * factor_g * factor_e * m_yz
@@ -195,7 +195,7 @@ class DrellYan:
         m_yy = self.amp2_single(cos_theta, s, "yy", isq)
         m_ZZ = self.amp2_single(cos_theta, s, "ZZ", isq)
         m_int = self.amp2_single(cos_theta, s, "yZ", isq)
-        return m_yy + m_ZZ - 2 * m_int
+        return m_yy + m_ZZ + 2 * m_int #Correct sign?
 
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
@@ -217,11 +217,11 @@ class DrellYan:
             p_dxs (tf.Tensor): partonic differential cross-section
         """
         cs_factor = 1 / (4 * NC)
-        ps_weight = 1 / (32 * m.pi**2)
-        fluxm1 = 1 / (2 * s)
+        ps_weight = 1 / (32 * m.pi**2) # TODO: Remove this from amplitude! -> PS-Mapping
+        fluxm1 = 1 / (2 * s) # TODO: also remove from amplitude -> Different class CrossSection?
         return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
-    def hadronic_dxs(
+    def hadronic_dxs( #TODO: Shift to new class CrossSection?
         self,
         x1: tf.Tensor,
         x2: tf.Tensor,
