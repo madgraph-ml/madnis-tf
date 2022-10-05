@@ -120,7 +120,8 @@ class DrellYan:
                 * (self.V_l**2 + self.A_l**2)
                 / 4
             )
-            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            factor_e2 = 4 * m.pi * self.alpha
+            factor_g2 = factor_e2/(self.cw2 * self.sw2)
             return s**2 / 4 * factor_g2**2 * m_ZZ
         elif mode == "yy":
             m_yy = 4 * self.Q_f[isq] ** 2
@@ -129,20 +130,21 @@ class DrellYan:
         else:
             m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
             factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            factor_g2 = factor_e2/(self.cw2 * self.sw2)
             return s**2 / 4 * factor_g2 * factor_e2 * m_yz
 
     def b(self, s: tf.Tensor, mode: str, isq: str):
         if mode == "ZZ":
-            m_ZZ = self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
-            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
+            factor_e2 = 4 * m.pi * self.alpha
+            factor_g2 = factor_e2/(self.cw2 * self.sw2)
             return s**2 / 2 * factor_g2**2 * m_ZZ
         elif mode == "yy":
             return 0.0
         else:
-            m_yz = (-1) * self.Q_f[isq] * self.A_q[isq] * self.A_l
+            m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
             factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = 8 / m.sqrt(2) * self.gf * self.mz**2
+            factor_g2 = factor_e2/(self.cw2 * self.sw2)
             return s**2 / 2 * factor_g2 * factor_e2 * m_yz
 
     def prop_factor(self, s: tf.Tensor, mode: str):
@@ -178,11 +180,10 @@ class DrellYan:
 
         m_sym = self.a(s, mode, isq) * (1 + cos_theta**2)
         m_asym = self.b(s, mode, isq) * cos_theta
-        return n_spins**2 * self.prop_factor(s, mode) * (m_sym - m_asym) #TODO: where does this minus come from?
+        return n_spins**2 * self.prop_factor(s, mode) * (m_sym + m_asym) #TODO: where does this minus come from?
 
     def amp2_all(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
-        """Full squared matrix element. Note the relative sign
-        of the interference contribution.
+        """Full squared matrix element.
 
         Args:
             cos_theta (tf.Tensor): scattering angle in partonic CM frame.
@@ -195,7 +196,7 @@ class DrellYan:
         m_yy = self.amp2_single(cos_theta, s, "yy", isq)
         m_ZZ = self.amp2_single(cos_theta, s, "ZZ", isq)
         m_int = self.amp2_single(cos_theta, s, "yZ", isq)
-        return m_yy + m_ZZ + 2 * m_int #Correct sign?
+        return m_yy + m_ZZ + 2 * m_int
 
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
