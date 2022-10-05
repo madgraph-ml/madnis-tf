@@ -216,11 +216,11 @@ log_dir = f'./plots/with_mappings/{N_CHANNELS}_channels/'
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
+dist = DistributionPlot(log_dir, "ring", which_plots=[0,0,0,1])
 for i in range(N_CHANNELS):
     x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
 
-    dist = DistributionPlot(x0, x0, f'pre-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
-    dist.plot()
+    dist.plot(x0, x0, f'pre-channel-{i}')
     
 ################################
 # Pre train - integration
@@ -270,9 +270,7 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
 for i in range(N_CHANNELS):
     x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
-
-    dist = DistributionPlot(x0, x0, f'after-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
-    dist.plot()
+    dist.plot(x0, x0, f'after-channel-{i}')
     
 ################################
 # After train - integration

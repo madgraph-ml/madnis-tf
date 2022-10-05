@@ -3,6 +3,7 @@ Plotting routines and functions.
 """
 
 import numpy as np
+from scipy.stats import binned_statistic
 np.seterr(invalid='ignore', divide='ignore')
 
 import matplotlib.pyplot as plt
@@ -67,6 +68,30 @@ def plot_loss(loss, log_dir=".", name="", log_axis=True):
     )
     ax1.set_xlabel(r"Epochs")
     ax1.set_ylabel(r"Loss")
+    fig.savefig(log_dir + "/%s.pdf" % name, dpi=120, bbox_inches="tight")
+    plt.close("all")
+
+
+#################
+# Plot Weights ##
+#################
+
+
+def plot_weights(channel_data, log_dir=".", name=""):
+    """Plot histogram of weights"""
+    fig, ax1 = plt.subplots(1, figsize=(10, 4))
+    all_weights = np.stack([weights for _, weights, _, _ in channel_data])
+    w_min = np.min(all_weights)
+    w_max = np.max(all_weights)
+    bins = np.logspace(np.log10(w_min), np.log10(w_max), 40)
+
+    for i, (_, weights, _, _) in enumerate(channel_data):
+        ax1.hist(weights, bins=bins, histtype="step", label=f"chan {i}")
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    ax1.set_xlabel("Weight")
+    ax1.set_ylabel("Number of events")
+    ax1.legend()
     fig.savefig(log_dir + "/%s.pdf" % name, dpi=120, bbox_inches="tight")
     plt.close("all")
 
@@ -169,7 +194,57 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     name = f"{prefix}_alphas"
     fig.savefig(f"{name}.pdf", format="pdf")
     plt.close("all")
-    
+
+
+def plot_alphas_multidim(axs, channel_data, args):
+    """Plot the alphas for multidimensional data"""
+
+    if args[6]:
+        axs[0].set_yscale('log')
+    else:
+        yfmt = ScalarFormatterForceFormat()
+        yfmt.set_powerlimits((0,0))
+        axs[0].yaxis.set_major_formatter(yfmt)
+
+    for i, (y, weight, alpha, alpha_prior) in enumerate(channel_data):
+        y = args[1](y, args[0])
+        y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
+        alpha_binned, _, _ = binned_statistic(y, alpha, statistic='mean', bins=x_p)
+        if alpha_prior is not None:
+            alpha_prior_binned, _, _ = binned_statistic(
+                y, alpha_prior, statistic='mean', bins=x_p)
+
+        color = f'C{i}'
+        axs[0].stairs(
+            y_p, edges=x_p, color=color, label=f'chan {i}', linewidth=1.0, baseline=None)
+        if i == 0:
+            lbl1 = "Learned"
+            lbl2 = "Prior"
+        else:
+            lbl1 = None
+            lbl2 = None
+        axs[1].stairs(
+            alpha_binned, edges=x_p, color=color, linewidth=1.0, label=lbl1, baseline=None)
+        if alpha_prior is not None:
+            axs[1].stairs(alpha_prior_binned, edges=x_p, color=color, ls="dashed",
+                          linewidth=1.0, label=lbl2, baseline=None)
+
+    for j in range(2):
+        for label in ( [axs[j].yaxis.get_offset_text()] +
+                        axs[j].get_xticklabels() + axs[j].get_yticklabels()):
+            label.set_fontsize(FONTSIZE)
+
+    axs[0].set_ylabel('Probability density', fontsize = FONTSIZE)
+    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-6)}, frameon=False)
+
+    axs[1].set_ylabel(r'$\alpha$', fontsize = FONTSIZE-2)
+    axs[1].set_ylim(bottom=-0.05, top=1.22)
+    for yy in [0., 0.5, 1.]:
+        axs[1].axhline(y=yy,linewidth=1, linestyle='--', color='grey')
+    axs[1].set_xlabel(args[4], fontsize = FONTSIZE)
+    if alpha_prior is not None:
+        axs[1].legend(loc="upper center", ncol=2, frameon=False,
+                      prop={"size": int(FONTSIZE-6)})
     
 #######################
 # Plot Distributions ##
@@ -197,8 +272,8 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     # Upper panel
     #
 
-    axs[0].step(x_t[:args[2]], y_t, gcolor, label='Truth', linewidth=1.0, where='mid')
-    axs[0].step(x_t[:args[2]], y_p, dcolor, label='MadNIS', linewidth=1.0, where='mid')
+    axs[0].stairs(y_t, edges=x_t, color=gcolor, label='Truth', linewidth=1.0, baseline=None)
+    axs[0].stairs(y_p, edges=x_t, color=dcolor, label='MadNIS', linewidth=1.0, baseline=None)
 
     for j in range(2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
@@ -219,7 +294,7 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     y_r [y_r==np.inf]=1
 
 
-    axs[1].step(x_t[:args[2]], y_r, dcolor, linewidth=1.0, where='mid')
+    axs[1].stairs(y_r, edges=x_t, color=dcolor, linewidth=1.0, baseline=None)
     axs[1].set_ylim((0.82,1.18))
     axs[1].set_yticks([0.9, 1.0, 1.1])
     axs[1].set_yticklabels([r'$0.9$', r'$1.0$', "$1.1$"])
@@ -250,8 +325,10 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
         y_p, x_p = np.histogram(y_predict, args[2], density=True, range=args[3])
         
 
-    line_dat, = axs[0].step(x_p[:args["bins"]], y_t, dcolor, label='True', linewidth=1.0, where='mid')
-    line_gen, = axs[0].step(x_p[:args["bins"]], y_p, gcolor, label='GAN', linewidth=1.0, where='mid')
+    line_dat, = axs[0].stairs(
+        y_t, edges=x_p, color=dcolor, label='True', linewidth=1.0, baseline=None)
+    line_gen, = axs[0].stairs(
+        y_p, edges=x_p, color=gcolor, label='GAN', linewidth=1.0, baseline=None)
 
     if args["range"] == (-3.14,3.14):
         axs[0].set_ylim((-0.02,0.3))
@@ -283,9 +360,11 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     r_statp = y_r + r_stat
     r_statm = y_r - r_stat
 
-    axs[1].step(x_p[:args["bins"]], y_r, 'black', linewidth=1.0, where='mid')
-    axs[1].step(x_p[:args["bins"]], r_statp, color='grey', label='$+- stat$', linewidth=0.5, where='mid')
-    axs[1].step(x_p[:args["bins"]], r_statm, color='grey', linewidth=0.5, where='mid')
+    axs[1].stairs(y_r, edges=x_p, color='black', linewidth=1.0, baseline=None)
+    axs[1].stairs(
+        r_statp, edges=x_p, color='grey', label='$+- stat$', linewidth=0.5, baseline=None)
+    axs[1].stairs(
+        r_statm, edges=x_p, color='grey', linewidth=0.5, baseline=None)
     axs[1].fill_between(x_p[:args["bins"]], r_statm, r_statp, facecolor='grey', alpha = 0.5, step = 'mid')
 
     axs[1].set_ylim((0.85,1.15))
