@@ -245,14 +245,21 @@ class DrellYan:
         pid = {"d": 1, "u": 2, "s": 3, "c": 4, "b": 5}[isq]
         pid = tf.cast([pid], dtype=tf.int32)
 
-        # Calculate pdfs
+        # Calculate momentum fractions and partonic CM energy
         q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
         x1 = tf.cast(x1, dtype=self._dtype)
         x2 = tf.cast(x2, dtype=self._dtype)
-        pdf_1 = self.pdf.xfxQ2(pid, x1, q2) / x1
-        pdf_2 = self.pdf.xfxQ2(-pid, x2, q2) / x2
         s_parton = x1 * x2 * self.s_had
-        return pdf_1 * pdf_2 * self.partonic_dxs(cos_theta, s_parton, isq)
+        
+        # Calculate pdfs
+        # Taking account symmetry in p p
+        pdf_1a = self.pdf.xfxQ2(pid, x1, q2) / x1
+        pdf_2a = self.pdf.xfxQ2(-pid, x2, q2) / x2
+        pdf_1b = self.pdf.xfxQ2(-pid, x1, q2) / x1
+        pdf_2b = self.pdf.xfxQ2(pid, x2, q2) / x2
+        pdf_factor = pdf_1a * pdf_2a + pdf_1b * pdf_2b
+
+        return pdf_factor * self.partonic_dxs(cos_theta, s_parton, isq)
 
     def _cartesian_det(self, r3, x1, x2):
         s = self.s_had * x1 * x2

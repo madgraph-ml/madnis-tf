@@ -203,10 +203,12 @@ class DistributionPlot(Observable):
             'E2'  : ([1], self.energy, 40, (0,600),
                      r'$E_2$ [GeV]', r'E_2',False),
             #---------------------#
-            'dEta' : ([0,1], self.delta_rapidity, 40, (0,5),
-                     r'$\Delta\eta$', r'\Delta\eta',False),
-            'm12'  : ([0,1], self.invariant_mass, 50, (50,150),
-                     r'$M_{12}$ [GeV]', r'M_{12}',False),
+            'dEta'   : ([0,1], self.delta_rapidity, 40, (0,5),
+                        r'$\Delta\eta$', r'\Delta\eta',False),
+            'm12'    : ([0,1], self.invariant_mass, 40, (50,150),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
+            'm12log' : ([0,1], self.invariant_mass, 40, (50,250),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
         }	 
 
         args2 = {			 
@@ -221,7 +223,7 @@ class DistributionPlot(Observable):
             'dEta' : ([0,1], self.delta_rapidity, 40, (0,5),
                       r'$\Delta\eta$', r'\Delta\eta',False),
             'm12'  : ([0,1], self.invariant_mass, 40, (50,150),
-                      r'$M_{12}$ [GeV]', r'p_{x, j2}',True),
+                      r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
             #---------------------#			
         }	 
 
