@@ -7,11 +7,11 @@ PROCESSOR = platform.processor()
 with open("README.rst", "r") as fh:
     long_description = fh.read()
 
-requirements = ['scikit-hep', "pandas", "scipy", "tables", "gzip"]
+requirements = ['scikit-hep', "pandas", "scipy", "tables"]
 if 'arm' in PROCESSOR.lower():
     requirements.insert(0, "tensorflow-macos")
 else:
-    requirements.append(0, "tensorflow")
+    requirements.insert(0, "tensorflow")
 
 setup(
     name="MadNIS",

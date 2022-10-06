@@ -51,6 +51,7 @@ class VegasFlow(Flow):
 
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
         
+        
 class RQSVegasFlow(Flow):
     """Defines the vegas flow network
     with RQ splines like i-flow"""
