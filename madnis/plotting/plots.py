@@ -209,10 +209,13 @@ def plot_alphas_multidim(axs, channel_data, args):
     for i, (y, weight, alpha, alpha_prior) in enumerate(channel_data):
         y = args[1](y, args[0])
         y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
-        alpha_binned, _, _ = binned_statistic(y, alpha, statistic='mean', bins=x_p)
+        weight_norm, _, _ = binned_statistic(y, weight, statistic='sum', bins=x_p)
+        alpha_binned, _, _ = binned_statistic(y, weight * alpha, statistic='sum', bins=x_p)
+        alpha_binned /= weight_norm
         if alpha_prior is not None:
             alpha_prior_binned, _, _ = binned_statistic(
-                y, alpha_prior, statistic='mean', bins=x_p)
+                y, weight * alpha_prior, statistic='sum', bins=x_p)
+            alpha_prior_binned /= weight_norm
 
         color = f'C{i}'
         axs[0].stairs(
