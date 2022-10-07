@@ -17,6 +17,10 @@ import sys
 # Use double precision
 tf.keras.backend.set_floatx("float64")
 
+# Ensure only single CPU thread
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 #########
 # Setup #
 #########
@@ -55,7 +59,7 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 12  # dimensionality of data space (apparently it must be 12?)
+DIMS_IN = 20  # dimensionality of data space
 N_CHANNELS = 8  # number of Channels
 
 #cwd = os.getcwd()
@@ -190,6 +194,7 @@ print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
 
+raise
 
 ################################
 # Train the network
