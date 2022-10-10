@@ -11,7 +11,7 @@ requirements = ['scikit-hep', "pandas", "scipy", "tables"]
 if 'arm' in PROCESSOR.lower():
     requirements.insert(0, "tensorflow-macos")
 else:
-    requirements.insert(0, "tensorflow")
+    requirements.append("tensorflow-gpu")
 
 setup(
     name="MadNIS",

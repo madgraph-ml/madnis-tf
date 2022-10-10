@@ -17,6 +17,10 @@ import sys
 # Use double precision
 tf.keras.backend.set_floatx("float64")
 
+# Ensure only single CPU thread
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 #########
 # Setup #
 #########
@@ -191,7 +195,6 @@ print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
-
 
 ################################
 # Train the network
