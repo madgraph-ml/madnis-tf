@@ -18,9 +18,10 @@ gcolor = '#3b528b'
 dcolor = '#e41a1c'
 teal = '#10AB75'
 
-if mpl.rcParams["text.usetex"]:
-    FONTSIZE = 16
-else:
+try:
+    plt.rc("text", usetex=True)
+    FONTSIZE = 18
+except:
     FONTSIZE = 12
 
 ##########
@@ -64,7 +65,7 @@ def plot_loss(loss, log_dir=".", name="", log_axis=True):
         ncol=9,
         fancybox=True,
         shadow=True,
-        prop={"size": 10},
+        prop={"size": FONTSIZE-4},
     )
     ax1.set_xlabel(r"Epochs")
     ax1.set_ylabel(r"Loss")
@@ -174,7 +175,7 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     axs[0].plot(xs, m2, color="blue", markersize=12, label=r"$g_2(x)$")
 
 
-    axs[0].legend(loc="upper left", frameon=False, prop={"size": int(FONTSIZE-2)})
+    axs[0].legend(loc="upper left", frameon=False, prop={"size": int(FONTSIZE-4)})
     axs[0].set_ylabel(r"Probability density", fontsize = FONTSIZE)
     maxi = np.max([np.max(m1), np.max(m2), np.max(truth)])
     axs[0].set_ylim(top=maxi * 1.1)
@@ -187,7 +188,7 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     axs[1].plot(xs, amg1, color="red", markersize=12, label=r"$\alpha_{\mathrm{opt},1}(x)$", linestyle="dotted")
     axs[1].plot(xs, amg2, color="blue", markersize=12, label=r"$\alpha_{\mathrm{opt},2}(x)$", linestyle="dotted")
 
-    axs[1].legend(loc="upper center", ncol=4, frameon=False, prop={"size": int(FONTSIZE-6)})
+    axs[1].legend(loc="upper center", ncol=4, frameon=False, prop={"size": int(FONTSIZE-8)})
     axs[1].set_xlabel(r"$x$", fontsize = FONTSIZE)
     axs[1].set_ylabel(r"Channel weights", fontsize = FONTSIZE)
     axs[1].set_ylim(bottom=-0.05, top=1.22)
@@ -198,7 +199,6 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
 
 def plot_alphas_multidim(axs, channel_data, args):
     """Plot the alphas for multidimensional data"""
-
     if args[6]:
         axs[0].set_yscale('log')
     else:
@@ -207,14 +207,15 @@ def plot_alphas_multidim(axs, channel_data, args):
         axs[0].yaxis.set_major_formatter(yfmt)
 
     for i, (y, weight, alpha, alpha_prior) in enumerate(channel_data):
+
         y = args[1](y, args[0])
         y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
-        weight_norm, _, _ = binned_statistic(y, weight, statistic='sum', bins=x_p)
-        alpha_binned, _, _ = binned_statistic(y, weight * alpha, statistic='sum', bins=x_p)
+        weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
+        alpha_binned, _, _ = binned_statistic(y, weight, statistic='sum', bins=x_p)
         alpha_binned /= weight_norm
         if alpha_prior is not None:
             alpha_prior_binned, _, _ = binned_statistic(
-                y, weight * alpha_prior, statistic='sum', bins=x_p)
+                y, weight/alpha * alpha_prior, statistic='sum', bins=x_p)
             alpha_prior_binned /= weight_norm
 
         color = f'C{i}'
@@ -238,7 +239,7 @@ def plot_alphas_multidim(axs, channel_data, args):
             label.set_fontsize(FONTSIZE)
 
     axs[0].set_ylabel('Probability density', fontsize = FONTSIZE)
-    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-6)}, frameon=False)
+    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-4)}, frameon=False)
 
     axs[1].set_ylabel(r'$\alpha$', fontsize = FONTSIZE-2)
     axs[1].set_ylim(bottom=-0.05, top=1.22)
@@ -247,7 +248,7 @@ def plot_alphas_multidim(axs, channel_data, args):
     axs[1].set_xlabel(args[4], fontsize = FONTSIZE)
     if alpha_prior is not None:
         axs[1].legend(loc="upper center", ncol=2, frameon=False,
-                      prop={"size": int(FONTSIZE-6)})
+                      prop={"size": int(FONTSIZE-8)})
     
 #######################
 # Plot Distributions ##
@@ -265,7 +266,7 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
         yfmt.set_powerlimits((0,0))
         axs[0].yaxis.set_major_formatter(yfmt)
 
-    y_t, x_t = np.histogram(y_train, args[2], density=True, range=args[3])#, weights=weights)
+    y_t, x_t = np.histogram(y_train, args[2], density=True, range=args[3])
 
     if weights is not None:
         y_p, _ = np.histogram(y_predict, args[2], density=True, range=args[3], weights=weights)
@@ -285,12 +286,12 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
 
 
     axs[0].set_ylabel('Normalized', fontsize = FONTSIZE)
-    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-6)}, frameon=False)
+    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-4)}, frameon=False)
 
     # Lower panel
     #
 
-    axs[1].set_ylabel(r'$\text{Ratio}$', fontsize = FONTSIZE-2)
+    axs[1].set_ylabel(r'$\text{Ratio}$', fontsize = FONTSIZE)
 
     y_r = (y_p)/y_t
     y_r [np.isnan(y_r )==True]=1
@@ -348,7 +349,7 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
         ['GAN', 'Truth'],
         #title = "GAN vs Data",
         loc='upper right',
-        prop={'size':(FONTSIZE-2)},
+        prop={'size':(FONTSIZE-4)},
         frameon=False)
 
     # middle panel
