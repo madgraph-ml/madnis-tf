@@ -205,9 +205,11 @@ class DistributionPlot(Observable):
             #---------------------#
             'dEta'   : ([0,1], self.delta_rapidity, 40, (0,5),
                         r'$\Delta\eta$', r'\Delta\eta',False),
-            'm12'    : ([0,1], self.invariant_mass, 40, (50,150),
+            'm12'    : ([0,1], self.invariant_mass, 40, (10,150),
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
-            'm12log' : ([0,1], self.invariant_mass, 40, (50,250),
+            'm12log' : ([0,1], self.invariant_mass, 40, (10,250),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
+            'm12log2': ([0,1], self.invariant_mass, 40, (10,650),
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
         }	 
 
