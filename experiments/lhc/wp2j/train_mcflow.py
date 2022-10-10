@@ -68,6 +68,7 @@ madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
 #os.chdir(cwd)
 def integrand(x, channels):
     #return madgraph.call_madgraph(x, tf.one_hot(channels, N_CHANNELS, dtype=tf.int32))
+    channels = tf.where(channels < 4, tf.where(channels < 2, 0, 2), tf.where(channels < 6, 3, 6))
     return madgraph.call_madgraph(x, channels)
 
 print(f"\n Integrand specifications:")
@@ -193,8 +194,6 @@ print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
-
-raise
 
 ################################
 # Train the network
