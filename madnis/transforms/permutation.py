@@ -120,6 +120,8 @@ class SoftPermuteLearn(Transform):
     based on "Generalization of Euler Angles to N‐Dimensional Orthogonal Matrices"
     Journal of Mathematical Physics 13, 528 (1972); https://doi.org/10.1063/1.1666011
     David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
+    Algorithm inspired by
+    https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
     """
 
     def __init__(self, dims_in, dims_c=None, seed: Union[int, None] = None):
@@ -136,18 +138,11 @@ class SoftPermuteLearn(Transform):
 
         self.permute_function = lambda x, w: tf.linalg.matvec(w, x, transpose_a=True)
 
-        #w = special_ortho_group.rvs(self.channels, random_state=seed)
         # initialize k*(k-1)/2 angles in [-0.5, 0.5]
         ang = np.random.rand(int(self.channels * (self.channels-1) / 2)) - 0.5
         # not all of them are in [-0.5, 0.5], some are in [-1, 1]
         which_mult = list(np.cumsum(-np.arange(self.channels-1))-1)
         ang[which_mult] = ang[which_mult]*2.
-        #self.perm_ang = self.add_weight(
-        #    "perm_ang",
-        #    shape=(*([1] * self.input_rank), self.channels, self.channels),
-        #    initializer=tf.keras.initializers.Constant(ang),
-        #    trainable=True,
-        #)
         self.perm_ang = self.add_weight(
             "perm_ang",
             shape=(int(self.channels * (self.channels-1) / 2)),
@@ -156,14 +151,6 @@ class SoftPermuteLearn(Transform):
             dtype=tf.float64
         )
 
-        # find inverse in function?
-        #self.w_perm_inv = self.add_weight(
-        #    "w_perm_inv",
-        #    shape=(*([1] * self.input_rank), self.channels, self.channels),
-        #    initializer=tf.keras.initializers.Constant(w.T),
-        #    trainable=False,
-        #)
-        print(self.perm_ang)
         self.w_perm = self._gea_orthogonal_from_angles_tf(self.perm_ang)
         self.w_perm_inv = tf.transpose(self.w_perm)
 
@@ -181,38 +168,6 @@ class SoftPermuteLearn(Transform):
 
         return y
 
-    def _gea_orthogonal_from_angles(self, angles_list):
-        """
-        Generalized Euler Angles
-        Return the orthogonal matrix from its generalized angles
-
-        Generalization of Euler Angles to N-Dimensional Orthogonal Matrices
-        David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
-        Journal of Mathematical Physics 13, 528 (1972)
-        doi: 10.1063/1.1666011
-
-        :param angles_list: List of angles, for a k-dimensional space the total number
-                        of angles is k*(k-1)/2
-        """
-
-        b = np.eye(2)
-        n = int(np.sqrt(len(angles_list)*8+1)/2+0.5)
-        tmp = np.array(angles_list)
-
-        # For SO(k) there are k*(k-1)/2 angles that are grouped in k-1 sets
-        # { (k-1 angles), (k-2 angles), ... , (1 angle)}
-        for i in range(1, n):
-            angles = np.concatenate((tmp[-i:], [np.pi/2]))
-            tmp = tmp[:-i]
-            ma = self._gea_matrix_a(angles)  # matrix i+1 x i+1
-            b = np.dot(b, ma.T).T
-            # We skip doing making a larger matrix for the last iteration
-            if i < n-1:
-                c = np.eye(i+2, i+2)
-                c[:-1, :-1] = b
-                b = c
-        return b
-
     def _gea_orthogonal_from_angles_tf(self, angles_list):
         """
         Generalized Euler Angles
@@ -222,6 +177,9 @@ class SoftPermuteLearn(Transform):
         David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
         Journal of Mathematical Physics 13, 528 (1972)
         doi: 10.1063/1.1666011
+
+        Algorithm inspired by
+        https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
 
         :param angles_list: List of angles, for a k-dimensional space the total number
                         of angles is k*(k-1)/2
@@ -238,45 +196,12 @@ class SoftPermuteLearn(Transform):
             tmp = tmp[:-i]
             ma = self._gea_matrix_a_tf(angles)  # matrix i+1 x i+1
             b = tf.transpose(tf.linalg.matmul(b, ma, transpose_b=True))
-            # We skip doing making a larger matrix for the last iteration
+            # We skip doing making a larger matrix for the last iteration, numpy is fine here
             if i < n-1:
                 c = np.eye(i+2, i+2)
                 c[:-1, :-1] = b
                 b = c
         return b
-
-    def _gea_matrix_a(self, angles):
-        """
-        Generalized Euler Angles
-        Return the parametric angles described on Eqs. 15-19 from the paper:
-
-        Generalization of Euler Angles to N-Dimensional Orthogonal Matrices
-        David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
-        Journal of Mathematical Physics 13, 528 (1972)
-        doi: 10.1063/1.1666011
-
-        """
-        n = len(angles)
-        matrix_a = np.eye(n)
-
-        for i in range(n-1):
-            matrix_a[i][i] = np.cos(angles[i])
-            matrix_a[i][n-1] = np.tan(angles[i])
-            for j in range(i+1):
-                matrix_a[i][n-1] *= np.cos(angles[j])
-
-        for i in range(n):
-            for k in range(n-1):
-                if i > k:
-                    matrix_a[i][k] = -np.tan(angles[i])*np.tan(angles[k])
-                    for l in range(k, i+1):
-                        matrix_a[i][k] *= np.cos(angles[l])
-
-        matrix_a[n - 1][n - 1] = np.tan(angles[n-1])
-        for j in range(n):
-            matrix_a[n - 1][n - 1] *= np.cos(angles[j])
-
-        return matrix_a
 
     def _gea_matrix_a_tf(self, angles):
         """
@@ -288,38 +213,29 @@ class SoftPermuteLearn(Transform):
         Journal of Mathematical Physics 13, 528 (1972)
         doi: 10.1063/1.1666011
 
+        Algorithm inspired by
+        https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
         """
         n = len(angles)
         matrix_a = tf.eye(n, dtype=angles.dtype)
         # region I, eq. 16:
         matrix_a = tf.multiply(matrix_a, tf.math.cos(angles))
-        # region II, eq. 17 tan, excl. last row:
-        #tan_vec = tf.concat([tf.math.tan(angles)[:n-1], tf.zeros((1, ), dtype=angles.dtype)], 0)
+        # region II, eq. 17 tan:
         tan_vec = tf.math.tan(angles)
-        # region II, eq. 17 cos, excl. last row:
-        #cos_vec = tf.concat([tf.math.cumprod(tf.math.cos(angles[:n-1])),
-        #                     tf.zeros((1, ), dtype=angles.dtype)], 0)
+        # region II, eq. 17 cos:
         cos_vec = tf.math.cumprod(tf.math.cos(angles))
+        # region II, eq. 17 all:
         matrix_a += tf.concat([tf.zeros((n, n-1), dtype=angles.dtype),
                                tf.reshape(tf.multiply(tan_vec, cos_vec), (n, 1))], 1)
-        print("matrix a tf", matrix_a)
+        # region III, eq. 18 tan:
+        region_iii_tan = -tf.multiply(tf.reshape(tf.math.tan(angles), (n, 1)),
+                                      tf.reshape(tf.math.tan(angles), (1, n)))
+        # region III, eq. 18, cos:
+        #shifted_cos = tf.concat([cos_vec[:-1], tf.ones((1, ), dtype=angles.dtype)], 0)
+        shifted_cos = tf.math.cumprod(tf.math.cos(angles), exclusive=True)
+        region_iii_cos = tf.multiply(tf.reshape(cos_vec, (n, 1)),
+                                     tf.reshape(1./shifted_cos, (1, n)))
+        matrix_a += tf.linalg.band_part(tf.multiply(region_iii_tan, region_iii_cos), -1, 0) -\
+            tf.linalg.band_part(tf.multiply(region_iii_tan, region_iii_cos), 0, 0)
 
-        matrix_np = np.eye(n)
-        for i in range(n-1):
-            matrix_np[i][i] = np.cos(angles[i])
-            matrix_np[i][n-1] = np.tan(angles[i])
-            for j in range(i+1):
-                matrix_np[i][n-1] *= np.cos(angles[j])
-        #for i in range(n):
-        #    for k in range(n-1):
-        #        if i > k:
-        #            matrix_a[i][k] = -np.tan(angles[i])*np.tan(angles[k])
-        #            for l in range(k, i+1):
-        #                matrix_a[i][k] *= np.cos(angles[l])
-
-        matrix_np[n - 1][n - 1] = np.tan(angles[n-1])
-        for j in range(n):
-            matrix_np[n - 1][n - 1] *= np.cos(angles[j])
-
-        print("matrix np", matrix_np)
         return matrix_a
