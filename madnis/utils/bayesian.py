@@ -57,7 +57,7 @@ class VBLinear(tf.keras.layers.Layer):
         self.built = True
 
     def sample_weights(self):
-        self.random.assign(tf.random.normal(tf.shape(self.random), self.dtype))
+        self.random.assign(tf.random.normal(tf.shape(self.random), dtype=self.dtype))
 
     def kl(self):
         logsig2_w = tf.clip_by_value(self.logsig2_w, -11, 11)
@@ -102,7 +102,6 @@ class BayesianHelper:
 
     def kl_loss(self):
         s = sum(layer.kl() for layer in self.layers) / self.dataset_size
-        tf.print(s)
         return s
 
     def sample_weights(self):

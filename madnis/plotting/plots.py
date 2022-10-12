@@ -206,19 +206,62 @@ def plot_alphas_multidim(axs, channel_data, args):
         yfmt.set_powerlimits((0,0))
         axs[0].yaxis.set_major_formatter(yfmt)
 
-    for i, (y, weight, alpha, alpha_prior) in enumerate(channel_data):
+    for i, (ys, weights, alphas, alpha_priors) in enumerate(channel_data):
+        if len(ys.shape) == 2:
+            ys = ys[None,:,:]
+            weights = weights[None,:]
+            alphas = alphas[None,:]
+            if alpha_priors is not None:
+                alpha_priors = alpha_priors[None,:]
+            else:
+                alpha_priors = [None] * ys.shape[0]
+            plot_errors = False
+        else:
+            plot_errors = True
+        has_prior = alpha_priors[0] is not None
 
-        y = args[1](y, args[0])
-        y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
-        weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
-        alpha_binned, _, _ = binned_statistic(y, weight, statistic='sum', bins=x_p)
-        alpha_binned /= weight_norm
-        if alpha_prior is not None:
-            alpha_prior_binned, _, _ = binned_statistic(
-                y, weight/alpha * alpha_prior, statistic='sum', bins=x_p)
-            alpha_prior_binned /= weight_norm
+        y_p_all = []
+        alpha_binned_all = []
+        alpha_prior_binned_all = []
+        for y, weight, alpha, alpha_prior in zip(ys, weights, alphas, alpha_priors):
+            y = args[1](y, args[0])
+            y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
+            y_p_all.append(y_p)
+            weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
+            alpha_binned_all.append(
+                binned_statistic(y, weight, statistic='sum', bins=x_p)[0] / weight_norm)
+            if has_prior:
+                alpha_prior_binned_all.append(
+                    binned_statistic(y, weight/alpha * alpha_prior, statistic='sum',
+                                     bins=x_p)[0] / weight_norm
+                )
+
+        y_p_all = np.stack(y_p_all, axis=0)
+        y_p = np.mean(y_p_all, axis=0)
+        y_p_err = np.std(y_p_all, axis=0)
+        alpha_binned_all = np.stack(alpha_binned_all, axis=0)
+        alpha_binned = np.mean(alpha_binned_all, axis=0)
+        alpha_binned_err = np.std(alpha_binned_all, axis=0)
+        if has_prior:
+            alpha_prior_binned_all = np.stack(alpha_prior_binned_all, axis=0)
+            alpha_prior_binned = np.mean(alpha_prior_binned_all, axis=0)
+            alpha_prior_binned_err = np.std(alpha_prior_binned_all, axis=0)
 
         color = f'C{i}'
+
+        if plot_errors:
+            dup_last = lambda a: np.append(a, a[-1])
+            axs[0].fill_between(x_p, dup_last(y_p - y_p_err), dup_last(y_p + y_p_err),
+                                facecolor=color, alpha=0.3, step="post")
+            axs[1].fill_between(x_p, dup_last(alpha_binned - alpha_binned_err),
+                                dup_last(alpha_binned + alpha_binned_err),
+                                facecolor=color, alpha=0.3, step="post")
+            if has_prior:
+                axs[1].fill_between(x_p,
+                                    dup_last(alpha_prior_binned - alpha_prior_binned_err),
+                                    dup_last(alpha_prior_binned + alpha_prior_binned_err),
+                                    facecolor=color, alpha=0.3, step="post")
+
         axs[0].stairs(
             y_p, edges=x_p, color=color, label=f'chan {i}', linewidth=1.0, baseline=None)
         if i == 0:
@@ -229,7 +272,7 @@ def plot_alphas_multidim(axs, channel_data, args):
             lbl2 = None
         axs[1].stairs(
             alpha_binned, edges=x_p, color=color, linewidth=1.0, label=lbl1, baseline=None)
-        if alpha_prior is not None:
+        if has_prior:
             axs[1].stairs(alpha_prior_binned, edges=x_p, color=color, ls="dashed",
                           linewidth=1.0, label=lbl2, baseline=None)
 
@@ -246,7 +289,7 @@ def plot_alphas_multidim(axs, channel_data, args):
     for yy in [0., 0.5, 1.]:
         axs[1].axhline(y=yy,linewidth=1, linestyle='--', color='grey')
     axs[1].set_xlabel(args[4], fontsize = FONTSIZE)
-    if alpha_prior is not None:
+    if has_prior:
         axs[1].legend(loc="upper center", ncol=2, frameon=False,
                       prop={"size": int(FONTSIZE-8)})
     
