@@ -286,14 +286,15 @@ for i in range(N_CHANNELS):
         weights.append(weight.numpy())
         alphas.append(alpha.numpy())
         alphas_prior.append(alpha_prior)
+    ps = np.stack(ps, axis=0)
     channel_data.append((
-        np.stack(ps, axis=0),
+        ps,
         np.stack(weights, axis=0),
         np.stack(alphas, axis=0),
         np.stack(alphas_prior, axis=0) if alphas_prior[0] is not None else alphas_prior
     ))
     print(f'Plotting distributions for channel {i}')
-    dist.plot(p, p, f'after-channel-{i}')
+    dist.plot(p, ps, f'after-channel-{i}')
 
 print('Plotting channel weights')
 dist.plot_channel_weights(channel_data, 'channel-weights')

@@ -300,7 +300,6 @@ def plot_alphas_multidim(axs, channel_data, args):
 def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     """Plot the distributions including ratio"""
     y_train = args[1](y_train, args[0])
-    y_predict = args[1](y_predict, args[0])
 
     if args[6]:
         axs[0].set_yscale('log')
@@ -310,14 +309,28 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
         axs[0].yaxis.set_major_formatter(yfmt)
 
     y_t, x_t = np.histogram(y_train, args[2], density=True, range=args[3])
-
-    if weights is not None:
-        y_p, _ = np.histogram(y_predict, args[2], density=True, range=args[3], weights=weights)
+    if len(y_predict.shape) == 2:
+        y_predict = y_predict[None,:,:]
+        plot_errors = False
     else:
-        y_p, _ = np.histogram(y_predict, args[2], density=True, range=args[3])
+        plot_errors = True
+
+    y_ps = []
+    for y_pred in y_predict:
+        y_pred = args[1](y_pred, args[0])
+        y_ps.append(np.histogram(y_pred, args[2], density=True, range=args[3],
+                                 weights=weights)[0])
+    y_ps = np.stack(y_ps, axis=0)
+    y_p = np.mean(y_ps, axis=0)
+    y_p_err = np.std(y_ps, axis=0)
 
     # Upper panel
     #
+
+    if plot_errors:
+        dup_last = lambda a: np.append(a, a[-1])
+        axs[0].fill_between(x_t, dup_last(y_p - y_p_err), dup_last(y_p + y_p_err),
+                            facecolor=dcolor, alpha=0.3, step="post")
 
     axs[0].stairs(y_t, edges=x_t, color=gcolor, label='Truth', linewidth=1.0, baseline=None)
     axs[0].stairs(y_p, edges=x_t, color=dcolor, label='MadNIS', linewidth=1.0, baseline=None)
@@ -339,8 +352,11 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     y_r = (y_p)/y_t
     y_r [np.isnan(y_r )==True]=1
     y_r [y_r==np.inf]=1
+    y_r_err = y_p_err / y_t
 
-
+    if plot_errors:
+        axs[1].fill_between(x_t, dup_last(y_r - y_r_err), dup_last(y_r + y_r_err),
+                            facecolor=dcolor, alpha=0.3, step="post")
     axs[1].stairs(y_r, edges=x_t, color=dcolor, linewidth=1.0, baseline=None)
     axs[1].set_ylim((0.82,1.18))
     axs[1].set_yticks([0.9, 1.0, 1.1])
@@ -355,7 +371,6 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     """Plot the distributions including ratio ind absolute difference"""
 
     y_train = args["observable"](y_train, args["particle_id"])
-    y_predict = args["observable"](y_predict, args["particle_id"])
 
     if args["log_scale"]:
         axs[0].set_yscale('log')
@@ -365,12 +380,20 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
         axs[0].yaxis.set_major_formatter(yfmt)
 
     y_t, _ = np.histogram(y_train, args["bins"], density=True, range=args["range"])
-
-    if weights is not None:
-        y_p, x_p = np.histogram(y_predict, args[2], density=True, range=args[3], weights=weights)
+    if len(y_predict.shape) == 2:
+        y_predict = y_predict[None,:,:]
+        plot_errors = True
     else:
-        y_p, x_p = np.histogram(y_predict, args[2], density=True, range=args[3])
-        
+        plot_errors = False
+
+    y_ps = []
+    for y_pred in y_predict:
+        y_pred = args[1](y_pred, args[0])
+        y_ps.append(np.histogram(y_pred, args[2], density=True, range=args[3],
+                                 weights=weights)[0])
+    y_ps = np.stack(y_ps, axis=0)
+    y_p = np.mean(y_ps, axis=0)
+    y_p_err = np.std(y_ps, axis=0)
 
     line_dat, = axs[0].stairs(
         y_t, edges=x_p, color=dcolor, label='True', linewidth=1.0, baseline=None)
@@ -480,14 +503,25 @@ def plot_2d_distribution(fig, axs, y_train, y_predict, weights, args1, args2):
 def plot_2d_distribution_single(fig, axs, y_train, y_predict, weights, args1, args2):
     """Plot the 2d-distributions of the learned function only"""
     del y_train
-    data = [0., 0.]
-    data[0] = args1[1](y_predict, args1[0])
-    data[1] = args2[1](y_predict, args2[0])
- 
-    if weights is not None:
-        h, xedges, yedges = np.histogram2d(data[0], data[1], bins=args1[2], range=(args1[3],args2[3]), density=True, weights=weights)
+
+    if len(y_predict.shape) == 2:
+        y_predict = y_predict[None,:,:]
+        plot_errors = False
     else:
-        h, xedges, yedges = np.histogram2d(data[0], data[1], bins=args1[2], range=(args1[3],args2[3]), density=True)
+        plot_errors = True
+
+    hs = []
+    for y_pred in y_predict:
+        data = [0., 0.]
+        data[0] = args1[1](y_pred, args1[0])
+        data[1] = args2[1](y_pred, args2[0])
+        h, xedges, yedges = np.histogram2d(data[0], data[1], bins=args1[2],
+                range=(args1[3],args2[3]), density=True, weights=weights)
+        hs.append(h)
+
+    hs = np.stack(hs, axis=0)
+    h = np.mean(hs, axis=0)
+    h_err = np.std(hs, axis=0)
 
     if args1[6]:
         axs.set_xscale('log')
