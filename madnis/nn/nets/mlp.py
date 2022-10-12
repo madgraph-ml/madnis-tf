@@ -38,9 +38,11 @@ class MLP(SubNet):
         else:
             activation = meta["activation"]
 
+        layer_constructor = meta.get("layer_constructor", tf.keras.layers.Dense)
+
         # Define the layers
         self.hidden_layers = [
-            tf.keras.layers.Dense(
+            layer_constructor(
                 self.meta["units"],
                 activation=activation,
                 kernel_initializer=self.meta["initializer"],
@@ -48,7 +50,7 @@ class MLP(SubNet):
             for i in range(self.meta["layers"])
         ]
 
-        self.dense_out = tf.keras.layers.Dense(
+        self.dense_out = layer_constructor(
             self.channels_out, kernel_initializer=self.meta["initializer"]
         )
 

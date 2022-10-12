@@ -6,6 +6,7 @@ import tensorflow as tf
 from typing import List, Union, Callable
 
 from ..utils.divergences import Divergence
+from ..utils.bayesian import BayesianHelper
 from ..mappings.flow import Flow
 from ..mappings.base import Mapping
 from ..distributions.base import Distribution
@@ -32,6 +33,8 @@ class MultiChannelIntegrator:
         uniform_channel_ratio: float = 1.0,
         variance_history_length: int = 20,
         integrand_has_channels: bool = False,
+        flow_bayesian_helper: BayesianHelper = None,
+        mcw_bayesian_helper: BayesianHelper = None,
         **kwargs,
     ):
         """
@@ -62,6 +65,10 @@ class MultiChannelIntegrator:
             integrand_has_channels (bool, optional):
                 Whether to pass the channel number to the integrand as the second argument.
                 Defaults to False.
+            flow_bayesian_helper (BayesianHelper, optional):
+                If present, the training of the flow is done in a bayesian way
+            mcw_bayesian_helper (BayesianHelper, optional):
+                If present, the training of the MC weights is done in a bayesian way
             kwargs: Additional arguments that need to be passed to the loss
         """
         self._dtype = tf.keras.backend.floatx()
@@ -136,6 +143,9 @@ class MultiChannelIntegrator:
             self.stored_func_vals = []
             self.stored_channels = []
             self.stored_dataset = None
+
+        self.flow_bayesian_helper = flow_bayesian_helper
+        self.mcw_bayesian_helper = mcw_bayesian_helper
 
     def _store_samples(
         self,
@@ -245,7 +255,7 @@ class MultiChannelIntegrator:
         channels: tf.Tensor,
         weight_prior: Callable = None,
         return_integrand: bool = False,
-        return_alphas: bool = False
+        return_alphas: bool = False,
     ):
         nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
@@ -339,6 +349,8 @@ class MultiChannelIntegrator:
                 flow_loss = self.flow_loss_func(
                     p_true, q_test, logp, logq, channels, q_sample=q_sample
                 )
+                if self.flow_bayesian_helper is not None:
+                    flow_loss += self.flow_bayesian_helper.kl_loss()
 
             grads = tape.gradient(flow_loss, self.dist.trainable_weights)
             self.flow_optimizer.apply_gradients(zip(grads, self.dist.trainable_weights))
@@ -353,6 +365,8 @@ class MultiChannelIntegrator:
                 mcw_loss = self.mcw_loss_func(
                     p_true, q_test, logp, logq, channels, q_sample=q_sample
                 )
+                if self.mcw_bayesian_helper is not None:
+                    flow_loss += self.mcw_bayesian_helper.kl_loss()
 
             grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
             self.mcw_optimizer.apply_gradients(

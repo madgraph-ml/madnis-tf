@@ -16,9 +16,11 @@ class VBLinear(tf.keras.layers.Layer):
         self.activation = activation
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
-        self.prior_width = prior_width
-        self.logsig2_init = logsig2_init
+        dtype = tf.as_dtype(self.dtype or backend.floatx())
+        self.prior_width = tf.constant(prior_width, dtype=self.dtype)
+        self.logsig2_init = tf.constant(logsig2_init, dtype=self.dtype)
         self.map = False
+        self.training = True
 
     def build(self, input_shape):
         dtype = tf.as_dtype(self.dtype or backend.floatx())
@@ -40,7 +42,7 @@ class VBLinear(tf.keras.layers.Layer):
             "logsig2_w",
             shape=(input_shape[-1], self.units),
             initializer=tf.keras.initializers.RandomNormal(
-                mean=self.logsig2_init, stddev=0.001)
+                mean=self.logsig2_init, stddev=0.001),
             dtype=dtype,
             trainable=True
         )
@@ -60,21 +62,18 @@ class VBLinear(tf.keras.layers.Layer):
     def kl(self):
         logsig2_w = tf.clip_by_value(self.logsig2_w, -11, 11)
         return 0.5 * tf.math.reduce_sum(
-            self.prior_prec * (self.mu_w**2 + tf.math.exp(logsig2_w))
+            self.prior_width * (self.mu_w**2 + tf.math.exp(logsig2_w))
             - logsig2_w - 1 - tf.math.log(self.prior_width)
         )
 
-    def call(self, inputs, training=None):
-        if training is None:
-            training = tf.keras.backend.learning_phase()
-
-        if training:
+    def call(self, inputs):
+        if self.training:
             mu_out = tf.matmul(inputs, self.mu_w) + self.bias
             logsig2_w = tf.clip_by_value(self.logsig2_w, -11, 11)
             s2_w = tf.math.exp(logsig2_w)
             var_out = tf.matmul(inputs**2, s2_w) + 1e-8
             return mu_out + tf.math.sqrt(var_out) * tf.random.normal(
-                tf.shape(mu_out), self.dtype)
+                tf.shape(mu_out), dtype=self.dtype)
 
         else:
             if self.map:
@@ -102,7 +101,9 @@ class BayesianHelper:
         return layer
 
     def kl_loss(self):
-        return sum(layer.kl() for layer in self.layers) / self.dataset_size
+        s = sum(layer.kl() for layer in self.layers) / self.dataset_size
+        tf.print(s)
+        return s
 
     def sample_weights(self):
         for layer in self.layers:
@@ -112,3 +113,6 @@ class BayesianHelper:
         for layer in self.layers:
             layer.map = map_enabled
 
+    def set_training(self, training):
+        for layer in self.layers:
+            layer.training = training
