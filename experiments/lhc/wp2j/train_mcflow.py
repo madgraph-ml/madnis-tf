@@ -17,6 +17,10 @@ import sys
 # Use double precision
 tf.keras.backend.set_floatx("float64")
 
+# Ensure only single CPU thread
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
 #########
 # Setup #
 #########
@@ -55,13 +59,15 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 12  # dimensionality of data space (apparently it must be 12?)
-N_CHANNELS = 8  # number of Channels
+DIMS_IN = 20  # dimensionality of data space (apparently it must be 12?)
+N_CHANNELS = 4  # number of Channels
 
 #cwd = os.getcwd()
 os.chdir("MadNis_example")
 madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
 #os.chdir(cwd)
+
+# 0,1,2,3 -> 0,2,3,6
 def integrand(x, channels):
     #return madgraph.call_madgraph(x, tf.one_hot(channels, N_CHANNELS, dtype=tf.int32))
     return madgraph.call_madgraph(x, channels)
@@ -169,8 +175,8 @@ opt1 = tf.keras.optimizers.Adam(lr_schedule1)
 opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
 integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1, opt2],
-    mcw_model=mcw_net,
+    integrand, flow, [opt1],
+    mcw_model=None,
     use_weight_init=PRIOR,
     n_channels=N_CHANNELS,
     loss_func=LOSS,
@@ -189,7 +195,6 @@ print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
-
 
 ################################
 # Train the network
