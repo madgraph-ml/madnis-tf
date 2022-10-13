@@ -41,6 +41,9 @@ class AnyObjectHandler(HandlerBase):
 						   linestyle = orig_handle[2], color = orig_handle[0])
 		return [l1, l2]
 
+def dup_last(a):
+    return np.append(a, a[-1])
+
 
 ##############
 # Plot Loss ##
@@ -87,7 +90,20 @@ def plot_weights(channel_data, log_dir=".", name=""):
     bins = np.logspace(np.log10(w_min), np.log10(w_max), 40)
 
     for i, (_, weights, _, _) in enumerate(channel_data):
-        ax1.hist(weights, bins=bins, histtype="step", label=f"chan {i}")
+        color = f"C{i}"
+
+        if len(weights.shape) == 2:
+            wh_all = np.stack([np.histogram(w, bins=bins)[0] for w in weights], axis=0)
+            wh = np.mean(wh_all, axis=0)
+            wh_err = np.std(wh_all, axis=0)
+            ax1.fill_between(bins, dup_last(wh - wh_err), dup_last(wh + wh_err),
+                             facecolor=color, alpha=0.3, step="post")
+        else:
+            wh, _ = np.histogram(weights, bins=bins)
+
+        ax1.stairs(
+            wh, edges=bins, color=color, label=f"chan {i}", linewidth=1.0, baseline=None)
+
     ax1.set_xscale("log")
     ax1.set_yscale("log")
     ax1.set_xlabel("Weight")
@@ -250,7 +266,6 @@ def plot_alphas_multidim(axs, channel_data, args):
         color = f'C{i}'
 
         if plot_errors:
-            dup_last = lambda a: np.append(a, a[-1])
             axs[0].fill_between(x_p, dup_last(y_p - y_p_err), dup_last(y_p + y_p_err),
                                 facecolor=color, alpha=0.3, step="post")
             axs[1].fill_between(x_p, dup_last(alpha_binned - alpha_binned_err),
@@ -328,7 +343,6 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     #
 
     if plot_errors:
-        dup_last = lambda a: np.append(a, a[-1])
         axs[0].fill_between(x_t, dup_last(y_p - y_p_err), dup_last(y_p + y_p_err),
                             facecolor=dcolor, alpha=0.3, step="post")
 
