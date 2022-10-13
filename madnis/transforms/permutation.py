@@ -138,18 +138,45 @@ class SoftPermuteLearn(Transform):
 
         self.permute_function = lambda x, w: tf.linalg.matvec(w, x, transpose_a=True)
 
-        # initialize k*(k-1)/2 angles in [-0.5, 0.5]
-        ang = np.random.rand(int(self.channels * (self.channels-1) / 2)) - 0.5
-        # not all of them are in [-0.5, 0.5], some are in [-1, 1]
-        which_mult = list(np.cumsum(-np.arange(self.channels-1))-1)
-        ang[which_mult] = ang[which_mult]*2.
-        self.perm_ang = self.add_weight(
-            "perm_ang",
-            shape=(int(self.channels * (self.channels-1) / 2)),
-            initializer=tf.keras.initializers.Constant(ang),
+        # initialize k*(k-1)/2 angles. The majority is in [-pi/2, pi/2], but some are in [-pi, pi]
+        # trainable parameters are unbounded, so we have to ensure the boundaries ourselves
+
+        # which indices are in the larger domain:
+        which_full = list(np.cumsum(-np.arange(self.channels-1))-1)
+        num_all = int(self.channels * (self.channels-1) / 2)
+        num_reduced = num_all - len(which_full)
+        # initialize trainable parameters such that they cover final angle space more or less
+        # uniformly. Found empirically based on subsequent transformations.
+        init_reduced = np.random.randn(num_reduced)*1.5
+        init_full = np.random.rand(len(which_full))*2. -1.
+
+        self.perm_ang_train_red = self.add_weight(
+            "perm_ang_train_red",
+            shape=(num_reduced),
+            initializer=tf.keras.initializers.Constant(init_reduced),
             trainable=True,
             dtype=tf.float64
         )
+        self.perm_ang_train_full = self.add_weight(
+            "perm_ang_train_full",
+            shape=(len(which_full)),
+            initializer=tf.keras.initializers.Constant(init_full),
+            trainable=True,
+            dtype=tf.float64
+        )
+        # ensure that it stays in reduced domain:
+        self.perm_ang_train_red = (1./(1.+tf.math.exp(-self.perm_ang_train_red)))-0.5
+        # build up full tensor with all angles:
+        self.perm_ang = tf.zeros((num_all), dtype=tf.float64)
+        indices_full = np.array(which_full) + num_all
+        mask_full = np.zeros((num_all), dtype=bool)
+        mask_full[indices_full] = True
+        indices_red = np.arange(num_all)[~mask_full]
+        self.perm_ang = tf.tensor_scatter_nd_update(self.perm_ang, indices_full.reshape(-1, 1),
+                                                    self.perm_ang_train_full)
+        self.perm_ang = tf.tensor_scatter_nd_update(self.perm_ang, indices_red.reshape(-1, 1),
+                                                    self.perm_ang_train_red)
+        self.perm_ang = self.perm_ang*np.pi
 
         self.w_perm = self._gea_orthogonal_from_angles_tf(self.perm_ang)
         self.w_perm_inv = tf.transpose(self.w_perm)
