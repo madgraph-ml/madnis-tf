@@ -9,7 +9,6 @@ from mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
-from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 from vegasflow import VegasFlow, RQSVegasFlow
 from utils import translate_channels
@@ -64,15 +63,15 @@ DTYPE = tf.keras.backend.floatx()
 DIMS_IN = 12  # dimensionality of data space (apparently it must be 12?)
 N_CHANNELS = args.channels  # number of Channels
 
-#cwd = os.getcwd()
-os.chdir("MadNis_example")
+# Need to go to /src as it looks for "../symfact.dat" in parent folder
+os.chdir("src")
 madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
-#os.chdir(cwd)
 
-# 0,1,2,3 -> 0,2,3,6
+# TODO: feed momenta to integrator to also train alphas
 def integrand(x, channels):
     channels_api = translate_channels(channels)
-    return madgraph.call_madgraph(x, channels_api)
+    _, wgt = madgraph.call_madgraph(x, channels_api)
+    return wgt
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
@@ -85,6 +84,7 @@ print("-----------------------------------------------------------\n")
 # Naive integration
 ################################
 
+# TODO: should be possible here. Re-implement this!
 INT_SAMPLES = args.int_samples
 #
 ## Uniform sampling in range [0,1]^d
@@ -117,7 +117,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = RQSVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,
