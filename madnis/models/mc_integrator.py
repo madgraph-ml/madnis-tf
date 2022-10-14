@@ -366,7 +366,7 @@ class MultiChannelIntegrator:
                     p_true, q_test, logp, logq, channels, q_sample=q_sample
                 )
                 if self.mcw_bayesian_helper is not None:
-                    flow_loss += self.mcw_bayesian_helper.kl_loss()
+                    mcw_loss += self.mcw_bayesian_helper.kl_loss()
 
             grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
             self.mcw_optimizer.apply_gradients(
