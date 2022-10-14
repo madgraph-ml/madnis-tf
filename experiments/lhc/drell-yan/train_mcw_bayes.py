@@ -16,7 +16,7 @@ from madnis.nn.nets.mlp import MLP
 from dy_integrand import DrellYan, MZ, WZ
 from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
-from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.distributions import StandardUniform
 
 import sys
 
@@ -87,37 +87,13 @@ map_y = TwoParticlePhasespaceB()
 # # Otherwise infinite cross section!
 # map_flat = TwoParticlePhasespaceFlatB()
 
-################################
-# Define the flow network
-################################
-
-PRIOR = args.use_prior_weights
-DATASET_SIZE = args.epochs * args.batch_size * args.train_batches
-
-flow_bayesian_helper = BayesianHelper(dataset_size=DATASET_SIZE)
-
-FLOW_META = {
-    "units": args.units,
-    "layers": args.layers,
-    "initializer": args.initializer,
-    "activation": args.activation,
-    "layer_constructor": flow_bayesian_helper.construct_dense
-}
-
-N_BLOCKS = args.blocks
-
-flow = RQSVegasFlow(
-    [DIMS_IN],
-    dims_c=[[N_CHANNELS]],
-    n_blocks=N_BLOCKS,
-    subnet_meta=FLOW_META,
-    subnet_constructor=MLP,
-    hypercube_target=True,
-)
 
 ################################
 # Define the mcw network
 ################################
+
+DATASET_SIZE = args.epochs * args.batch_size * args.train_batches
+PRIOR = args.use_prior_weights
 
 mcw_bayesian_helper = BayesianHelper(dataset_size=DATASET_SIZE)
 
@@ -169,11 +145,11 @@ ITERS = args.train_batches
 DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
+base_dist = StandardUniform(DIMS_IN)
+
 # Prepare scheduler and optimzer
-lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 
-opt1 = tf.keras.optimizers.Adam(lr_schedule1)
 opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
 # Add mappings to integrator
@@ -183,13 +159,12 @@ for i in range(N_CHANNELS-N_MAPS):
     MAPPINGS.append(map_y)
 
 integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1, opt2],
+    integrand, base_dist, [opt2],
     mcw_model=mcw_net,
     mappings=MAPPINGS,
     use_weight_init=PRIOR,
     n_channels=N_CHANNELS,
     loss_func=LOSS,
-    flow_bayesian_helper=flow_bayesian_helper,
     mcw_bayesian_helper=mcw_bayesian_helper
 )
 
@@ -213,7 +188,6 @@ print("----------------------------------------------------------------\n")
 # Train the network
 ################################
 
-flow_bayesian_helper.set_training(True)
 mcw_bayesian_helper.set_training(True)
 
 train_losses = []
@@ -233,7 +207,7 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt2._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()
@@ -248,7 +222,6 @@ if not os.path.exists(log_dir):
 #integrator.save_weights(log_dir)
 #integrator.load_weights(log_dir + "model/")
 
-flow_bayesian_helper.set_training(False)
 mcw_bayesian_helper.set_training(False)
 
 ################################
@@ -279,7 +252,6 @@ for i in range(N_CHANNELS):
     ps, weights, alphas, alphas_prior = [], [], [], []
     for j in range(BAYES_SAMPLES):
         print(f'  Bayesian net {j}')
-        flow_bayesian_helper.sample_weights()
         mcw_bayesian_helper.sample_weights()
         x, weight, alpha, alpha_prior = integrator.sample_per_channel(
             10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)

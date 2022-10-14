@@ -13,7 +13,7 @@ class VBLinear(tf.keras.layers.Layer):
     ):
         super().__init__(**kwargs)
         self.units = units
-        self.activation = activation
+        self.activation = tf.keras.activations.get(activation)
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
         dtype = tf.as_dtype(self.dtype or backend.floatx())
@@ -72,7 +72,7 @@ class VBLinear(tf.keras.layers.Layer):
             logsig2_w = tf.clip_by_value(self.logsig2_w, -11, 11)
             s2_w = tf.math.exp(logsig2_w)
             var_out = tf.matmul(inputs**2, s2_w) + 1e-8
-            return mu_out + tf.math.sqrt(var_out) * tf.random.normal(
+            lin_out = mu_out + tf.math.sqrt(var_out) * tf.random.normal(
                 tf.shape(mu_out), dtype=self.dtype)
 
         else:
@@ -82,8 +82,12 @@ class VBLinear(tf.keras.layers.Layer):
             logsig2_w = tf.clip_by_value(self.logsig2_w, -11, 11)
             s2_w = tf.math.exp(logsig2_w)
             weight = self.mu_w + tf.math.sqrt(s2_w) * self.random
-            return tf.matmul(inputs, weight) + self.bias + 1e-8
+            lin_out = tf.matmul(inputs, weight) + self.bias + 1e-8
 
+        if self.activation is not None:
+            return self.activation(lin_out)
+        else:
+            return lin_out
 
 class BayesianHelper:
     def __init__(
