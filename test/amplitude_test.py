@@ -9,8 +9,8 @@ import sys
 tf.keras.backend.set_floatx("float64")
  
 # setting path
-parentidrname = os.path.abspath("../")
-sys.path.append(parentidrname)
+dydir = os.path.abspath("../experiments/lhc/drell-yan/")
+sys.path.append(dydir)
 from dy_integrand import DrellYan, MZ, WZ
 from madnis.mappings.phasespace_2p import TwoParticlePhasespaceA, TwoParticlePhasespaceB
 
