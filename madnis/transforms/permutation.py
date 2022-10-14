@@ -117,19 +117,18 @@ class SoftPermute(Transform):
 class SoftPermuteLearn(Transform):
     """Constructs a soft permutation, that is learnable in training.
     Perfoms a rotation along the first (channel-) dimension for multi-dimenional tensors.
-    based on "Generalization of Euler Angles to N‐Dimensional Orthogonal Matrices"
+    Rotations are parametrized by their Euler angles.
+    Formulas are based on "Generalization of Euler Angles to N‐Dimensional Orthogonal Matrices"
     Journal of Mathematical Physics 13, 528 (1972); https://doi.org/10.1063/1.1666011
     David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
     Algorithm inspired by
     https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
     """
 
-    def __init__(self, dims_in, dims_c=None, seed: Union[int, None] = None):
+    def __init__(self, dims_in, dims_c=None):
         """
         Additional args in docstring of base class base.InvertibleModule.
         Args:
-          seed: Int seed for the permutation (numpy is used for RNG). If seed is
-            None, do not reseed RNG.
         """
         super().__init__(dims_in, dims_c)
 
@@ -142,13 +141,15 @@ class SoftPermuteLearn(Transform):
         # trainable parameters are unbounded, so we have to ensure the boundaries ourselves
 
         # which indices are in the larger domain:
-        which_full = list(np.cumsum(-np.arange(self.channels-1))-1)
-        num_all = int(self.channels * (self.channels-1) / 2)
-        num_reduced = num_all - len(which_full)
+        self.which_full = list(np.cumsum(-np.arange(self.channels-1))-1)
+        # number of all angles
+        self.num_all = int(self.channels * (self.channels-1) / 2)
+        # number of angles in reduced domain
+        num_reduced = self.num_all - len(self.which_full)
         # initialize trainable parameters such that they cover final angle space more or less
         # uniformly. Found empirically based on subsequent transformations.
         init_reduced = np.random.randn(num_reduced)*1.5
-        init_full = np.random.rand(len(which_full))*2. -1.
+        init_full = np.random.rand(len(self.which_full))*2. -1.
 
         self.perm_ang_train_red = self.add_weight(
             "perm_ang_train_red",
@@ -159,53 +160,62 @@ class SoftPermuteLearn(Transform):
         )
         self.perm_ang_train_full = self.add_weight(
             "perm_ang_train_full",
-            shape=(len(which_full)),
+            shape=(len(self.which_full)),
             initializer=tf.keras.initializers.Constant(init_full),
             trainable=True,
             dtype=tf.float64
         )
-        # ensure that it stays in reduced domain:
-        self.perm_ang_train_red = (1./(1.+tf.math.exp(-self.perm_ang_train_red)))-0.5
-        # build up full tensor with all angles:
-        self.perm_ang = tf.zeros((num_all), dtype=tf.float64)
-        indices_full = np.array(which_full) + num_all
-        mask_full = np.zeros((num_all), dtype=bool)
-        mask_full[indices_full] = True
-        indices_red = np.arange(num_all)[~mask_full]
-        self.perm_ang = tf.tensor_scatter_nd_update(self.perm_ang, indices_full.reshape(-1, 1),
-                                                    self.perm_ang_train_full)
-        self.perm_ang = tf.tensor_scatter_nd_update(self.perm_ang, indices_red.reshape(-1, 1),
-                                                    self.perm_ang_train_red)
-        self.perm_ang = self.perm_ang*np.pi
-
-        self.w_perm = self._gea_orthogonal_from_angles_tf(self.perm_ang)
-        self.w_perm_inv = tf.transpose(self.w_perm)
+        # initialize to later show angles that describe current permutation
+        self.perm_ang = None
 
     def call(self, x, c=None, jac=True):  # pylint: disable=W0221
-        y = self.permute_function(x, self.w_perm)
+        w_perm = self._translate_to_matrix()
+        y = self.permute_function(x, w_perm)
         if jac:
             return y, 0.0
 
         return y
 
     def inverse(self, x, c=None, jac=True):  # pylint: disable=W0221
-        y = self.permute_function(x, self.w_perm_inv)
+        w_perm = self._translate_to_matrix()
+        w_perm_inv = tf.transpose(w_perm)
+        y = self.permute_function(x, w_perm_inv)
         if jac:
             return y, 0.0
 
         return y
+
+    def _translate_to_matrix(self):
+        """ translates the trainable parameters to angles in the right domain and then to
+            the rotation matrix
+        """
+        # ensure that it stays in reduced domain:
+        perm_ang_train_red_t = tf.math.sigmoid(self.perm_ang_train_red)-0.5
+        # build up full tensor with all angles:
+        perm_ang = tf.zeros((self.num_all), dtype=tf.float64)
+        indices_full = np.array(self.which_full) + self.num_all
+        mask_full = np.zeros((self.num_all), dtype=bool)
+        mask_full[indices_full] = True
+        indices_red = np.arange(self.num_all)[~mask_full]
+        perm_ang = tf.tensor_scatter_nd_add(perm_ang, indices_full.reshape(-1, 1),
+                                            self.perm_ang_train_full)
+        perm_ang = tf.tensor_scatter_nd_add(perm_ang, indices_red.reshape(-1, 1),
+                                            perm_ang_train_red_t)
+        self.perm_ang = perm_ang*np.pi
+        w_perm = self._gea_orthogonal_from_angles_tf(self.perm_ang)
+        return w_perm
 
     def _gea_orthogonal_from_angles_tf(self, angles_list):
         """
         Generalized Euler Angles
         Return the orthogonal matrix from its generalized angles
 
-        Generalization of Euler Angles to N-Dimensional Orthogonal Matrices
+        Formulas are based on "Generalization of Euler Angles to N-Dimensional Orthogonal Matrices"
         David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
         Journal of Mathematical Physics 13, 528 (1972)
         doi: 10.1063/1.1666011
 
-        Algorithm inspired by
+        Algorithm adapted from numpy version at
         https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
 
         :param angles_list: List of angles, for a k-dimensional space the total number
@@ -223,11 +233,13 @@ class SoftPermuteLearn(Transform):
             tmp = tmp[:-i]
             ma = self._gea_matrix_a_tf(angles)  # matrix i+1 x i+1
             b = tf.transpose(tf.linalg.matmul(b, ma, transpose_b=True))
-            # We skip doing making a larger matrix for the last iteration, numpy is fine here
+            # We skip doing making a larger matrix for the last iteration
             if i < n-1:
-                c = np.eye(i+2, i+2)
-                c[:-1, :-1] = b
-                b = c
+                c = tf.pad(b, tf.constant([[0, 1,], [0, 1]]), "CONSTANT")
+                corr = tf.eye(i+2, dtype=angles_list.dtype) -\
+                    tf.pad(tf.eye(i+1, dtype=angles_list.dtype), tf.constant([[0, 1,], [0, 1]]),
+                           "CONSTANT")
+                b = c + corr
         return b
 
     def _gea_matrix_a_tf(self, angles):
@@ -235,12 +247,12 @@ class SoftPermuteLearn(Transform):
         Generalized Euler Angles
         Return the parametric angles described on Eqs. 15-19 from the paper:
 
-        Generalization of Euler Angles to N-Dimensional Orthogonal Matrices
+        Formulas are based on "Generalization of Euler Angles to N-Dimensional Orthogonal Matrices"
         David K. Hoffman, Richard C. Raffenetti, and Klaus Ruedenberg
         Journal of Mathematical Physics 13, 528 (1972)
         doi: 10.1063/1.1666011
 
-        Algorithm inspired by
+        Algorithm adapted from numpy version at
         https://github.com/MaterialsDiscovery/PyChemia/blob/master/pychemia/utils/mathematics.py
         """
         n = len(angles)
@@ -258,7 +270,6 @@ class SoftPermuteLearn(Transform):
         region_iii_tan = -tf.multiply(tf.reshape(tf.math.tan(angles), (n, 1)),
                                       tf.reshape(tf.math.tan(angles), (1, n)))
         # region III, eq. 18, cos:
-        #shifted_cos = tf.concat([cos_vec[:-1], tf.ones((1, ), dtype=angles.dtype)], 0)
         shifted_cos = tf.math.cumprod(tf.math.cos(angles), exclusive=True)
         region_iii_cos = tf.multiply(tf.reshape(cos_vec, (n, 1)),
                                      tf.reshape(1./shifted_cos, (1, n)))
