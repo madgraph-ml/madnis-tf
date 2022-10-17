@@ -12,10 +12,10 @@ from ..utils import tfutils
 class Flow(Mapping):
     def __init__(
         self,
-        base_dist: Distribution,
-        transforms: Union[Transform, List[Transform]],
-        embedding_net: tf.keras.Model = None,
-        **kwargs
+            base_dist: Distribution,
+            transforms: Union[Transform, List[Transform]],
+            embedding_net: tf.keras.Model = None,
+            **kwargs
     ):
         super().__init__(base_dist, **kwargs)
 

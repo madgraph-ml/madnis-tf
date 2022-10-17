@@ -19,20 +19,20 @@ class MultiChannelIntegrator:
     """
 
     def __init__(
-        self,
-        func: Union[Callable, Distribution],
-        dist: Distribution,
-        optimizer: List[tf.keras.optimizers.Optimizer],
-        mcw_model: tf.keras.Model = None,
-        mappings: List[Mapping] = None,
-        use_weight_init: bool = True,
-        n_channels: int = 2,
-        loss_func: str = "chi2",
-        sample_capacity: int = 0,
-        uniform_channel_ratio: float = 1.0,
-        variance_history_length: int = 20,
-        integrand_has_channels: bool = False,
-        **kwargs,
+            self,
+            func: Union[Callable, Distribution],
+            dist: Distribution,
+            optimizer: List[tf.keras.optimizers.Optimizer],
+            mcw_model: tf.keras.Model = None,
+            mappings: List[Mapping] = None,
+            use_weight_init: bool = True,
+            n_channels: int = 2,
+            loss_func: str = "chi2",
+            sample_capacity: int = 0,
+            uniform_channel_ratio: float = 1.0,
+            variance_history_length: int = 20,
+            integrand_has_channels: bool = False,
+            **kwargs,
     ):
         """
         Args:

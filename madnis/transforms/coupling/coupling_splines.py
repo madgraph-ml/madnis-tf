@@ -13,16 +13,16 @@ import numpy as np
 
 class LinearSplineBlock(CouplingTransform):
     def __init__(
-        self,
-        dims_in,
-        dims_c=[],
-        subnet_meta: Dict = None,
-        subnet_constructor: callable = None,
-        num_bins: int = 10,
-        left=0.0,
-        right=1.0,
-        bottom=0.0,
-        top=1.0,
+            self,
+            dims_in,
+            dims_c=[],
+            subnet_meta: Dict = None,
+            subnet_constructor: callable = None,
+            num_bins: int = 10,
+            left=0.0,
+            right=1.0,
+            bottom=0.0,
+            top=1.0,
     ):
 
         super().__init__(dims_in, dims_c, clamp=0.0, clamp_activation=(lambda u: u))
@@ -116,16 +116,16 @@ class LinearSplineBlock(CouplingTransform):
 
 class QuadraticSplineBlock(CouplingTransform):
     def __init__(
-        self,
-        dims_in,
-        dims_c=[],
-        subnet_meta: Dict = None,
-        subnet_constructor: callable = None,
-        num_bins: int = 10,
-        left=0.0,
-        right=1.0,
-        bottom=0.0,
-        top=1.0,
+            self,
+            dims_in,
+            dims_c=[],
+            subnet_meta: Dict = None,
+            subnet_constructor: callable = None,
+            num_bins: int = 10,
+            left=0.0,
+            right=1.0,
+            bottom=0.0,
+            top=1.0,
     ):
 
         super().__init__(dims_in, dims_c, clamp=0.0, clamp_activation=(lambda u: u))
@@ -166,7 +166,7 @@ class QuadraticSplineBlock(CouplingTransform):
         # split into different contributions
         unnormalized_widths = a[..., :self.num_bins]
         unnormalized_heights = a[..., self.num_bins:]
-        
+
         y, ldj_elementwise = splines.unconstrained_quadratic_spline(
             x,
             unnormalized_widths,
@@ -231,16 +231,16 @@ class QuadraticSplineBlock(CouplingTransform):
 
 class RationalQuadraticSplineBlock(CouplingTransform):
     def __init__(
-        self,
-        dims_in,
-        dims_c=[],
-        subnet_meta: Dict = None,
-        subnet_constructor: callable = None,
-        num_bins: int = 10,
-        left=0.0,
-        right=1.0,
-        bottom=0.0,
-        top=1.0,
+            self,
+            dims_in,
+            dims_c=[],
+            subnet_meta: Dict = None,
+            subnet_constructor: callable = None,
+            num_bins: int = 10,
+            left=0.0,
+            right=1.0,
+            bottom=0.0,
+            top=1.0,
     ):
 
         super().__init__(dims_in, dims_c, clamp=0.0, clamp_activation=(lambda u: u))
