@@ -9,6 +9,87 @@ from .base import Transform
 
 
 # pylint: disable=C0103
+class Permutation(Transform):
+    """Base class for simple permutations
+    Permutes along the first (channel-) dimension for multi-dimenional tensors."""
+
+    def __init__(self, dims_in, dims_c=None, permutation=None, permutation_matrix=None):
+        """
+        Additional args in docstring of base class base.InvertibleModule.
+        Args:
+            only one of the two needed:
+            - permutation: a permutation of range(dims_in)
+            - permutation_matrix: a (dims_in x dims_in) matrix describing the permutation
+        """
+        super().__init__(dims_in, dims_c)
+
+        self.channels = self.dims_in[0]
+        self.input_rank = len(self.dims_in) - 1
+
+        self.permute_function = lambda x, w: tf.linalg.matvec(w, x, transpose_a=True)
+
+        # check inputs
+        if permutation is None and permutation_matrix is None:
+            raise ValueError("Permutation must be given, as permuted array XOR matrix!")
+        if permutation is not None and permutation_matrix is not None:
+            raise ValueError("Permutation must be given, as permuted array XOR matrix!")
+
+        if permutation is not None:
+            # Get the permutation matrix
+            permuation_matrix = np.zeros((self.channels, self.channels))
+            for i, j in enumerate(permutation):
+                permutation_matrix[i, j] = 1.0
+
+        self.w_perm = self.add_weight(
+            "w_perm",
+            shape=(*([1] * self.input_rank), self.channels, self.channels),
+            initializer=tf.keras.initializers.Constant(permutation_matrix),
+            trainable=False,
+        )
+
+        self.w_perm_inv = self.add_weight(
+            "w_perm_inv",
+            shape=(*([1] * self.input_rank), self.channels, self.channels),
+            initializer=tf.keras.initializers.Constant(permutation_matrix.T),
+            trainable=False,
+        )
+
+    def call(self, x, c=None, jac=True):  # pylint: disable=W0221
+        y = self.permute_function(x, self.w_perm)
+        if jac:
+            return y, 0.0
+
+        return y
+
+    def inverse(self, x, c=None, jac=True):  # pylint: disable=W0221
+        y = self.permute_function(x, self.w_perm_inv)
+        if jac:
+            return y, 0.0
+
+        return y
+
+
+# pylint: disable=C0103
+class PermuteExchange(Permutation):
+    """Constructs a permutation that just exchanges the sets A and B of the Coupling Layer.
+    Permutes along the first (channel-) dimension for multi-dimenional tensors."""
+
+    def __init__(self, dims_in, dims_c=None):
+        """
+        Additional args in docstring of base class base.InvertibleModule.
+        Args:
+        """
+        self.channels = self.dims_in[0]
+
+        # taken from CouplingTransform:
+        self.split_len1 = self.channels // 2
+        self.split_len2 = self.channels - self.channels // 2
+
+        w = np.eye(self.channels, k=-self.split_len1) + np.eye(self.channels, k=self.split_len2)
+        super().__init__(dims_in, dims_c, permutation_matrix=w)
+
+
+# pylint: disable=C0103
 class PermuteRandom(Transform):
     """Constructs a random permutation, that stays fixed during training.
     Permutes along the first (channel-) dimension for multi-dimenional tensors."""
