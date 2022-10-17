@@ -36,7 +36,7 @@ class Permutation(Transform):
 
         if permutation is not None:
             # Get the permutation matrix
-            permuation_matrix = np.zeros((self.channels, self.channels))
+            permutation_matrix = np.zeros((self.channels, self.channels))
             for i, j in enumerate(permutation):
                 permutation_matrix[i, j] = 1.0
 
@@ -79,7 +79,7 @@ class PermuteExchange(Permutation):
         Additional args in docstring of base class base.InvertibleModule.
         Args:
         """
-        self.channels = self.dims_in[0]
+        self.channels = dims_in[0]
 
         # taken from CouplingTransform:
         self.split_len1 = self.channels // 2
@@ -101,6 +101,7 @@ class PermuteRandom(Permutation):
           seed: Int seed for the permutation (numpy is used for RNG). If seed is
             None, do not reseed RNG.
         """
+        self.channels = dims_in[0]
         if seed is not None:
             np.random.seed(seed)
         permutation = np.random.permutation(self.channels)
@@ -113,7 +114,7 @@ class PermuteRandom(Permutation):
         super().__init__(dims_in, dims_c, permutation_matrix=w)
 
 # pylint: disable=C0103
-class SoftPermute(Permutation):
+class PermuteSoft(Permutation):
     """Constructs a soft permutation, that stays fixed during training.
     Perfoms a rotation along the first (channel-) dimension for multi-dimenional tensors."""
 
@@ -124,11 +125,12 @@ class SoftPermute(Permutation):
           seed: Int seed for the permutation (numpy is used for RNG). If seed is
             None, do not reseed RNG.
         """
+        self.channels = dims_in[0]
         w = special_ortho_group.rvs(self.channels, random_state=seed)
         super().__init__(dims_in, dims_c, permutation_matrix=w)
 
 # pylint: disable=C0103
-class SoftPermuteLearn(Transform):
+class PermuteSoftLearn(Transform):
     """Constructs a soft permutation, that is learnable in training.
     Perfoms a rotation along the first (channel-) dimension for multi-dimenional tensors.
     Rotations are parametrized by their Euler angles.
