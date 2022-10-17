@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from madnis.transforms.permutation import SoftPermuteLearn as SPL
+from madnis.transforms.permutation import PermuteSoftLearn as SPL
 
 tf.keras.backend.set_floatx("float64")
 
