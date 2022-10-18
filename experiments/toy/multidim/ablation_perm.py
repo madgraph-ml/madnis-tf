@@ -20,6 +20,7 @@ import argparse
 import time
 
 from madnis.utils.train_utils import integrate
+from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 from vegasflow import RQSVegasFlow
@@ -50,14 +51,14 @@ parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
 
 # model params
-parser.add_argument("--units", type=int, default=16)
+parser.add_argument("--units", type=int, default=128)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu",
                     choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform",
                     choices={"glorot_uniform", "he_uniform"})
-
+parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
 
 args = parser.parse_args()
 
@@ -137,3 +138,54 @@ for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:
         hypercube_target=True,
         permutations=perm
     )
+
+################################
+# Define the prior
+################################
+
+madgraph_prior = None
+
+################################
+# Define the integrator
+################################
+
+# Define training params
+EPOCHS = args.epochs
+BATCH_SIZE = args.batch_size
+LR = args.lr
+LOSS = args.loss
+
+# Number of samples
+# TRAIN_SAMPLES = args.train_batches
+# ITERS = TRAIN_SAMPLES // BATCH_SIZE
+ITERS = args.train_batches
+
+# Decay of learning rate
+DECAY_RATE = 0.01
+DECAY_STEP = ITERS
+
+# Prepare scheduler and optimzer
+lr_schedule = {}
+
+opt = {}
+
+################################
+# Pre train - integration
+################################
+
+for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:
+    lr_schedule[perm] = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+    opt[perm] = tf.keras.optimizers.Adam(lr_schedule[perm])
+    integrator = MultiChannelIntegrator(
+        multi_camel, flows[perm], [opt[perm]], use_weight_init=False, n_channels=N_CHANNELS,
+        loss_func=LOSS)
+
+    res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+    relerr = err / res * 100
+
+    print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
+    print(f"-----------------Choice of Permutation: {perm}----------------")
+    print("--------------------------------------------------------------")
+    print(f" Number of channels: {N_CHANNELS}                            ")
+    print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
+    print("------------------------------------------------------------\n")
