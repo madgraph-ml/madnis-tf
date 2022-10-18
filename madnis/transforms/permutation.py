@@ -239,7 +239,7 @@ class PermuteSoftLearn(Transform):
         """
 
         b = tf.eye(2, dtype=angles_list.dtype)
-        n = int(tf.sqrt(tf.cast(angles_list.shape, tf.float32)*8+1)/2+0.5)
+        n = self.channels
         tmp = tf.identity(angles_list)
 
         # For SO(k) there are k*(k-1)/2 angles that are grouped in k-1 sets
