@@ -1,5 +1,5 @@
 from typing import List
-import math as m
+import numpy as np
 import warnings
 
 import tensorflow as tf
@@ -38,6 +38,7 @@ class DrellYan:
         pdfset: str = "NNPDF40_lo_as_01180",
         input_format: str = "cartesian",
         z_scale: float = 1.0,
+        g_scale: float = 1.0,
         **kwargs
     ):
         """
@@ -60,13 +61,14 @@ class DrellYan:
         self._dtype = tf.keras.backend.floatx()
 
         # Input parameters
-        self.e_had = e_had
-        self.s_had = e_had**2
-        self.mw = mw
-        self.mz = mz
-        self.wz = wz
-        self.gf = gf
-        self.z_scale = z_scale
+        self.e_had = tf.constant(e_had, dtype=self._dtype)
+        self.s_had = tf.constant(e_had**2, dtype=self._dtype)
+        self.mw = tf.constant(mw, dtype=self._dtype)
+        self.mz = tf.constant(mz, dtype=self._dtype)
+        self.wz = tf.constant(wz, dtype=self._dtype)
+        self.gf = tf.constant(gf, dtype=self._dtype)
+        self.z_scale = tf.constant(z_scale, dtype=self._dtype)
+        self.g_scale = tf.constant(g_scale, dtype=self._dtype)
 
         # Define input format
         self.input_format = input_format
@@ -81,7 +83,8 @@ class DrellYan:
 
         # Definition of electroweak coupling
         # self.alpha = m.sqrt(2) * self.gf * self.mw**2 * self.sw2 # Gf scheme
-        self.alpha = 1 / 1.325070e02  # MG-Input
+        self.alpha = tf.constant(1 / 1.325070e02, dtype=self._dtype)  # MG-Input
+        self.tf_pi = tf.constant(np.pi, dtype=self._dtype)
 
         # Define list of initial state quarks
         self.isq = isq
@@ -114,6 +117,9 @@ class DrellYan:
             "c": 1 / 2,
             "b": 1 / 2,
         }
+        
+        self.factor_e2 = 4 * self.tf_pi * self.alpha
+        self.factor_g2 = self.factor_e2 / (self.cw2 * self.sw2) / self.g_scale
 
     def a_ZZ(self, s: tf.Tensor, isq: str):
         m_ZZ = (
@@ -121,32 +127,23 @@ class DrellYan:
             * (self.V_l**2 + self.A_l**2)
             / 4
         )
-        factor_e2 = 4 * m.pi * self.alpha
-        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
-        return s**2 / 4 * factor_g2**2 * m_ZZ
+        return s**2 / 4 * self.factor_g2**2 * m_ZZ
 
     def a_yy(self, s: tf.Tensor, isq: str):
         m_yy = 4 * self.Q_f[isq] ** 2
-        factor_e2 = 4 * m.pi * self.alpha
-        return s**2 / 4 * factor_e2**2 * m_yy
+        return s**2 / 4 * self.factor_e2**2 * m_yy
 
     def a_yZ(self, s: tf.Tensor, isq: str):
         m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
-        factor_e2 = 4 * m.pi * self.alpha
-        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
-        return s**2 / 4 * factor_g2 * factor_e2 * m_yz
+        return s**2 / 4 * self.factor_g2 * self.factor_e2 * m_yz
 
     def b_ZZ(self, s: tf.Tensor, isq: str):
         m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
-        factor_e2 = 4 * m.pi * self.alpha
-        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
-        return s**2 / 2 * factor_g2**2 * m_ZZ
+        return s**2 / 2 * self.factor_g2**2 * m_ZZ
 
     def b_yZ(self, s: tf.Tensor, isq: str):
         m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
-        factor_e2 = 4 * m.pi * self.alpha
-        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
-        return s**2 / 2 * factor_g2 * factor_e2 * m_yz
+        return s**2 / 2 * self.factor_g2 * self.factor_e2 * m_yz
 
     def prop_factor(self, s: tf.Tensor, m1: float, m2: float, w1: float, w2: float):
         nom = s**2 - s * (m1**2 + m2**2) + m1**2 * m2**2 + w1 * w2 * m1 * m2
@@ -174,9 +171,7 @@ class DrellYan:
 
         # Squares
         m_yy = Kyy * n_spins**2 * self.prop_factor(s, 0, 0, 0, 0)
-        m_ZZ = (
-            Kzz * n_spins**2 * self.prop_factor(s, self.mz, self.mz, self.wz, self.wz)
-        )
+        m_ZZ = Kzz * n_spins**2 * self.prop_factor(s, self.mz, self.mz, self.wz, self.wz)
         m_yZ = Kyz * n_spins**2 * self.prop_factor(s, 0, self.mz, 0, self.wz)
 
         return m_yy, m_ZZ, m_yZ
@@ -216,14 +211,14 @@ class DrellYan:
         """
         cs_factor = 1 / (4 * NC)
         ps_weight = 1 / (
-            32 * m.pi**2
+            32 * self.tf_pi**2
         )  # TODO: Remove this from amplitude! -> PS-Mapping
         fluxm1 = 1 / (
             2 * s
         )  # TODO: also remove from amplitude -> Different class CrossSection?
         return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
-    def hadronic_dxs(  # TODO: Shift to new class CrossSection?
+    def hadronic_dxs(
         self,
         x1: tf.Tensor,
         x2: tf.Tensor,
@@ -265,9 +260,9 @@ class DrellYan:
     def _cartesian_det(self, r3, x1, x2):
         s = self.s_had * x1 * x2
         r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
-        det1 = 4 * m.pi * tf.math.log(self.s_had / s) / self.s_had
+        det1 = 4 * self.tf_pi * tf.math.log(self.s_had / s) / self.s_had
         det2 = (
-            m.pi
+            self.tf_pi
             * (s / self.s_had) ** (-2 * r2)
             * (-r3 * s + (-1 + r3) * (s / self.s_had) ** (2 * r2) * self.s_had)
             * (s - r3 * s + r3 * (s / self.s_had) ** (2 * r2) * self.s_had)
