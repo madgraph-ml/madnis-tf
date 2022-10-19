@@ -127,7 +127,7 @@ class FudgeDrellYan:
             "b": 1 / 2,
         }
 
-    @tf.function
+    
     def a_ZZ(self, s: tf.Tensor, isq: str):
         m_ZZ = (
             (self.V_q[isq] ** 2 + self.A_q[isq] ** 2)
@@ -138,13 +138,13 @@ class FudgeDrellYan:
         factor_g2 = factor_e2/(self.cw2 * self.sw2)
         return s**2 / 4 * factor_g2**2 * m_ZZ
         
-    @tf.function
+    
     def a_yy(self, s: tf.Tensor, isq: str):
         m_yy = 4 * self.Q_f[isq] ** 2
         factor_e2 = 4 * m.pi * self.alpha
         return s**2 / 4 * factor_e2**2 * m_yy
         
-    @tf.function
+    
     def a_yZ(self, s: tf.Tensor, isq: str):
         m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
         factor_e2 = 4 * m.pi * self.alpha
@@ -152,28 +152,28 @@ class FudgeDrellYan:
         return s**2 / 4 * factor_g2 * factor_e2 * m_yz
     
 
-    @tf.function
+    
     def b_ZZ(self, s: tf.Tensor, isq: str):
         m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
         factor_e2 = 4 * m.pi * self.alpha
         factor_g2 = factor_e2/(self.cw2 * self.sw2)
         return s**2 / 2 * factor_g2**2 * m_ZZ
         
-    @tf.function
+    
     def b_yZ(self, s: tf.Tensor, isq: str):
         m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
         factor_e2 = 4 * m.pi * self.alpha
         factor_g2 = factor_e2/(self.cw2 * self.sw2)
         return s**2 / 2 * factor_g2 * factor_e2 * m_yz
     
-    @tf.function
+    
     def prop_factor(self, s: tf.Tensor, m1: float, m2: float, w1: float, w2: float):
         nom = s**2 - s*(m1**2 + m2**2) + m1**2 * m2**2 + w1 * w2 * m1 * m2
         den1 = ((s - m1**2) ** 2 + w1**2 * m1**2)
         den2 = ((s - m2**2) ** 2 + w2**2 * m2**2)
         return nom / (den1 * den2)
 
-    @tf.function
+    
     def amp2_single(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Squared single diagram matrix element for a given production mode
 
@@ -204,7 +204,7 @@ class FudgeDrellYan:
         
         return m_yy, m_ZZ, m_ZpZp, m_ZZp, m_yZp, m_yZ
 
-    @tf.function
+    
     def amp2_all(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Full squared matrix element.
 
@@ -223,7 +223,7 @@ class FudgeDrellYan:
         m_int = m_yZ + m_yZp + m_ZZp/20
         return m_squares + 2 * m_int
 
-    @tf.function
+    
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
 
@@ -244,11 +244,11 @@ class FudgeDrellYan:
             p_dxs (tf.Tensor): partonic differential cross-section
         """
         cs_factor = 1 / (4 * NC)
-        ps_weight = 1 / (32 * m.pi**2) # TODO: Remove this from amplitude! -> PS-Mapping
-        fluxm1 = 1 / (2 * s) # TODO: also remove from amplitude -> Different class CrossSection?
+        ps_weight = 1 / (32 * m.pi**2)
+        fluxm1 = 1 / (2 * s)
         return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
-    @tf.function
+    
     def hadronic_dxs(
         self,
         x1: tf.Tensor,

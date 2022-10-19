@@ -10,9 +10,9 @@ warnings.filterwarnings("ignore")
 # -------------------------------------
 # Basic Inputs
 # -------------------------------------
-MW = 8.041900e01   # W-Boson Mass   8.041900e01 (MG5)
-MZ = 9.118800e01   # Z-Boson Mass   9.118800e01 (MG5)
-WZ = 2.441404e-00   # Z-Boson Width  2.441404e00 (MG5)
+MW = 8.041900e01  # W-Boson Mass   8.041900e01 (MG5)
+MZ = 9.118800e01  # Z-Boson Mass   9.118800e01 (MG5)
+WZ = 2.441404e-00  # Z-Boson Width  2.441404e00 (MG5)
 GF = 1.166390e-05  # Fermi Constant 1.166390e-05 (MG5)
 NC = 3  # Color factor
 # -------------------------------------
@@ -72,7 +72,7 @@ class DrellYan:
         self.input_format = input_format
 
         # Factorisation scale and pdfset
-        self.muf2 = self.mz ** 2
+        self.muf2 = self.mz**2
         self.pdf = mkPDFs(pdfset, [0])
 
         # Basic Definitions
@@ -80,8 +80,8 @@ class DrellYan:
         self.sw2 = 1 - self.cw2
 
         # Definition of electroweak coupling
-        #self.alpha = m.sqrt(2) * self.gf * self.mw**2 * self.sw2 # Gf scheme
-        self.alpha = 1/1.325070e+02 # MG-Input
+        # self.alpha = m.sqrt(2) * self.gf * self.mw**2 * self.sw2 # Gf scheme
+        self.alpha = 1 / 1.325070e02  # MG-Input
 
         # Define list of initial state quarks
         self.isq = isq
@@ -115,53 +115,46 @@ class DrellYan:
             "b": 1 / 2,
         }
 
-    def a(self, s: tf.Tensor, mode: str, isq: str):
-        if mode == "ZZ":
-            m_ZZ = (
-                (self.V_q[isq] ** 2 + self.A_q[isq] ** 2)
-                * (self.V_l**2 + self.A_l**2)
-                / 4
-            )
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 4 * factor_g2**2 * m_ZZ
-        elif mode == "yy":
-            m_yy = 4 * self.Q_f[isq] ** 2
-            factor_e2 = 4 * m.pi * self.alpha
-            return s**2 / 4 * factor_e2**2 * m_yy
-        else:
-            m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 4 * factor_g2 * factor_e2 * m_yz
+    def a_ZZ(self, s: tf.Tensor, isq: str):
+        m_ZZ = (
+            (self.V_q[isq] ** 2 + self.A_q[isq] ** 2)
+            * (self.V_l**2 + self.A_l**2)
+            / 4
+        )
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
+        return s**2 / 4 * factor_g2**2 * m_ZZ
 
-    def b(self, s: tf.Tensor, mode: str, isq: str):
-        if mode == "ZZ":
-            m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 2 * factor_g2**2 * m_ZZ
-        elif mode == "yy":
-            return 0.0
-        else:
-            m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 2 * factor_g2 * factor_e2 * m_yz
+    def a_yy(self, s: tf.Tensor, isq: str):
+        m_yy = 4 * self.Q_f[isq] ** 2
+        factor_e2 = 4 * m.pi * self.alpha
+        return s**2 / 4 * factor_e2**2 * m_yy
 
-    def prop_factor(self, s: tf.Tensor, mode: str):
-        if mode == "ZZ":
-            den = (s - self.mz**2) ** 2 + self.wz**2 * self.mz**2
-            return 1 / den
-        elif mode == "yy":
-            den = s**2
-            return 1 / den
-        else:
-            nom = s - self.mz**2
-            den = s * ((s - self.mz**2) ** 2 + self.wz**2 * self.mz**2)
-            return nom / den
+    def a_yZ(self, s: tf.Tensor, isq: str):
+        m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
+        return s**2 / 4 * factor_g2 * factor_e2 * m_yz
 
-    def amp2_single(self, cos_theta: tf.Tensor, s: tf.Tensor, mode: str, isq: str):
+    def b_ZZ(self, s: tf.Tensor, isq: str):
+        m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
+        return s**2 / 2 * factor_g2**2 * m_ZZ
+
+    def b_yZ(self, s: tf.Tensor, isq: str):
+        m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2 / (self.cw2 * self.sw2)
+        return s**2 / 2 * factor_g2 * factor_e2 * m_yz
+
+    def prop_factor(self, s: tf.Tensor, m1: float, m2: float, w1: float, w2: float):
+        nom = s**2 - s * (m1**2 + m2**2) + m1**2 * m2**2 + w1 * w2 * m1 * m2
+        den1 = (s - m1**2) ** 2 + w1**2 * m1**2
+        den2 = (s - m2**2) ** 2 + w2**2 * m2**2
+        return nom / (den1 * den2)
+
+    def amp2_single(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Squared single diagram matrix element for a given production mode
 
         Args:
@@ -175,14 +168,18 @@ class DrellYan:
                 or Re(M_yM^*_Z) for interference depending on the mode.
         """
         n_spins = 2
-        if mode == "yy":
-            return (
-                n_spins**2 * self.prop_factor(s, mode) * self.a(s, mode, isq) * (1 + cos_theta**2)
-            )
+        Kyy = self.a_yy(s, isq) * (1 + cos_theta**2)
+        Kzz = self.a_ZZ(s, isq) * (1 + cos_theta**2) + self.b_ZZ(s, isq) * cos_theta
+        Kyz = self.a_yZ(s, isq) * (1 + cos_theta**2) + self.b_yZ(s, isq) * cos_theta
 
-        m_sym = self.a(s, mode, isq) * (1 + cos_theta**2)
-        m_asym = self.b(s, mode, isq) * cos_theta
-        return n_spins**2 * self.prop_factor(s, mode) * (m_sym + m_asym) #TODO: where does this minus come from?
+        # Squares
+        m_yy = Kyy * n_spins**2 * self.prop_factor(s, 0, 0, 0, 0)
+        m_ZZ = (
+            Kzz * n_spins**2 * self.prop_factor(s, self.mz, self.mz, self.wz, self.wz)
+        )
+        m_yZ = Kyz * n_spins**2 * self.prop_factor(s, 0, self.mz, 0, self.wz)
+
+        return m_yy, m_ZZ, m_yZ
 
     def amp2_all(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Full squared matrix element.
@@ -195,9 +192,7 @@ class DrellYan:
         Returns:
             m2: Full squared matrix element (|M_Z + M_y|^2)
         """
-        m_yy = self.amp2_single(cos_theta, s, "yy", isq)
-        m_ZZ = self.amp2_single(cos_theta, s, "ZZ", isq)
-        m_int = self.amp2_single(cos_theta, s, "yZ", isq)
+        m_yy, m_ZZ, m_int = self.amp2_single(cos_theta, s, isq)
         return m_yy + self.z_scale * (m_ZZ + 2 * m_int)
 
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
@@ -220,11 +215,15 @@ class DrellYan:
             p_dxs (tf.Tensor): partonic differential cross-section
         """
         cs_factor = 1 / (4 * NC)
-        ps_weight = 1 / (32 * m.pi**2) # TODO: Remove this from amplitude! -> PS-Mapping
-        fluxm1 = 1 / (2 * s) # TODO: also remove from amplitude -> Different class CrossSection?
+        ps_weight = 1 / (
+            32 * m.pi**2
+        )  # TODO: Remove this from amplitude! -> PS-Mapping
+        fluxm1 = 1 / (
+            2 * s
+        )  # TODO: also remove from amplitude -> Different class CrossSection?
         return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
-    def hadronic_dxs( #TODO: Shift to new class CrossSection?
+    def hadronic_dxs(  # TODO: Shift to new class CrossSection?
         self,
         x1: tf.Tensor,
         x2: tf.Tensor,
@@ -252,7 +251,7 @@ class DrellYan:
         x1 = tf.cast(x1, dtype=self._dtype)
         x2 = tf.cast(x2, dtype=self._dtype)
         s_parton = x1 * x2 * self.s_had
-        
+
         # Calculate pdfs
         # Taking account symmetry in p p
         pdf_1a = self.pdf.xfxQ2(pid, x1, q2) / x1
