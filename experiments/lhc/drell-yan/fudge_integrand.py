@@ -127,68 +127,54 @@ class FudgeDrellYan:
             "b": 1 / 2,
         }
 
-    def a(self, s: tf.Tensor, mode: str, isq: str):
-        # resonances
-        if mode == "ZZ" or mode == "ZpZp" or mode == "ZZp":
-            m_ZZ = (
-                (self.V_q[isq] ** 2 + self.A_q[isq] ** 2)
-                * (self.V_l**2 + self.A_l**2)
-                / 4
-            )
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 4 * factor_g2**2 * m_ZZ
-        elif mode == "yy":
-            m_yy = 4 * self.Q_f[isq] ** 2
-            factor_e2 = 4 * m.pi * self.alpha
-            return s**2 / 4 * factor_e2**2 * m_yy
-        else:
-            m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 4 * factor_g2 * factor_e2 * m_yz
+    @tf.function
+    def a_ZZ(self, s: tf.Tensor, isq: str):
+        m_ZZ = (
+            (self.V_q[isq] ** 2 + self.A_q[isq] ** 2)
+            * (self.V_l**2 + self.A_l**2)
+            / 4
+        )
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2/(self.cw2 * self.sw2)
+        return s**2 / 4 * factor_g2**2 * m_ZZ
+        
+    @tf.function
+    def a_yy(self, s: tf.Tensor, isq: str):
+        m_yy = 4 * self.Q_f[isq] ** 2
+        factor_e2 = 4 * m.pi * self.alpha
+        return s**2 / 4 * factor_e2**2 * m_yy
+        
+    @tf.function
+    def a_yZ(self, s: tf.Tensor, isq: str):
+        m_yz = (-1) * self.Q_f[isq] * self.V_q[isq] * self.V_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2/(self.cw2 * self.sw2)
+        return s**2 / 4 * factor_g2 * factor_e2 * m_yz
+    
 
-    def b(self, s: tf.Tensor, mode: str, isq: str):
-        if mode == "ZZ" or mode == "ZpZp" or mode == "ZZp":
-            m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 2 * factor_g2**2 * m_ZZ
-        elif mode == "yy":
-            return 0.0
-        else:
-            m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
-            factor_e2 = 4 * m.pi * self.alpha
-            factor_g2 = factor_e2/(self.cw2 * self.sw2)
-            return s**2 / 2 * factor_g2 * factor_e2 * m_yz
+    @tf.function
+    def b_ZZ(self, s: tf.Tensor, isq: str):
+        m_ZZ = (-1) * self.A_q[isq] * self.A_l * self.V_q[isq] * self.V_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2/(self.cw2 * self.sw2)
+        return s**2 / 2 * factor_g2**2 * m_ZZ
+        
+    @tf.function
+    def b_yZ(self, s: tf.Tensor, isq: str):
+        m_yz = self.Q_f[isq] * self.A_q[isq] * self.A_l
+        factor_e2 = 4 * m.pi * self.alpha
+        factor_g2 = factor_e2/(self.cw2 * self.sw2)
+        return s**2 / 2 * factor_g2 * factor_e2 * m_yz
+    
+    @tf.function
+    def prop_factor(self, s: tf.Tensor, m1: float, m2: float, w1: float, w2: float):
+        nom = s**2 - s*(m1**2 + m2**2) + m1**2 * m2**2 + w1 * w2 * m1 * m2
+        den1 = ((s - m1**2) ** 2 + w1**2 * m1**2)
+        den2 = ((s - m2**2) ** 2 + w2**2 * m2**2)
+        return nom / (den1 * den2)
 
-    def prop_factor(self, s: tf.Tensor, mode: str):
-        # Squares
-        if mode == "ZZ":
-            den = (s - self.mz**2) ** 2 + self.wz**2 * self.mz**2
-            return 1 / den
-        elif mode == "ZpZp":
-            den = (s - self.mzp**2) ** 2 + self.wzp**2 * self.mzp**2
-            return 1 / den
-        elif mode == "yy":
-            den = s**2
-            return 1 / den
-        # Interferences
-        elif mode == "yZ":
-            nom = s - self.mz**2
-            den = s * ((s - self.mz**2) ** 2 + self.wz**2 * self.mz**2)
-            return nom / den
-        elif mode == "ZZp":
-            nom = s**2 - s*(self.mz**2 + self.mzp**2) + self.mzp**2 * self.mz**2 + self.wzp * self.wz * self.mz * self.mzp
-            den1 = ((s - self.mz**2) ** 2 + self.wz**2 * self.mz**2)
-            den2 = ((s - self.mzp**2) ** 2 + self.wzp**2 * self.mzp**2)
-            return nom / den1 / den2
-        else:
-            nom = s - self.mzp**2
-            den = s * ((s - self.mzp**2) ** 2 + self.wzp**2 * self.mzp**2)
-            return nom / den
-
-    def amp2_single(self, cos_theta: tf.Tensor, s: tf.Tensor, mode: str, isq: str):
+    @tf.function
+    def amp2_single(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Squared single diagram matrix element for a given production mode
 
         Args:
@@ -202,15 +188,23 @@ class FudgeDrellYan:
                 or Re(M_yM^*_Z) for interference depending on the mode.
         """
         n_spins = 2
-        if mode == "yy":
-            return (
-                n_spins**2 * self.prop_factor(s, mode) * self.a(s, mode, isq) * (1 + cos_theta**2)
-            )
+        Kyy = self.a_yy(s, isq) * (1 + cos_theta**2)
+        Kzz = self.a_ZZ(s, isq) * (1 + cos_theta**2) + self.b_ZZ(s, isq) * cos_theta
+        Kyz = self.a_yZ(s, isq) * (1 + cos_theta**2) + self.b_yZ(s, isq) * cos_theta
+        
+        # Squares
+        m_yy   = Kyy * n_spins**2 * self.prop_factor(s, 0, 0, 0, 0)
+        m_ZZ   = Kzz * n_spins**2 * self.prop_factor(s, self.mz, self.mz, self.wz, self.wz)
+        m_ZpZp = Kzz * n_spins**2 * self.prop_factor(s, self.mzp, self.mzp, self.wzp, self.wzp)
+        
+        # interferences
+        m_ZZp = Kzz * n_spins**2 * self.prop_factor(s, self.mz, self.mzp, self.wz, self.wzp)
+        m_yZp = Kyz * n_spins**2 * self.prop_factor(s, 0, self.mzp, 0, self.wzp)
+        m_yZ  = Kyz * n_spins**2 * self.prop_factor(s, 0, self.mz, 0, self.wz)
+        
+        return m_yy, m_ZZ, m_ZpZp, m_ZZp, m_yZp, m_yZ
 
-        m_sym = self.a(s, mode, isq) * (1 + cos_theta**2)
-        m_asym = self.b(s, mode, isq) * cos_theta
-        return n_spins**2 * self.prop_factor(s, mode) * (m_sym + m_asym)
-
+    @tf.function
     def amp2_all(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Full squared matrix element.
 
@@ -223,17 +217,13 @@ class FudgeDrellYan:
             m2: Full squared matrix element (|M_Z + M_y|^2)
         """
         # Squares
-        m_yy = self.amp2_single(cos_theta, s, "yy", isq)
-        m_ZZ = self.amp2_single(cos_theta, s, "ZZ", isq)
-        m_ZpZp = self.amp2_single(cos_theta, s, "ZpZp", isq)
+        m_yy, m_ZZ, m_ZpZp, m_ZZp, m_yZp, m_yZ = self.amp2_single(cos_theta, s, isq)
         m_squares = m_yy + m_ZZ + m_ZpZp/20
         # interferences
-        m_yZ = self.amp2_single(cos_theta, s, "yZ", isq)
-        m_yZp = self.amp2_single(cos_theta, s, "yZp", isq)
-        m_ZZp = self.amp2_single(cos_theta, s, "ZZp", isq)
         m_int = m_yZ + m_yZp + m_ZZp/20
         return m_squares + 2 * m_int
 
+    @tf.function
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
 
@@ -258,7 +248,8 @@ class FudgeDrellYan:
         fluxm1 = 1 / (2 * s) # TODO: also remove from amplitude -> Different class CrossSection?
         return fluxm1 * ps_weight * cs_factor * self.amp2_all(cos_theta, s, isq)
 
-    def hadronic_dxs( #TODO: Shift to new class CrossSection?
+    @tf.function
+    def hadronic_dxs(
         self,
         x1: tf.Tensor,
         x2: tf.Tensor,
@@ -297,20 +288,6 @@ class FudgeDrellYan:
 
         return pdf_factor * self.partonic_dxs(cos_theta, s_parton, isq)
 
-    def _cartesian_det(self, r3, x1, x2):
-        s = self.s_had * x1 * x2
-        r2 = tf.math.log(x1) / tf.math.log(s / self.s_had)
-        det1 = 4 * m.pi * tf.math.log(self.s_had / s) / self.s_had
-        det2 = (
-            m.pi
-            * (s / self.s_had) ** (-2 * r2)
-            * (-r3 * s + (-1 + r3) * (s / self.s_had) ** (2 * r2) * self.s_had)
-            * (s - r3 * s + r3 * (s / self.s_had) ** (2 * r2) * self.s_had)
-            * tf.math.log(s / self.s_had)
-            / (4 * self.s_had)
-        )
-        det = det1 / det2
-        return det
 
     def __call__(self, p: tf.Tensor):
         """Calculate the full hadronic event weight including pdfs and
@@ -323,33 +300,12 @@ class FudgeDrellYan:
         Returns:
             w (tf.Tensor): Returns weight of the event with shape `(1,)`.
         """
-        if self.input_format == "cartesian":
-            # Map input to needed quantities
-            px1, py1, pz1, pz2 = tf.unstack(p, axis=-1)
-            e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
-            e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
-            pz_tot = pz1 + pz2
-            e_tot = e1 + e2
-            x1 = (e_tot + pz_tot) / (self.e_had)
-            x2 = (e_tot - pz_tot) / (self.e_had)
-            r3 = (2 * pz1 / self.e_had + x2) / (x1 + x2)
-            cos_theta = 2 * r3 - 1
+        # Map input to needed quantities
+        x1, x2, cos_theta, phi = tf.unstack(p, axis=-1)
 
-            # Trafo determinant
-            det = self._cartesian_det(r3, x1, x2)
-
-        elif self.input_format == "convpolar":
-            # Map input to needed quantities
-            x1, x2, cos_theta, phi = tf.unstack(p, axis=-1)
-
-            # Trafo determinant
-            det = 1.0
-        else:
-            raise ValueError('Input format must be either "cartesian" or "convpolar"')
-
-        # Calculat full weight
+        # Calculate full weight
         w = 0
         for isq in self.isq:
             w += self.hadronic_dxs(x1, x2, cos_theta, isq)
 
-        return tf.constant(det, dtype=self._dtype) * w
+        return w
