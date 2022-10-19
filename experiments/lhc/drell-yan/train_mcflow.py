@@ -10,9 +10,9 @@ import time
 from mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
-from madnis.distributions.camel import NormalizedMultiDimCamel
+from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
-from dy_integrand import DrellYan, MZ, WZ
+from dy_integrand import DrellYan, MZ
 from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser()
 
 # Data params
 parser.add_argument("--train_batches", type=int, default=1000)
-parser.add_argument("--int_samples", type=int, default=10000)
+parser.add_argument("--int_samples", type=int, default=1000000)
 
 # model params
 parser.add_argument("--use_prior_weights", action='store_true')
@@ -41,19 +41,32 @@ parser.add_argument("--activation", type=str, default="leakyrelu", choices={"rel
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
 
+# sm-parameters
+parser.add_argument("--z_width_scale", type=float, default=1)
+
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
-# Define the number of channels
+# Define the number of channels and process
 parser.add_argument("--channels", type=int, default=2)
+parser.add_argument("--cut", type=float, default=15)
+parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument('--train_mcw', action='store_true')
+parser.add_argument('--fixed_mcw', dest='train_mcw', action='store_false')
+parser.set_defaults(train_mcw=True)
+
+# Plot
+parser.add_argument("--pre_plotting", action='store_true')
+parser.add_argument("--post_plotting", action='store_true')
 
 args = parser.parse_args()
+
 
 ################################
 # Define integrand
@@ -63,31 +76,38 @@ DTYPE = tf.keras.backend.floatx()
 DIMS_IN = 4  # dimensionality of data space
 N_CHANNELS = args.channels  # number of Channels. Default is 2
 INT_SAMPLES = args.int_samples
-RES_TO_PB = 0.389379 * 1e9 # Conversion factor
+PLOT_SAMPLES = int(1e6)
+RES_TO_PB = 0.389379 * 1e9 # Conversion factor from GeV^-2 to pb
+CUT = args.cut
+SINGLE_MAP = args.single_map
+MAPS = SINGLE_MAP if N_CHANNELS == 1  else "yZ"
+
+Z_SCALE = args.z_width_scale
+WZ = 2.441404e-00 * Z_SCALE
+
+LOG_DIR = f'./plots/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll_{Z_SCALE}scale/'
+print(LOG_DIR)
 
 # Define truth integrand
-integrand = DrellYan(["u", "d", "c", "s", "u", "d", "c", "s"], input_format="convpolar")
+integrand = DrellYan(["u", "d", "c", "s"], input_format="convpolar", wz=WZ, z_scale=Z_SCALE) # 
 #integrand = lambda x: tf.constant(1.0, dtype=DTYPE) # For testing phase-space volume
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
-print(f" Dimensions: {DIMS_IN}                                    ")
-print(f" Channels: {N_CHANNELS}                                   ")
+print(f" Dimensions : {DIMS_IN}                                   ")
+print(f" Channels   : {N_CHANNELS}                                ")
+print(f" Z-Width    : {WZ} GeV                                    ")
 print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
-map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
-map_y = TwoParticlePhasespaceB()
-
-# # TODO: Make flat but consider cut m_inv > 50 GeV
-# # Otherwise infinite cross section!
-# map_flat = TwoParticlePhasespaceFlatB()
+map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
+map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT)
 
 ################################
 # Define the flow network
 ################################
 
-PRIOR = args.use_prior_weights
+PRIOR = True #args.use_prior_weights
 
 FLOW_META = {
     "units": args.units,
@@ -148,6 +168,7 @@ EPOCHS = args.epochs
 BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
+TRAIN_MCW = args.train_mcw
 
 # Number of samples
 # TRAIN_SAMPLES = args.train_batches
@@ -166,19 +187,78 @@ opt1 = tf.keras.optimizers.Adam(lr_schedule1)
 opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
 # Add mappings to integrator
-MAPPINGS = [map_y, map_Z]
+if SINGLE_MAP == "Z":
+    MAPPINGS = [map_Z]
+else:
+    MAPPINGS = [map_y]
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
-    MAPPINGS.append(map_y)
+    MAPPINGS.append(map_Z)
 
-integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1, opt2],
-    mcw_model=mcw_net,
-    mappings=MAPPINGS,
-    use_weight_init=PRIOR,
-    n_channels=N_CHANNELS,
-    loss_func=LOSS
-)
+base_dist = StandardUniform((DIMS_IN,))
+
+if TRAIN_MCW:
+    integrator = MultiChannelIntegrator(
+        integrand, flow, [opt1, opt2],
+        mcw_model=mcw_net,
+        mappings=MAPPINGS,
+        use_weight_init=PRIOR,
+        n_channels=N_CHANNELS,
+        loss_func=LOSS
+    )
+else:
+    integrator = MultiChannelIntegrator(
+        integrand, flow, [opt1],
+        mcw_model=None,
+        mappings=MAPPINGS,
+        use_weight_init=PRIOR,
+        n_channels=N_CHANNELS,
+        loss_func=LOSS
+    )
+
+################################
+# Pre train - plot sampling
+################################
+
+PLOTTING_PRE = args.pre_plotting
+
+if PLOTTING_PRE:
+    log_dir = LOG_DIR
+
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
+    def to_four_mom(x):
+        e_beam = 6500
+        x1, x2, costheta, phi = tf.unstack(x, axis=1)
+        s = 4 * e_beam**2 * x1 * x2
+        r3 = (costheta + 1) / 2
+        pz1 = e_beam * (x1*r3 + x2*(r3-1))
+        pz2 = e_beam * (x1*(1-r3) - x2*r3)
+        pt = tf.math.sqrt(s*r3*(1-r3))
+        px1 = pt * tf.math.cos(phi)
+        py1 = pt * tf.math.sin(phi)
+        e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
+        e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
+        return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
+
+    dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
+    channel_data = []
+    for i in range(N_CHANNELS):
+        print(f'Sampling from channel {i}')
+        x, weight, alphas, alphas_prior = integrator.sample_per_channel(
+            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+        p = to_four_mom(x).numpy()
+        alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
+        channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
+        print(f'Plotting distributions for channel {i}')
+        dist.plot(p, p, f'pre_channel_{i}')
+
+    print('Plotting channel weights')
+    dist.plot_channel_weights(channel_data, 'pre_channel_weights')
+
+    print('Plotting weight distribution')
+    plot_weights(channel_data, log_dir, 'pre_weight_dist')
 
 ################################
 # Pre train - integration
@@ -225,10 +305,6 @@ print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
-log_dir = f'./plots/'
-
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
 #integrator.save_weights(log_dir)
 #integrator.load_weights(log_dir + "model/")
 
@@ -236,37 +312,45 @@ if not os.path.exists(log_dir):
 # After train - plot sampling
 ################################
 
-def to_four_mom(x):
-    e_beam = 6500
-    x1, x2, costheta, phi = tf.unstack(x, axis=1)
-    s = 4 * e_beam**2 * x1 * x2
-    r3 = (costheta + 1) / 2
-    pz1 = e_beam * (x1*r3 + x2*(r3-1))
-    pz2 = e_beam * (x1*(1-r3) - x2*r3)
-    pt = tf.math.sqrt(s*r3*(1-r3))
-    px1 = pt * tf.math.cos(phi)
-    py1 = pt * tf.math.sin(phi)
-    e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
-    e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
-    return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
+PLOTTING = args.post_plotting
 
-dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
-channel_data = []
-for i in range(N_CHANNELS):
-    print(f'Sampling from channel {i}')
-    x, weight, alphas, alphas_prior = integrator.sample_per_channel(
-        10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
-    p = to_four_mom(x).numpy()
-    alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
-    channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-    print(f'Plotting distributions for channel {i}')
-    dist.plot(p, p, f'after-channel-{i}')
+if PLOTTING:
+    log_dir = LOG_DIR
 
-print('Plotting channel weights')
-dist.plot_channel_weights(channel_data, 'channel-weights')
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
 
-print('Plotting weight distribution')
-plot_weights(channel_data, log_dir, 'drell_yan_weight-dist')
+    def to_four_mom(x):
+        e_beam = 6500
+        x1, x2, costheta, phi = tf.unstack(x, axis=1)
+        s = 4 * e_beam**2 * x1 * x2
+        r3 = (costheta + 1) / 2
+        pz1 = e_beam * (x1*r3 + x2*(r3-1))
+        pz2 = e_beam * (x1*(1-r3) - x2*r3)
+        pt = tf.math.sqrt(s*r3*(1-r3))
+        px1 = pt * tf.math.cos(phi)
+        py1 = pt * tf.math.sin(phi)
+        e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
+        e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
+        return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
+
+    dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
+    channel_data = []
+    for i in range(N_CHANNELS):
+        print(f'Sampling from channel {i}')
+        x, weight, alphas, alphas_prior = integrator.sample_per_channel(
+            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+        p = to_four_mom(x).numpy()
+        alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
+        channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
+        print(f'Plotting distributions for channel {i}')
+        dist.plot(p, p, f'post_channel_{i}')
+
+    print('Plotting channel weights')
+    dist.plot_channel_weights(channel_data, 'post_channel_weights')
+
+    print('Plotting weight distribution')
+    plot_weights(channel_data, log_dir, 'post_weight_dist')
 
 ################################
 # After train - integration

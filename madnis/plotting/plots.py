@@ -83,11 +83,16 @@ def plot_loss(loss, log_dir=".", name="", log_axis=True):
 
 def plot_weights(channel_data, log_dir=".", name=""):
     """Plot histogram of weights"""
-    fig, ax1 = plt.subplots(1, figsize=(10, 4))
+    fig, ax1 = plt.subplots(1, figsize=(6.6, 6))
     all_weights = np.stack([weights for _, weights, _, _ in channel_data])
-    w_min = np.min(all_weights)
-    w_max = np.max(all_weights)
+    m_weight = np.mean(all_weights)
+    w_min = np.min(all_weights/m_weight)
+    w_max = np.max(all_weights/m_weight)
     bins = np.logspace(np.log10(w_min), np.log10(w_max), 40)
+    
+    for label in ( [ax1.yaxis.get_offset_text()] +
+                    ax1.get_xticklabels() + ax1.get_yticklabels()):
+        label.set_fontsize(FONTSIZE-2)
 
     for i, (_, weights, _, _) in enumerate(channel_data):
         color = f"C{i}"
@@ -99,16 +104,17 @@ def plot_weights(channel_data, log_dir=".", name=""):
             ax1.fill_between(bins, dup_last(wh - wh_err), dup_last(wh + wh_err),
                              facecolor=color, alpha=0.3, step="post")
         else:
-            wh, _ = np.histogram(weights, bins=bins)
+            m_weight = np.mean(weights)
+            wh, _ = np.histogram(weights/m_weight, bins=bins)
 
         ax1.stairs(
             wh, edges=bins, color=color, label=f"chan {i}", linewidth=1.0, baseline=None)
 
     ax1.set_xscale("log")
     ax1.set_yscale("log")
-    ax1.set_xlabel("Weight")
-    ax1.set_ylabel("Number of events")
-    ax1.legend()
+    ax1.set_xlabel("Weight", fontsize = FONTSIZE-2)
+    ax1.set_ylabel("Number of events", fontsize = FONTSIZE-2)
+    ax1.legend(frameon=False, prop={"size": int(FONTSIZE-5)}, loc='upper left')
     fig.savefig(log_dir + "/%s.pdf" % name, dpi=120, bbox_inches="tight")
     plt.close("all")
 
@@ -393,7 +399,7 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
         yfmt.set_powerlimits((0,0))
         axs[0].yaxis.set_major_formatter(yfmt)
 
-    y_t, _ = np.histogram(y_train, args["bins"], density=True, range=args["range"])
+    y_t, x_t = np.histogram(y_train, args["bins"], density=True, range=args["range"])
     if len(y_predict.shape) == 2:
         y_predict = y_predict[None,:,:]
         plot_errors = True
@@ -410,9 +416,9 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     y_p_err = np.std(y_ps, axis=0)
 
     line_dat, = axs[0].stairs(
-        y_t, edges=x_p, color=dcolor, label='True', linewidth=1.0, baseline=None)
+        y_t, edges=x_t, color=dcolor, label='True', linewidth=1.0, baseline=None)
     line_gen, = axs[0].stairs(
-        y_p, edges=x_p, color=gcolor, label='GAN', linewidth=1.0, baseline=None)
+        y_p, edges=x_t, color=gcolor, label='GAN', linewidth=1.0, baseline=None)
 
     if args["range"] == (-3.14,3.14):
         axs[0].set_ylim((-0.02,0.3))
@@ -444,12 +450,12 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     r_statp = y_r + r_stat
     r_statm = y_r - r_stat
 
-    axs[1].stairs(y_r, edges=x_p, color='black', linewidth=1.0, baseline=None)
+    axs[1].stairs(y_r, edges=x_t, color='black', linewidth=1.0, baseline=None)
     axs[1].stairs(
-        r_statp, edges=x_p, color='grey', label='$+- stat$', linewidth=0.5, baseline=None)
+        r_statp, edges=x_t, color='grey', label='$+- stat$', linewidth=0.5, baseline=None)
     axs[1].stairs(
-        r_statm, edges=x_p, color='grey', linewidth=0.5, baseline=None)
-    axs[1].fill_between(x_p[:args["bins"]], r_statm, r_statp, facecolor='grey', alpha = 0.5, step = 'mid')
+        r_statm, edges=x_t, color='grey', linewidth=0.5, baseline=None)
+    axs[1].fill_between(x_t[:args["bins"]], r_statm, r_statp, facecolor='grey', alpha = 0.5, step = 'mid')
 
     axs[1].set_ylim((0.85,1.15))
     axs[1].set_yticks([0.9, 1.0, 1.1])
@@ -461,7 +467,7 @@ def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     y_diff = np.fabs((y_r - 1)) * 100
     diff_stat = 100 * np.sqrt(y_p * (y_p + y_t)/((y_t+dummy)**3))
 
-    axs[2].errorbar(x_p[:args["bins"]], y_diff, yerr=diff_stat, ecolor='grey', color='black', elinewidth=0.5, linewidth=0,  fmt='.', capsize=2)
+    axs[2].errorbar(x_t[:args["bins"]], y_diff, yerr=diff_stat, ecolor='grey', color='black', elinewidth=0.5, linewidth=0,  fmt='.', capsize=2)
 
     axs[2].set_ylim((0.05,20))
     axs[2].set_yscale('log')

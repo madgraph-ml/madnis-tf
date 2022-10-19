@@ -7,7 +7,7 @@ import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
- 
+CUT = 10
 # setting path
 dydir = os.path.abspath("../experiments/lhc/drell-yan/")
 sys.path.append(dydir)
@@ -17,11 +17,11 @@ from madnis.mappings.phasespace_2p import TwoParticlePhasespaceA, TwoParticlePha
 integrandA = DrellYan(["u", "d"], input_format="cartesian")
 integrandB = DrellYan(["u", "d"], input_format="convpolar")
 
-mapA0 = TwoParticlePhasespaceA(s_mass=MZ, s_gamma=WZ)
-mapA1 = TwoParticlePhasespaceA()
+mapA0 = TwoParticlePhasespaceA(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
+mapA1 = TwoParticlePhasespaceA(sqrt_s_min=CUT)
 
-mapB0 = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
-mapB1 = TwoParticlePhasespaceB()
+mapB0 = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
+mapB1 = TwoParticlePhasespaceB(sqrt_s_min=CUT)
 
 E_BEAM = 6500
 
@@ -64,7 +64,7 @@ mB1 = invariant_mass(eventsB1,"convpolar")
 
 # Define histos
 rmax = 250
-rmin = 50
+rmin = CUT
 bins = 50
 
 m_a0, x_bins = np.histogram(mA0, bins=np.linspace(rmin,rmax, bins+1), density=True, weights=weightA0.numpy())

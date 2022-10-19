@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore")
 # -------------------------------------
 MW = 8.041900e01   # W-Boson Mass   8.041900e01 (MG5)
 MZ = 9.118800e01   # Z-Boson Mass   9.118800e01 (MG5)
-WZ = 2.441404e00   # Z-Boson Width  2.441404e00 (MG5)
+WZ = 2.441404e-00   # Z-Boson Width  2.441404e00 (MG5)
 GF = 1.166390e-05  # Fermi Constant 1.166390e-05 (MG5)
 NC = 3  # Color factor
 # -------------------------------------
@@ -37,6 +37,7 @@ class DrellYan:
         gf: float = GF,
         pdfset: str = "NNPDF40_lo_as_01180",
         input_format: str = "cartesian",
+        z_scale: float = 1.0,
         **kwargs
     ):
         """
@@ -65,6 +66,7 @@ class DrellYan:
         self.mz = mz
         self.wz = wz
         self.gf = gf
+        self.z_scale = z_scale
 
         # Define input format
         self.input_format = input_format
@@ -196,7 +198,7 @@ class DrellYan:
         m_yy = self.amp2_single(cos_theta, s, "yy", isq)
         m_ZZ = self.amp2_single(cos_theta, s, "ZZ", isq)
         m_int = self.amp2_single(cos_theta, s, "yZ", isq)
-        return m_yy + m_ZZ + 2 * m_int
+        return m_yy + self.z_scale * (m_ZZ + 2 * m_int)
 
     def partonic_dxs(self, cos_theta: tf.Tensor, s: tf.Tensor, isq: str):
         """Fully differential partonic cross section, i.e.
