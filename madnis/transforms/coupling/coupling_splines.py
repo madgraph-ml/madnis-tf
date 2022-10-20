@@ -52,7 +52,7 @@ class LinearSplineBlock(CouplingTransform):
         return self.num_bins
 
     def _elementwise_function(self, x, a, rev=False):
-        assert a.shape[-1] == self._output_dim_multiplier()
+        tf.debugging.assert_equal(tf.shape(a)[-1], self._output_dim_multiplier())
         y, ldj_elementwise = splines.unconstrained_linear_spline(
             x,
             a,
@@ -78,7 +78,7 @@ class LinearSplineBlock(CouplingTransform):
         # Linear Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=False)
 
@@ -101,7 +101,7 @@ class LinearSplineBlock(CouplingTransform):
         # Linear Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=True)
 
@@ -161,7 +161,7 @@ class QuadraticSplineBlock(CouplingTransform):
         return 2 * self.num_bins + 1
 
     def _elementwise_function(self, x, a, rev=False):
-        assert a.shape[-1] == self._output_dim_multiplier()
+        tf.debugging.assert_equal(tf.shape(a)[-1], self._output_dim_multiplier())
         
         # split into different contributions
         unnormalized_widths = a[..., :self.num_bins]
@@ -193,7 +193,7 @@ class QuadraticSplineBlock(CouplingTransform):
         # Quadrartic Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=False)
 
@@ -216,7 +216,7 @@ class QuadraticSplineBlock(CouplingTransform):
         # Quadrartic Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=True)
 
@@ -276,7 +276,7 @@ class RationalQuadraticSplineBlock(CouplingTransform):
         return 3 * self.num_bins + 1
 
     def _elementwise_function(self, x, a, rev=False):
-        assert a.shape[-1] == self._output_dim_multiplier()
+        tf.debugging.assert_equal(tf.shape(a)[-1], self._output_dim_multiplier())
 
         # split into different contributions
         unnormalized_widths = a[..., : self.num_bins]
@@ -310,7 +310,7 @@ class RationalQuadraticSplineBlock(CouplingTransform):
         # RQS Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=False)
 
@@ -333,7 +333,7 @@ class RationalQuadraticSplineBlock(CouplingTransform):
         # RQS Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=True)
 
@@ -387,7 +387,7 @@ class CubicSplineBlock(CouplingTransform):
         return 2 * self.num_bins + 2
 
     def _elementwise_function(self, x, a, rev=False):
-        assert a.shape[-1] == self._output_dim_multiplier()
+        tf.debugging.assert_equal(tf.shape(a)[-1], self._output_dim_multiplier())
 
         # split into different contributions
         unnormalized_widths = a[..., :self.num_bins]
@@ -423,7 +423,7 @@ class CubicSplineBlock(CouplingTransform):
         # Cubic Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=False)
 
@@ -446,7 +446,7 @@ class CubicSplineBlock(CouplingTransform):
         # Cubic Spline Block
         a1 = tf.reshape(
             self.subnet(x1c),
-            (x1c.shape[0], self.splits[1], self._output_dim_multiplier()),
+            (tf.shape(x1c)[0], self.splits[1], self._output_dim_multiplier()),
         )
         x2, j2 = self._elementwise_function(x2, a1, rev=True)
 

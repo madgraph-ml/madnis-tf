@@ -8,6 +8,7 @@ from typing import List, Union, Callable
 from ..utils.divergences import Divergence
 from ..utils.bayesian import BayesianHelper
 from ..mappings.flow import Flow
+from ..mappings.multi_flow import MultiFlow
 from ..mappings.base import Mapping
 from ..distributions.base import Distribution
 
@@ -80,7 +81,7 @@ class MultiChannelIntegrator:
         self.dist = dist
 
         # Define flow or base mapping
-        if isinstance(dist, Flow):
+        if isinstance(dist, Flow) or isinstance(dist, MultiFlow):
             self.train_flow = True
         else:
             self.train_flow = False
@@ -95,7 +96,7 @@ class MultiChannelIntegrator:
         # Define optimizers
         if len(optimizer) > 1:
             assert self.mcw_model is not None
-            assert isinstance(self.dist, Flow)
+            assert isinstance(self.dist, Flow) or isinstance(self.dist, MultiFlow)
             self.flow_optimizer = optimizer[0]
             self.mcw_optimizer = optimizer[1]
         elif len(optimizer) == 1:
@@ -131,7 +132,7 @@ class MultiChannelIntegrator:
         self.mcw_divergence = Divergence(train_mcw=True, n_channels=self.n_channels, **kwargs)
         self.mcw_loss_func = self.mcw_divergence(loss_func)
 
-        self.uniform_channel_ratio = uniform_channel_ratio
+        self.uniform_channel_ratio = tf.constant(uniform_channel_ratio, dtype=self._dtype)
         self.variance_history_length = variance_history_length
         self.variance_history = []
         self.count_history = []
@@ -208,14 +209,28 @@ class MultiChannelIntegrator:
         return y, logq + jac
 
     @tf.function
+    def _get_samples_fixed(
+        self,
+        nsamples: tf.Tensor,
+        channels: tf.Tensor
+    ):
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
+        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(x, logq, channels)
+        return x, y, logq
+
+    @tf.function
     def _get_samples(
-        self, nsamples: int, channel_weights: tf.Tensor, uniform_channel_ratio: float
+        self,
+        nsamples: tf.Tensor,
+        channel_weights: tf.Tensor,
+        uniform_channel_ratio: tf.Tensor
     ):  
         """
         Args:
-            nsamples (int): Numper of samples to be generated.
+            nsamples (tf.Tensor): Numper of samples to be generated.
             channel_weights (tf.Tensor): Importance of each channel with shape (n_channels,1)
-            uniform_channel_ratio (float): ratio of samples which are distributed
+            uniform_channel_ratio (tf.Tensor): ratio of samples which are distributed
                 uniformly across all channels. If > 0, this guarantees that no channel is empty.
 
         Returns:
@@ -226,7 +241,10 @@ class MultiChannelIntegrator:
         """
         assert channel_weights.shape == (self.n_channels,)
         # Split up nsamples * uniform_channel_ratio equally among all the channels
-        n_uniform = int(nsamples * uniform_channel_ratio)
+        n_uniform = tf.cast(
+            tf.cast(nsamples, self._dtype) * uniform_channel_ratio,
+            tf.dtypes.int32
+        )
         uniform_channels = tf.tile(
             tf.range(self.n_channels), (n_uniform // self.n_channels + 1,)
         )[:n_uniform]
@@ -234,16 +252,16 @@ class MultiChannelIntegrator:
         # after correcting for the uniformly distributed samples
         normed_weights = channel_weights / tf.reduce_sum(channel_weights)
         probs = tf.maximum(
-            normed_weights - uniform_channel_ratio / self.n_channels, 1e-15
+            normed_weights -
+            uniform_channel_ratio / tf.constant(self.n_channels, dtype=self._dtype),
+            1e-15
         )
         sampled_channels = tf.random.categorical(
             tf.math.log(probs)[None, :], nsamples - n_uniform, dtype=tf.int32
         )[0]
         channels = tf.concat((uniform_channels, sampled_channels), axis=0)
 
-        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
-        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
-        y, logq = self._compute_analytic_mappings(x, logq, channels)
+        x, y, logq = self._get_samples_fixed(nsamples, channels)
         return x, tf.math.exp(logq), self._func(y, channels), channels
 
     @tf.function
@@ -256,6 +274,28 @@ class MultiChannelIntegrator:
         weight_prior: Callable = None,
         return_integrand: bool = False,
         return_alphas: bool = False,
+    ):
+        nsamples, q_test, logq, alphas, alphas_prior = self._get_probs_alphas(
+            samples, channels, weight_prior)
+
+        if return_integrand:
+            if return_alphas:
+                if alphas_prior is not None:
+                    alphas_prior = tf.gather(alphas_prior, channels, batch_dims=1)
+                return alphas, alphas_prior, alphas * func_vals / q_sample
+            else:
+                return alphas * func_vals / q_sample
+
+        p_true, logp, means, vars, counts = self._get_probs_integral(
+            nsamples, alphas, q_sample, func_vals, channels)
+        return p_true, q_test, logp, logq, means, vars, counts
+
+    @tf.function
+    def _get_probs_alphas(
+        self,
+        samples: tf.Tensor,
+        channels: tf.Tensor,
+        weight_prior: Callable = None,
     ):
         nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
@@ -292,14 +332,18 @@ class MultiChannelIntegrator:
                 )
         alphas = tf.gather(alphas, channels, batch_dims=1)
 
-        if return_integrand:
-            if return_alphas:
-                if alphas_prior is not None:
-                    alphas_prior = tf.gather(alphas_prior, channels, batch_dims=1)
-                return alphas, alphas_prior, alphas * func_vals / q_sample
-            else:
-                return alphas * func_vals / q_sample
+        return nsamples, q_test, logq, alphas, alphas_prior
 
+
+    @tf.function
+    def _get_probs_integral(
+        self,
+        nsamples: tf.Tensor,
+        alphas: tf.Tensor,
+        q_sample: tf.Tensor,
+        func_vals: tf.Tensor,
+        channels: tf.Tensor,
+    ):
         p_unnormed = alphas * tf.abs(func_vals)
         p_trues = []
         means = []
@@ -319,9 +363,7 @@ class MultiChannelIntegrator:
 
         return (
             p_true,
-            q_test,
             logp,
-            logq,
             tf.convert_to_tensor(means),
             tf.convert_to_tensor(vars),
             tf.convert_to_tensor(counts),
@@ -378,7 +420,7 @@ class MultiChannelIntegrator:
 
     def _get_variance_weights(self):
         if len(self.variance_history) < self.variance_history_length:
-            return tf.fill((self.n_channels,), 1.0)
+            return tf.fill((self.n_channels,), tf.constant(1.0, dtype=self._dtype))
 
         count_hist = tf.convert_to_tensor(self.count_history, dtype=self._dtype)
         var_hist = tf.convert_to_tensor(self.variance_history, dtype=self._dtype)
@@ -412,7 +454,7 @@ class MultiChannelIntegrator:
 
         # Sample from flow
         samples, q_sample, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), self.uniform_channel_ratio
+            tf.constant(nsamples), self._get_variance_weights(), self.uniform_channel_ratio
         )
         self._store_samples(samples, q_sample, func_vals, channels)
 
@@ -463,7 +505,6 @@ class MultiChannelIntegrator:
 
         return tf.reduce_mean(losses)
 
-    @tf.function
     def integrate(self, nsamples: int, weight_prior: Callable = None):
         """Integrate the function with trained distribution.
 
@@ -482,8 +523,14 @@ class MultiChannelIntegrator:
             tuple of 2 tf.tensors: mean and mc error
 
         """
+        return self._integrate(tf.constant(nsamples), weight_prior)
+
+    @tf.function
+    def _integrate(self, nsamples, weight_prior):
         samples, q_sample, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.0
+            nsamples,
+            self._get_variance_weights(),
+            uniform_channel_ratio=tf.constant(0.0, dtype=self._dtype)
         )
         integrands = self._get_probs(
             samples, q_sample, func_vals, channels, weight_prior, return_integrand=True
@@ -497,7 +544,6 @@ class MultiChannelIntegrator:
             var += vari / (tf.cast(tf.shape(integ)[0], self._dtype) - 1.0)
         return mean, tf.sqrt(var)
 
-    @tf.function
     def sample_per_channel(
         self,
         nsamples: int,
@@ -524,14 +570,10 @@ class MultiChannelIntegrator:
             true/test: tf.tensor of size (nsamples, ) of sampled weights
 
         """
-        channels = [channel] * nsamples
-        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
-        x, logq = self.dist.sample_and_log_prob(nsamples, condition=one_hot_channels)
-        y, logq = self._compute_analytic_mappings(x, logq, channels)
-        q_sample = tf.math.exp(logq)
-        alphas, alphas_prior, weight = self._get_probs(
-            x, q_sample, self._func(y, channels), channels, weight_prior,
-            return_integrand=True, return_alphas=True
+        y, weight, alphas, alphas_prior = self._sample_per_channel(
+            tf.constant(nsamples),
+            tf.constant(channel),
+            weight_prior
         )
         if return_alphas:
             return y, weight, alphas, alphas_prior
@@ -539,6 +581,16 @@ class MultiChannelIntegrator:
             return y, weight
 
     @tf.function
+    def _sample_per_channel(self, nsamples, channel, weight_prior):
+        channels = tf.fill((nsamples, ), channel)
+        x, y, logq = self._get_samples_fixed(nsamples, channels)
+        q_sample = tf.math.exp(logq)
+        alphas, alphas_prior, weight = self._get_probs(
+            x, q_sample, self._func(y, channels), channels, weight_prior,
+            return_integrand=True, return_alphas=True
+        )
+        return y, weight, alphas, alphas_prior
+
     def sample_weights(
         self, nsamples: int, yield_samples: bool = False, weight_prior: Callable = None
     ):
@@ -561,17 +613,28 @@ class MultiChannelIntegrator:
             (samples: tf.tensor of size (nsamples, ndims) of sampled points)
 
         """
+        weight, samples = self._sample_weights(
+            tf.constant(nsamples),
+            yield_samples,
+            weight_prior
+        )
+        if yield_samples:
+            return weight, samples
+        else:
+            return weight
+
+    @tf.function
+    def _sample_weights(self, nsamples, weight_prior):
         samples, q_sample, func_vals, channels = self._get_samples(
-            nsamples, self._get_variance_weights(), uniform_channel_ratio=0.0
+            tf.constant(nsamples),
+            self._get_variance_weights(),
+            uniform_channel_ratio=tf.constant(0.0, dtype=self._dtype)
         )
         weight = self._get_probs(
             samples, q_sample, func_vals, channels, weight_prior, return_integrand=True
         )
 
-        if yield_samples:
-            return weight, samples
-
-        return weight
+        return weight, samples
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
         """Calculate the acceptance, i.e. the unweighting

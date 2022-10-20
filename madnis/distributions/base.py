@@ -35,10 +35,10 @@ class Distribution(tf.keras.Model):
         x = tf.convert_to_tensor(x, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if x.shape[0] != condition.shape[0]:
-                raise ValueError(
-                    "Number of input items must be equal to number of condition items."
-                )
+            tf.debugging.assert_equal(
+                tf.shape(x)[0], tf.shape(condition)[0],
+                "Number of input items must be equal to number of condition items."
+            )
         return self._call_log_prob(x, condition)
 
     def _call_log_prob(self, x, condition):
@@ -64,10 +64,10 @@ class Distribution(tf.keras.Model):
         x = tf.convert_to_tensor(x, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if x.shape[0] != condition.shape[0]:
-                raise ValueError(
-                    "Number of input items must be equal to number of condition items."
-                )
+            tf.debugging.assert_equal(
+                tf.shape(x)[0], tf.shape(condition)[0],
+                "Number of input items must be equal to number of condition items."
+            )
         return self._call_prob(x, condition)
 
     def _call_prob(self, x, condition):
@@ -95,8 +95,8 @@ class Distribution(tf.keras.Model):
             samples: Tensor with shape (num_samples, ...) if condition is None, or
             (condition_size, num_samples, ...) if condition is given.
         """
-        if not typechecks.is_positive_int(num_samples):
-            raise TypeError("Number of samples must be a positive integer.")
+        #if not typechecks.is_positive_int(num_samples):
+        #    raise TypeError("Number of samples must be a positive integer.")
 
         if condition is not None:
             condition = tf.convert_to_tensor(condition)
