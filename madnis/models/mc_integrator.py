@@ -83,7 +83,6 @@ class MultiChannelIntegrator:
         self.trainable_weights = []
         if isinstance(dist, Flow) or isinstance(dist, MultiFlow):
             self.train_flow = True
-            self.trainable_weights.extend(dist.trainable_weights)
         else:
             self.train_flow = False
 
@@ -93,7 +92,6 @@ class MultiChannelIntegrator:
             self.train_mcw = False
         else:
             self.train_mcw = True
-            self.trainable_weights.extend(mcw_model.trainable_weights)
 
         # Define optimizer
         self.optimizer = optimizer
@@ -374,8 +372,13 @@ class MultiChannelIntegrator:
             if self.bayesian_helper is not None:
                 loss += self.bayesian_helper.kl_loss()
 
-        grads = tape.gradient(loss, self.trainable_weights)
-        self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
+        trainable_weights = []
+        if self.train_flow:
+            trainable_weights.extend(self.dist.trainable_weights)
+        if self.train_mcw:
+            trainable_weights.extend(self.mcw_model.trainable_weights)
+        grads = tape.gradient(loss, trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, trainable_weights))
 
         return loss, means, vars, counts
 

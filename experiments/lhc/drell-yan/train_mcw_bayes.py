@@ -80,8 +80,9 @@ print(f" Channels: {N_CHANNELS}                                   ")
 print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
-map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
-map_y = TwoParticlePhasespaceB()
+SQRT_S_MIN = 20
+map_Z = TwoParticlePhasespaceB(sqrt_s_min=SQRT_S_MIN, s_mass=MZ, s_gamma=WZ)
+map_y = TwoParticlePhasespaceB(sqrt_s_min=SQRT_S_MIN, nu=2)
 
 # # TODO: Make flat but consider cut m_inv > 50 GeV
 # # Otherwise infinite cross section!
