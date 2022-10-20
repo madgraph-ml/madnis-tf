@@ -208,7 +208,7 @@ class MultiChannelIntegrator:
         jac = tf.dynamic_stitch(idx, jacs)
         return y, logq + jac
 
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def _get_samples_fixed(
         self,
         nsamples: tf.Tensor,
@@ -219,7 +219,7 @@ class MultiChannelIntegrator:
         y, logq = self._compute_analytic_mappings(x, logq, channels)
         return x, y, logq
 
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def _get_samples(
         self,
         nsamples: tf.Tensor,
@@ -264,7 +264,7 @@ class MultiChannelIntegrator:
         x, y, logq = self._get_samples_fixed(nsamples, channels)
         return x, tf.math.exp(logq), self._func(y, channels), channels
 
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def _get_probs(
         self,
         samples: tf.Tensor,
