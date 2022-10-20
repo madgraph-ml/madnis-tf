@@ -192,11 +192,8 @@ DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
-lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-
-opt1 = tf.keras.optimizers.Adam(lr_schedule1)
-opt2 = tf.keras.optimizers.Adam(lr_schedule2)
+lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
 if SINGLE_MAP == "Z":
@@ -211,7 +208,7 @@ base_dist = StandardUniform((DIMS_IN,))
 
 if TRAIN_MCW:
     integrator = MultiChannelIntegrator(
-        integrand, flow, [opt1, opt2],
+        integrand, flow, opt,
         mcw_model=mcw_net,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
@@ -220,7 +217,7 @@ if TRAIN_MCW:
     )
 else:
     integrator = MultiChannelIntegrator(
-        integrand, flow, [opt1],
+        integrand, flow, opt,
         mcw_model=None,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
@@ -309,7 +306,7 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()

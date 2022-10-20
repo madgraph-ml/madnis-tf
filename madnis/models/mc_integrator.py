@@ -24,7 +24,7 @@ class MultiChannelIntegrator:
         self,
         func: Union[Callable, Distribution],
         dist: Distribution,
-        optimizer: List[tf.keras.optimizers.Optimizer],
+        optimizer: tf.keras.optimizers.Optimizer,
         mcw_model: tf.keras.Model = None,
         mappings: List[Mapping] = None,
         use_weight_init: bool = True,
@@ -34,8 +34,7 @@ class MultiChannelIntegrator:
         uniform_channel_ratio: float = 1.0,
         variance_history_length: int = 20,
         integrand_has_channels: bool = False,
-        flow_bayesian_helper: BayesianHelper = None,
-        mcw_bayesian_helper: BayesianHelper = None,
+        bayesian_helper: BayesianHelper = None,
         **kwargs,
     ):
         """
@@ -81,8 +80,10 @@ class MultiChannelIntegrator:
         self.dist = dist
 
         # Define flow or base mapping
+        self.trainable_weights = []
         if isinstance(dist, Flow) or isinstance(dist, MultiFlow):
             self.train_flow = True
+            self.trainable_weights.extend(dist.trainable_weights)
         else:
             self.train_flow = False
 
@@ -92,24 +93,10 @@ class MultiChannelIntegrator:
             self.train_mcw = False
         else:
             self.train_mcw = True
+            self.trainable_weights.extend(mcw_model.trainable_weights)
 
-        # Define optimizers
-        if len(optimizer) > 1:
-            assert self.mcw_model is not None
-            assert isinstance(self.dist, Flow) or isinstance(self.dist, MultiFlow)
-            self.flow_optimizer = optimizer[0]
-            self.mcw_optimizer = optimizer[1]
-        elif len(optimizer) == 1:
-            if self.mcw_model is not None:
-                self.flow_optimizer = None
-                self.mcw_optimizer = optimizer[0]
-            else:
-                self.flow_optimizer = optimizer[0]
-                self.mcw_optimizer = None
-        else:
-            raise ValueError(
-                f"Number of given optimziers: {len(optimizer)}, must be either 2 or 1."
-            )
+        # Define optimizer
+        self.optimizer = optimizer
 
         self.use_weight_init = use_weight_init
 
@@ -126,11 +113,8 @@ class MultiChannelIntegrator:
             self.use_analytic_mappings = False
 
         # Define the loss functions
-        self.flow_divergence = Divergence(n_channels=self.n_channels, **kwargs)
-        self.flow_loss_func = self.flow_divergence(loss_func)
-
-        self.mcw_divergence = Divergence(train_mcw=True, n_channels=self.n_channels, **kwargs)
-        self.mcw_loss_func = self.mcw_divergence(loss_func)
+        self.divergence = Divergence(n_channels=self.n_channels, **kwargs)
+        self.loss_func = self.divergence(loss_func)
 
         self.uniform_channel_ratio = tf.constant(uniform_channel_ratio, dtype=self._dtype)
         self.variance_history_length = variance_history_length
@@ -145,8 +129,7 @@ class MultiChannelIntegrator:
             self.stored_channels = []
             self.stored_dataset = None
 
-        self.flow_bayesian_helper = flow_bayesian_helper
-        self.mcw_bayesian_helper = mcw_bayesian_helper
+        self.bayesian_helper = bayesian_helper
 
     def _store_samples(
         self,
@@ -378,43 +361,21 @@ class MultiChannelIntegrator:
         channels: tf.Tensor,
         weight_prior: Callable,
     ):
-        loss = 0
         if not self.train_flow and not self.train_mcw:
             raise ValueError("No network defined which can be optimized")
 
-        # Optimize the Flow
-        if self.train_flow:
-            with tf.GradientTape() as tape:
-                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
-                    samples, q_sample, func_vals, channels, weight_prior
-                )
-                flow_loss = self.flow_loss_func(
-                    p_true, q_test, logp, logq, channels, q_sample=q_sample
-                )
-                if self.flow_bayesian_helper is not None:
-                    flow_loss += self.flow_bayesian_helper.kl_loss()
-
-            grads = tape.gradient(flow_loss, self.dist.trainable_weights)
-            self.flow_optimizer.apply_gradients(zip(grads, self.dist.trainable_weights))
-            loss += flow_loss
-
-        # Optimize the channel weight
-        if self.train_mcw:
-            with tf.GradientTape() as tape:
-                p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
-                    samples, q_sample, func_vals, channels, weight_prior
-                )
-                mcw_loss = self.mcw_loss_func(
-                    p_true, q_test, logp, logq, channels, q_sample=q_sample
-                )
-                if self.mcw_bayesian_helper is not None:
-                    mcw_loss += self.mcw_bayesian_helper.kl_loss()
-
-            grads = tape.gradient(mcw_loss, self.mcw_model.trainable_weights)
-            self.mcw_optimizer.apply_gradients(
-                zip(grads, self.mcw_model.trainable_weights)
+        with tf.GradientTape() as tape:
+            p_true, q_test, logp, logq, means, vars, counts = self._get_probs(
+                samples, q_sample, func_vals, channels, weight_prior
             )
-            loss += mcw_loss
+            loss = self.loss_func(
+                p_true, q_test, logp, logq, channels, q_sample=q_sample
+            )
+            if self.bayesian_helper is not None:
+                loss += self.bayesian_helper.kl_loss()
+
+        grads = tape.gradient(loss, self.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
 
         return loss, means, vars, counts
 
