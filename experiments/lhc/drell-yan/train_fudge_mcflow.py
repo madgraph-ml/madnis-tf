@@ -15,6 +15,7 @@ from fudge_integrand import FudgeDrellYan, MZ, MZP, WZP
 from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.mappings.multi_flow import MultiFlow
 
 import sys
 
@@ -39,6 +40,7 @@ parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--separate_flows", action="store_true")
 
 # sm-parameters
 parser.add_argument("--z_width_scale", type=float, default=1)
@@ -84,7 +86,7 @@ MAPS = SINGLE_MAP if N_CHANNELS == 1  else "ZZp"
 Z_SCALE = args.z_width_scale
 WZ = 2.441404e-00 * Z_SCALE
 
-LOG_DIR = f'./plots/fudge/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll/'
+LOG_DIR = f'./plots/zprime/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll/'
 print(LOG_DIR)
 
 # Define truth integrand
@@ -100,7 +102,7 @@ print("-----------------------------------------------------------\n")
 # Define the channel mappings
 map_Zp = TwoParticlePhasespaceB(s_mass=MZP, s_gamma=WZP, sqrt_s_min=CUT)
 map_Z  = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
-map_y  = TwoParticlePhasespaceB(sqrt_s_min=CUT)
+map_y  = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
 
 ################################
 # Define the flow network
@@ -117,14 +119,24 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = RQSVegasFlow(
-    [DIMS_IN],
-    dims_c=[[N_CHANNELS]],
-    n_blocks=N_BLOCKS,
-    subnet_meta=FLOW_META,
-    subnet_constructor=MLP,
-    hypercube_target=True,
-)
+if args.separate_flows:
+    flow = MultiFlow([RQSVegasFlow(
+        [DIMS_IN],
+        dims_c=None,
+        n_blocks=N_BLOCKS,
+        subnet_meta=FLOW_META,
+        subnet_constructor=MLP,
+        hypercube_target=True,
+    ) for i in range(N_CHANNELS)])
+else:
+    flow = RQSVegasFlow(
+        [DIMS_IN],
+        dims_c=[[N_CHANNELS]],
+        n_blocks=N_BLOCKS,
+        subnet_meta=FLOW_META,
+        subnet_constructor=MLP,
+        hypercube_target=True,
+    )
 
 ################################
 # Define the mcw network
@@ -179,11 +191,8 @@ DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
-lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-
-opt1 = tf.keras.optimizers.Adam(lr_schedule1)
-opt2 = tf.keras.optimizers.Adam(lr_schedule2)
+lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
 MAPPINGS = [map_Z, map_Zp]
@@ -195,7 +204,7 @@ base_dist = StandardUniform((DIMS_IN,))
 
 if TRAIN_MCW:
     integrator = MultiChannelIntegrator(
-        integrand, flow, [opt1, opt2],
+        integrand, flow, opt,
         mcw_model=mcw_net,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
@@ -204,7 +213,7 @@ if TRAIN_MCW:
     )
 else:
     integrator = MultiChannelIntegrator(
-        integrand, flow, [opt1],
+        integrand, flow, opt,
         mcw_model=None,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
@@ -293,7 +302,7 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()
