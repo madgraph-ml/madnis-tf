@@ -40,6 +40,8 @@ class DistributionPlot(Observable):
                 self.w_2jets_distributions()
             elif self.dataset == 'drell_yan':
                 self.drell_yan_distributions()
+            elif self.dataset == 'fudge_drell_yan':
+                self.fudge_drell_yan_distributions()
             elif self.dataset == 'ring':
                 self.ring_distributions()
             else:
@@ -224,6 +226,37 @@ class DistributionPlot(Observable):
             #---------------------#
             'dEta' : ([0,1], self.delta_rapidity, 40, (0,5),
                       r'$\Delta\eta$', r'\Delta\eta',False),
+            'm12'  : ([0,1], self.invariant_mass, 40, (50,150),
+                      r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
+            #---------------------#			
+        }	 
+
+        self.args = args
+        self.args2 = args2
+        
+    def fudge_drell_yan_distributions(self):
+        # Particle_id, observable, bins, range, x_label, log_scale
+
+        args = {			 
+            'pt'  : ([0], self.transverse_momentum, 40, (0,155) ,
+                     r'$p_{\mathrm{T}}$ [GeV]', r'p_{\mathrm{T}}',False),
+            'E1'  : ([0], self.energy, 40, (0,1000),
+                     r'$E_1$ [GeV]', r'E_1',False),
+            #---------------------#
+            'E2'  : ([1], self.energy, 40, (0,600),
+                     r'$E_2$ [GeV]', r'E_2',False),
+            #---------------------#
+            'dEta'   : ([0,1], self.delta_rapidity, 40, (0,5),
+                        r'$\Delta\eta$', r'\Delta\eta',False),
+            'm12log' : ([0,1], self.invariant_mass, 40, (10,350),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
+            'm12log2': ([0,1], self.invariant_mass, 40, (10,650),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
+        }	 
+
+        args2 = {			 
+            'pt'  : ([0], self.transverse_momentum, 40, (0,150),
+                     r'$p_{\mathrm{T}, 1}$ [GeV]', r'p_{\mathrm{T}, \mathrm{W}}',False),
             'm12'  : ([0,1], self.invariant_mass, 40, (50,150),
                       r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
             #---------------------#			

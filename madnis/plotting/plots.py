@@ -88,7 +88,7 @@ def plot_weights(channel_data, log_dir=".", name=""):
     m_weight = np.mean(all_weights)
     w_min = np.min(all_weights/m_weight)
     w_max = np.max(all_weights/m_weight)
-    bins = np.logspace(np.log10(w_min), np.log10(w_max), 40)
+    bins = np.logspace(np.log10(1e-12), np.log10(1e03), 40)
     
     for label in ( [ax1.yaxis.get_offset_text()] +
                     ax1.get_xticklabels() + ax1.get_yticklabels()):
