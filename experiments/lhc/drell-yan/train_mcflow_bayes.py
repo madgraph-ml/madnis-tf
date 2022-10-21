@@ -11,12 +11,13 @@ from mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.utils.bayesian import BayesianHelper
 from madnis.models.mc_integrator import MultiChannelIntegrator
-from madnis.distributions.camel import NormalizedMultiDimCamel
+from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
-from dy_integrand import DrellYan, MZ, WZ
+from dy_integrand import DrellYan, MZ
 from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.mappings.multi_flow import MultiFlow
 
 import sys
 
@@ -31,7 +32,7 @@ parser = argparse.ArgumentParser()
 
 # Data params
 parser.add_argument("--train_batches", type=int, default=1000)
-parser.add_argument("--int_samples", type=int, default=10000)
+parser.add_argument("--int_samples", type=int, default=1000000)
 
 # model params
 parser.add_argument("--use_prior_weights", action='store_true')
@@ -41,23 +42,37 @@ parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--separate_flows", action="store_true")
+
+# sm-parameters
+parser.add_argument("--z_width_scale", type=float, default=1)
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
-# Define the number of channels
+# Define the number of channels and process
 parser.add_argument("--channels", type=int, default=2)
+parser.add_argument("--cut", type=float, default=15)
+parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument('--train_mcw', action='store_true')
+parser.add_argument('--fixed_mcw', dest='train_mcw', action='store_false')
+parser.set_defaults(train_mcw=True)
 
 # Bayesian
 parser.add_argument("--bayes_samples", type=int, default=25)
 
+# Plot
+parser.add_argument("--pre_plotting", action='store_true')
+parser.add_argument("--post_plotting", action='store_true')
+
 args = parser.parse_args()
+
 
 ################################
 # Define integrand
@@ -67,66 +82,81 @@ DTYPE = tf.keras.backend.floatx()
 DIMS_IN = 4  # dimensionality of data space
 N_CHANNELS = args.channels  # number of Channels. Default is 2
 INT_SAMPLES = args.int_samples
-RES_TO_PB = 0.389379 * 1e9 # Conversion factor
+PLOT_SAMPLES = int(1e6)
+RES_TO_PB = 0.389379 * 1e9 # Conversion factor from GeV^-2 to pb
+CUT = args.cut
+SINGLE_MAP = args.single_map
+MAPS = SINGLE_MAP if N_CHANNELS == 1  else "yZ"
+
+Z_SCALE = args.z_width_scale
+WZ = 2.441404e-00 * Z_SCALE
+
+LOG_DIR = f'./plots/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll_{Z_SCALE}scale/'
+print(LOG_DIR)
 
 # Define truth integrand
-integrand = DrellYan(["u", "d", "c", "s", "u", "d", "c", "s"], input_format="convpolar")
+integrand = DrellYan(["u", "d", "c", "s"], input_format="convpolar", wz=WZ, z_scale=Z_SCALE) # 
 #integrand = lambda x: tf.constant(1.0, dtype=DTYPE) # For testing phase-space volume
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
-print(f" Dimensions: {DIMS_IN}                                    ")
-print(f" Channels: {N_CHANNELS}                                   ")
+print(f" Dimensions : {DIMS_IN}                                   ")
+print(f" Channels   : {N_CHANNELS}                                ")
+print(f" Z-Width    : {WZ} GeV                                    ")
 print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
-map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ)
-map_y = TwoParticlePhasespaceB()
-
-# # TODO: Make flat but consider cut m_inv > 50 GeV
-# # Otherwise infinite cross section!
-# map_flat = TwoParticlePhasespaceFlatB()
+map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
+map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT)
 
 ################################
 # Define the flow network
 ################################
 
-PRIOR = args.use_prior_weights
+PRIOR = True #args.use_prior_weights
 DATASET_SIZE = args.epochs * args.batch_size * args.train_batches
 
-flow_bayesian_helper = BayesianHelper(dataset_size=DATASET_SIZE)
+bayesian_helper = BayesianHelper(dataset_size=DATASET_SIZE)
 
 FLOW_META = {
     "units": args.units,
     "layers": args.layers,
     "initializer": args.initializer,
     "activation": args.activation,
-    "layer_constructor": flow_bayesian_helper.construct_dense
+    "layer_constructor": bayesian_helper.construct_dense
 }
 
 N_BLOCKS = args.blocks
 
-flow = RQSVegasFlow(
-    [DIMS_IN],
-    dims_c=[[N_CHANNELS]],
-    n_blocks=N_BLOCKS,
-    subnet_meta=FLOW_META,
-    subnet_constructor=MLP,
-    hypercube_target=True,
-)
+if args.separate_flows:
+    flow = MultiFlow([RQSVegasFlow(
+        [DIMS_IN],
+        dims_c=None,
+        n_blocks=N_BLOCKS,
+        subnet_meta=FLOW_META,
+        subnet_constructor=MLP,
+        hypercube_target=True,
+    ) for i in range(N_CHANNELS)])
+else:
+    flow = RQSVegasFlow(
+        [DIMS_IN],
+        dims_c=[[N_CHANNELS]],
+        n_blocks=N_BLOCKS,
+        subnet_meta=FLOW_META,
+        subnet_constructor=MLP,
+        hypercube_target=True,
+    )
 
 ################################
 # Define the mcw network
 ################################
-
-mcw_bayesian_helper = BayesianHelper(dataset_size=DATASET_SIZE)
 
 MCW_META = {
     "units": args.mcw_units,
     "layers": args.mcw_layers,
     "initializer": args.initializer,
     "activation": args.activation,
-    "layer_constructor": mcw_bayesian_helper.construct_dense
+    "layer_constructor": bayesian_helper.construct_dense
 }
 
 if PRIOR:
@@ -159,6 +189,7 @@ EPOCHS = args.epochs
 BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
+TRAIN_MCW = args.train_mcw
 
 # Number of samples
 # TRAIN_SAMPLES = args.train_batches
@@ -170,28 +201,38 @@ DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
-lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-
-opt1 = tf.keras.optimizers.Adam(lr_schedule1)
-opt2 = tf.keras.optimizers.Adam(lr_schedule2)
+lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
-MAPPINGS = [map_y, map_Z]
+if SINGLE_MAP == "Z":
+    MAPPINGS = [map_Z]
+else:
+    MAPPINGS = [map_y]
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
-    MAPPINGS.append(map_y)
+    MAPPINGS.append(map_Z)
 
-integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1, opt2],
-    mcw_model=mcw_net,
-    mappings=MAPPINGS,
-    use_weight_init=PRIOR,
-    n_channels=N_CHANNELS,
-    loss_func=LOSS,
-    flow_bayesian_helper=flow_bayesian_helper,
-    mcw_bayesian_helper=mcw_bayesian_helper
-)
+base_dist = StandardUniform((DIMS_IN,))
+
+if TRAIN_MCW:
+    integrator = MultiChannelIntegrator(
+        integrand, flow, opt,
+        mcw_model=mcw_net,
+        mappings=MAPPINGS,
+        use_weight_init=PRIOR,
+        n_channels=N_CHANNELS,
+        loss_func=LOSS
+    )
+else:
+    integrator = MultiChannelIntegrator(
+        integrand, flow, opt,
+        mcw_model=None,
+        mappings=MAPPINGS,
+        use_weight_init=PRIOR,
+        n_channels=N_CHANNELS,
+        loss_func=LOSS
+    )
 
 ################################
 # Pre train - integration
@@ -213,8 +254,7 @@ print("----------------------------------------------------------------\n")
 # Train the network
 ################################
 
-flow_bayesian_helper.set_training(True)
-mcw_bayesian_helper.set_training(True)
+bayesian_helper.set_training(True)
 
 train_losses = []
 start_time = time.time()
@@ -233,7 +273,7 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()
@@ -241,19 +281,16 @@ print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
-log_dir = f'./plots/'
-
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
 #integrator.save_weights(log_dir)
 #integrator.load_weights(log_dir + "model/")
 
-flow_bayesian_helper.set_training(False)
-mcw_bayesian_helper.set_training(False)
+bayesian_helper.set_training(False)
 
 ################################
 # After train - plot sampling
 ################################
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
 
 def to_four_mom(x):
     e_beam = 6500
@@ -272,17 +309,16 @@ def to_four_mom(x):
 BAYES_SAMPLES = args.bayes_samples
 
 #tf.config.run_functions_eagerly(True)
-dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
+dist = DistributionPlot(LOG_DIR, 'drell_yan', which_plots=[True, False, False, True])
 channel_data = []
 for i in range(N_CHANNELS):
     print(f'Sampling from channel {i}')
     ps, weights, alphas, alphas_prior = [], [], [], []
     for j in range(BAYES_SAMPLES):
         print(f'  Bayesian net {j}')
-        flow_bayesian_helper.sample_weights()
-        mcw_bayesian_helper.sample_weights()
+        bayesian_helper.sample_weights()
         x, weight, alpha, alpha_prior = integrator.sample_per_channel(
-            10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
         p = to_four_mom(x).numpy()
         alpha_prior = None if alpha_prior is None else alpha_prior.numpy()
         ps.append(p)
@@ -303,7 +339,7 @@ print('Plotting channel weights')
 dist.plot_channel_weights(channel_data, 'channel-weights')
 
 print('Plotting weight distribution')
-plot_weights(channel_data, log_dir, 'drell_yan_weight-dist')
+plot_weights(channel_data, LOG_DIR, 'drell_yan_weight-dist')
 
 ################################
 # After train - integration
