@@ -183,18 +183,19 @@ class PermuteSoftLearn(Transform):
         )
         # initialize to later show angles that describe current permutation
         self.perm_ang = None
+        self.w_perm = self._translate_to_matrix()
 
     def call(self, x, c=None, jac=True):  # pylint: disable=W0221
-        w_perm = self._translate_to_matrix()
-        y = self.permute_function(x, w_perm)
+        self.w_perm = self._translate_to_matrix()
+        y = self.permute_function(x, self.w_perm)
         if jac:
             return y, 0.0
 
         return y
 
     def inverse(self, x, c=None, jac=True):  # pylint: disable=W0221
-        w_perm = self._translate_to_matrix()
-        w_perm_inv = tf.transpose(w_perm)
+        self.w_perm = self._translate_to_matrix()
+        w_perm_inv = tf.transpose(self.w_perm)
         y = self.permute_function(x, w_perm_inv)
         if jac:
             return y, 0.0
