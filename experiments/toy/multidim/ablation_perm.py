@@ -18,11 +18,13 @@ import tensorflow as tf
 import numpy as np
 import argparse
 import time
+import matplotlib.pyplot as plt
 
 from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
+import madnis
 from vegasflow import RQSVegasFlow
 
 
@@ -126,10 +128,10 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flows = {}
+flows_dic = {}
 
 for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:
-    flows[perm] = RQSVegasFlow(
+    flows_dic[perm] = RQSVegasFlow(
         [DIMS_IN],
         dims_c=[[N_CHANNELS]],
         n_blocks=N_BLOCKS,
@@ -164,28 +166,122 @@ ITERS = args.train_batches
 DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
-# Prepare scheduler and optimzer
-lr_schedule = {}
+# Prepare scheduler, optimzer, and integrator
+lr_schedule_dic = {}
+opt_dic = {}
+integrator_dic = {}
 
-opt = {}
+################################
+# Define the training
+################################
+
+def train_flow(integrator, opt, num_epochs):
+    """ trains a given flow """
+    train_losses = []
+    start_time = time.time()
+    for e in range(num_epochs):
+
+        batch_train_losses = []
+        # do multiple iterations.
+        for _ in range(ITERS):
+            batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
+            batch_train_losses.append(batch_loss)
+
+            #for idx, trafo in enumerate(integrator.dist.transforms):
+            #    print("inside train", idx, trafo)
+            #    if isinstance(trafo, (madnis.transforms.permutation.PermuteSoftLearn,
+            #                          madnis.transforms.permutation.Permutation)):
+            #        print(trafo.w_perm)
+
+
+        train_loss = tf.reduce_mean(batch_train_losses)
+        train_losses.append(train_loss)
+
+        if (e + 1) % 1 == 0:
+            # Print metrics
+            print(
+                "Epoch #{}/{}: Loss: {}, Learning_Rate: {}".format(
+                    e + 1, num_epochs, train_losses[-1], opt._decayed_lr(tf.float32)
+                )
+            )
+
+    end_time = time.time()
+    print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
+    print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
+    print("--- Run time: %s secs ---" % ((end_time - start_time)))
+    return train_losses
+
+################################
+# Define the integration
+################################
+
+def integrate_with_flow(integrator, num_samples, weight_prior=None):
+    """ integrates based on the flow sampling """
+    res, err = integrator.integrate(num_samples, weight_prior=weight_prior)
+    relerr = err / res * 100
+    return res, err, relerr
 
 ################################
 # Pre train - integration
 ################################
+loss_dic = {}
+#tf.config.run_functions_eagerly(True)
 
+plt.figure()
+
+#for perm in ['softlearn']:
 for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:
-    lr_schedule[perm] = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-    opt[perm] = tf.keras.optimizers.Adam(lr_schedule[perm])
-    integrator = MultiChannelIntegrator(
-        multi_camel, flows[perm], [opt[perm]], use_weight_init=False, n_channels=N_CHANNELS,
-        loss_func=LOSS)
+    print("Optimizing flow for permutation {} now ... ".format(perm))
+    lr_schedule_dic[perm] = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP,
+                                                                           DECAY_RATE)
+    opt_dic[perm] = tf.keras.optimizers.Adam(lr_schedule_dic[perm])
+    integrator_dic[perm] = MultiChannelIntegrator(
+        multi_camel, flows_dic[perm], [opt_dic[perm]], use_weight_init=False,
+        n_channels=N_CHANNELS, loss_func=LOSS)
 
-    res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
-    relerr = err / res * 100
-
+    res, err, relerr = integrate_with_flow(integrator_dic[perm], INT_SAMPLES,
+                                           weight_prior=madgraph_prior)
     print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
     print(f"-----------------Choice of Permutation: {perm}----------------")
     print("--------------------------------------------------------------")
     print(f" Number of channels: {N_CHANNELS}                            ")
     print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
     print("------------------------------------------------------------\n")
+
+    # show perms:
+    for trafo in flows_dic[perm].transforms:
+        #print("before ", trafo)
+        #if isinstance(trafo, (madnis.transforms.permutation.PermuteSoftLearn,
+        #                      madnis.transforms.permutation.Permutation)):
+        #    print(trafo.w_perm)
+        if isinstance(trafo, (madnis.transforms.permutation.PermuteSoftLearn)):
+            print("before: ", trafo.trainable_variables)
+    # train
+    loss_dic[perm] = train_flow(integrator_dic[perm], opt_dic[perm], EPOCHS)
+    plt.plot(loss_dic[perm], label='permutation: {}'.format(perm))
+    # show perms:
+    for trafo in flows_dic[perm].transforms:
+        #print("after ", trafo)
+        #if isinstance(trafo, (madnis.transforms.permutation.PermuteSoftLearn,
+        #                      madnis.transforms.permutation.Permutation)):
+        #   print(trafo.w_perm)
+        if isinstance(trafo, (madnis.transforms.permutation.PermuteSoftLearn)):
+            print("after: ", trafo.trainable_variables)
+
+    # after train integration
+    res, err, relerr = integrate_with_flow(integrator_dic[perm], INT_SAMPLES,
+                                           weight_prior=madgraph_prior)
+    print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
+    print(f"-----------------Choice of Permutation: {perm}----------------")
+    print("---------------------------------------------------------------")
+    print(f" Number of channels: {N_CHANNELS}                             ")
+    print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
+    print("-------------------------------------------------------------\n")
+
+plt.legend()
+plt.ylabel("NLL loss")
+plt.xlabel("epoch")
+plt.yscale('log')
+plt.ylim([1e-3, 1e2])
+plt.show()
+# to-do: plot corner of learned dist.

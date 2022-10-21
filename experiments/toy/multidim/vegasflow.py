@@ -118,7 +118,7 @@ class RQSVegasFlow(Flow):
         # Define base_dist
         base_dist = StandardUniform(dims_in)
 
-        # Define transforms
+        # Define transforms, starting from target side
         transforms = []
         if not hypercube_target:
             transforms.append(Sigmoid(dims_in))
@@ -132,7 +132,12 @@ class RQSVegasFlow(Flow):
                     num_bins=bins
                 )
             )
-            transforms.append(perm_list[i])
+            if 'soft' in permutations:
+                transforms.append(Logit(dims_in))
+                transforms.append(perm_list[i])
+                transforms.append(Sigmoid(dims_in))
+            else:
+                transforms.append(perm_list[i])
 
         # Remove last shuffle as it is useless
         transforms.pop()
