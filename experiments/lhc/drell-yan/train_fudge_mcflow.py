@@ -85,9 +85,10 @@ SINGLE_MAP = args.single_map
 MAPS = SINGLE_MAP if N_CHANNELS == 1  else "ZZp"
 
 Z_SCALE = args.z_width_scale
-WZ = 2.441404e-00 * Z_SCALE
+WZ = 2.441404e-02 * Z_SCALE
 
 LOG_DIR = f'./plots/zprime/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll/'
+#LOG_DIR = f'./plots/zprime/test/'
 print(LOG_DIR)
 
 # Define truth integrand
@@ -196,7 +197,7 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
-MAPPINGS = [map_Z, map_Zp]
+MAPPINGS = [map_Zp, map_Z]
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
     MAPPINGS.append(map_y)
@@ -247,10 +248,12 @@ if PLOTTING_PRE:
         dist.plot(p, p, f'pre_channel_{i}')
 
     print('Plotting channel weights')
+    dist.plot_channels_stacked(channel_data, 'pre_stacked')
     dist.plot_channel_weights(channel_data, 'pre_channel_weights')
 
     print('Plotting weight distribution')
     plot_weights(channel_data, log_dir, 'pre_weight_dist')
+    
 
 ################################
 # Pre train - integration
@@ -325,10 +328,12 @@ if PLOTTING:
         dist.plot(p, p, f'post_channel_{i}')
 
     print('Plotting channel weights')
+    dist.plot_channels_stacked(channel_data, 'post_stacked')
     dist.plot_channel_weights(channel_data, 'post_channel_weights')
 
     print('Plotting weight distribution')
     plot_weights(channel_data, log_dir, 'post_weight_dist')
+    
 
 ################################
 # After train - integration

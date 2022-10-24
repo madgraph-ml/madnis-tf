@@ -56,9 +56,9 @@ weightB2 =  integrand(eventsB2) / mapB2.prob(eventsB2)
 mB2 = invariant_mass(eventsB2,"convpolar")
 
 # Define histos
-rmax = 310
+rmax = 650
 rmin = CUT
-bins = 50
+bins = 40
 
 m_b0, x_bins = np.histogram(mB0, bins=np.linspace(rmin,rmax, bins+1), density=True, weights=weightB0.numpy())
 m_b1, _ = np.histogram(mB1, bins=np.linspace(rmin,rmax, bins+1), density=True, weights=weightB1.numpy())
@@ -69,8 +69,8 @@ plt.rc("text", usetex=True)
 plt.rc('font', family='serif', size=12.0)
 plt.rc('axes', labelsize='large')   
 fig, ax1 = plt.subplots()
-ax1.step(x_bins[:bins], m_b0, label=r"Map - Z", linewidth=1.0, where='mid')
-ax1.step(x_bins[:bins], m_b2, label=r"Map - Z'", linewidth=1.0, where='mid')
+#ax1.step(x_bins[:bins], m_b0, label=r"Map - Z", linewidth=1.0, where='mid')
+#ax1.step(x_bins[:bins], m_b2, label=r"Map - Z'", linewidth=1.0, where='mid')
 ax1.step(x_bins[:bins], m_b1, label=r"Map - $\gamma$", linewidth=1.0, where='mid')
 ax1.legend(frameon=False)
 ax1.set_yscale("log")

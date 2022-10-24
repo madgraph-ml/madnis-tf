@@ -12,9 +12,9 @@ warnings.filterwarnings("ignore")
 # -------------------------------------
 MW  = 8.041900e01   # W-Boson Mass   8.041900e01 (MG5)
 MZ  = 9.118800e01   # Z-Boson Mass   9.118800e01 (MG5)
-WZ  = 2.441404e00   # Z-Boson Width  2.441404e00 (MG5)
-MZP = 2.000000e02   # Z'-Boson Mass  
-WZP = 5.000000e-01  # Z'-Boson Width  
+WZ  = 2.441404e-02   # Z-Boson Width  2.441404e00 (MG5)
+MZP = 4.000000e02   # Z'-Boson Mass  
+WZP = 2.000000e-02  # Z'-Boson Width  
 GF  = 1.166390e-05  # Fermi Constant 1.166390e-05 (MG5)
 NC  = 3  # Color factor
 # -------------------------------------
@@ -218,9 +218,9 @@ class FudgeDrellYan:
         """
         # Squares
         m_yy, m_ZZ, m_ZpZp, m_ZZp, m_yZp, m_yZ = self.amp2_single(cos_theta, s, isq)
-        m_squares = m_yy + m_ZZ + m_ZpZp/20
+        m_squares = m_yy + m_ZZ/40 + m_ZpZp/10
         # interferences
-        m_int = m_yZ + m_yZp + m_ZZp/20
+        m_int = m_yZ/40 + m_yZp/400 + m_ZZp/10
         return m_squares + 2 * m_int
 
     

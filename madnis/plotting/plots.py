@@ -313,6 +313,71 @@ def plot_alphas_multidim(axs, channel_data, args):
     if has_prior:
         axs[1].legend(loc="upper center", ncol=2, frameon=False,
                       prop={"size": int(FONTSIZE-8)})
+        
+        
+def plot_alphas_stack(axs, channel_data, args):
+    """Plot the alphas for multidimensional data"""
+    if args[6]:
+        axs[0].set_yscale('log')
+    else:
+        yfmt = ScalarFormatterForceFormat()
+        yfmt.set_powerlimits((0,0))
+        axs[0].yaxis.set_major_formatter(yfmt)
+
+    y_all = []
+    labels = []
+    weight_all = []
+    alpha_all = []
+    for i, (y, weight, alpha, alpha_prior) in enumerate(channel_data):
+        has_prior = alpha_prior is not None
+        y = args[1](y, args[0])
+        y_all.append(y)
+        y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
+        weight_all.append(weight)
+        alpha_all.append(alpha)
+        weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
+        alpha_binned = binned_statistic(y, weight, statistic='sum', bins=x_p)[0] / weight_norm
+        if has_prior:
+            alpha_prior_binned = binned_statistic(y, weight/alpha * alpha_prior, statistic='sum', bins=x_p)[0] / weight_norm
+
+        color = f'C{i}'
+        labels.append(f'chan {i}')
+        # axs[0].stairs(
+        #     y_p, edges=x_p, color=color, label=f'chan {i}', linewidth=1.0, baseline=None)
+
+        if i == 0:
+            lbl1 = "Learned"
+            lbl2 = "Prior"
+        else:
+            lbl1 = None
+            lbl2 = None
+        axs[1].stairs(
+            alpha_binned, edges=x_p, color=color, linewidth=1.0, label=lbl1, baseline=None)
+        if has_prior:
+            axs[1].stairs(alpha_prior_binned, edges=x_p, color=color, ls="dashed",
+                          linewidth=1.0, label=lbl2, baseline=None)
+    
+    y_stack = np.stack(y_all, axis=-1)  
+    w_stack = np.stack(weight_all, axis=-1)
+    alpha_stack = np.stack(alpha_all, axis=-1)    
+    axs[0].hist(y_stack, args[2], density=True, histtype='step', stacked=True, label=labels, range=args[3], weights=alpha_stack)
+        
+    for j in range(2):
+        for label in ( [axs[j].yaxis.get_offset_text()] +
+                        axs[j].get_xticklabels() + axs[j].get_yticklabels()):
+            label.set_fontsize(FONTSIZE)
+
+    axs[0].set_ylabel('Probability density', fontsize = FONTSIZE)
+    axs[0].legend(loc='upper right', prop={'size': int(FONTSIZE-4)}, frameon=False)
+
+    axs[1].set_ylabel(r'$\alpha$', fontsize = FONTSIZE-2)
+    axs[1].set_ylim(bottom=-0.05, top=1.22)
+    for yy in [0., 0.5, 1.]:
+        axs[1].axhline(y=yy,linewidth=1, linestyle='--', color='grey')
+    axs[1].set_xlabel(args[4], fontsize = FONTSIZE)
+    if has_prior:
+        axs[1].legend(loc="upper center", ncol=2, frameon=False,
+                      prop={"size": int(FONTSIZE-8)})
     
 #######################
 # Plot Distributions ##
