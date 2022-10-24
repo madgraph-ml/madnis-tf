@@ -130,6 +130,7 @@ print("-----------------------------------------------------------")
 print(f" Dimensions : {DIMS_IN}                                   ")
 print(f" Channels   : {N_CHANNELS}                                ")
 print(f" Z-Width    : {WZ} GeV                                    ")
+print(f" Z'-Width   : {WZP} GeV                                    ")
 print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
@@ -285,8 +286,8 @@ if PLOTTING_PRE:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f"Plotting distributions for channel {i}")
-        dist.plot(p, p, f"pre_channel_{i}")
+        # print(f"Plotting distributions for channel {i}")
+        # dist.plot(p, p, f"pre_channel_{i}")
 
     events_truth = map_y.sample(PLOT_SAMPLES * 10)
     weight_truth = integrand(events_truth) / map_y.prob(events_truth)
@@ -295,7 +296,6 @@ if PLOTTING_PRE:
 
     print("Plotting channel weights")
     dist.plot_channels_stacked(channel_data, true_data, "pre_stacked")
-    dist.plot_channel_weights(channel_data, "pre_channel_weights")
 
     print("Plotting weight distribution")
     plot_weights(channel_data, log_dir, "pre_weight_dist")
@@ -372,8 +372,8 @@ if PLOTTING:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f"Plotting distributions for channel {i}")
-        dist.plot(p, p, f"post_channel_{i}")
+        # print(f"Plotting distributions for channel {i}")
+        # dist.plot(p, p, f"post_channel_{i}")
 
     events_truth = map_y.sample(PLOT_SAMPLES * 10)
     weight_truth = integrand(events_truth) / map_y.prob(events_truth)
@@ -382,7 +382,6 @@ if PLOTTING:
 
     print("Plotting channel weights")
     dist.plot_channels_stacked(channel_data, true_data, "post_stacked")
-    dist.plot_channel_weights(channel_data, "post_channel_weights")
 
     print("Plotting weight distribution")
     plot_weights(channel_data, log_dir, "post_weight_dist")

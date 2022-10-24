@@ -32,6 +32,14 @@ class DistributionPlot(Observable):
 
         self.latent = latent
         self.which_plots = which_plots
+        
+        # pylint: disable=W0702
+        try:
+            plt.rc("text", usetex=True)
+            plt.rc("font", family="serif")
+            plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+        except:
+            print("No latex installed")
 
         if self.latent == True:
             self.latent_distributions()
@@ -54,14 +62,6 @@ class DistributionPlot(Observable):
         name: str,
         weights: np.ndarray=None,
     ):
-        # pylint: disable=W0702
-        try:
-            plt.rc("text", usetex=True)
-            plt.rc("font", family="serif")
-            plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
-        except:
-            print("No latex installed")
-
         if self.which_plots[0]:
             with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '_ratio.pdf') as pp:
                 for observable in self.args.keys():

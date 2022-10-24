@@ -49,7 +49,6 @@ def dup_last(a):
 # Plot Loss ##
 ##############
 
-
 def plot_loss(loss, log_dir=".", name="", log_axis=True):
     """Plot the traings curve"""
     fig, ax1 = plt.subplots(1, figsize=(10, 4))
@@ -79,7 +78,6 @@ def plot_loss(loss, log_dir=".", name="", log_axis=True):
 #################
 # Plot Weights ##
 #################
-
 
 def plot_weights(channel_data, log_dir=".", name=""):
     """Plot histogram of weights"""
@@ -112,7 +110,7 @@ def plot_weights(channel_data, log_dir=".", name=""):
 
     ax1.set_xscale("log")
     ax1.set_yscale("log")
-    ax1.set_xlabel("Weight", fontsize = FONTSIZE-2)
+    ax1.set_xlabel(r"$w/\langle w \rangle$", fontsize = FONTSIZE-2)
     ax1.set_ylabel("Number of events", fontsize = FONTSIZE-2)
     ax1.legend(frameon=False, prop={"size": int(FONTSIZE-5)}, loc='upper left')
     fig.savefig(log_dir + "/%s.pdf" % name, dpi=120, bbox_inches="tight")
@@ -122,7 +120,6 @@ def plot_weights(channel_data, log_dir=".", name=""):
 ################
 # Plot Alphas ##
 ################
-
 
 def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     """Plot the alphas"""
