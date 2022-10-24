@@ -315,7 +315,7 @@ def plot_alphas_multidim(axs, channel_data, args):
                       prop={"size": int(FONTSIZE-8)})
         
         
-def plot_alphas_stack(axs, channel_data, args):
+def plot_alphas_stack(axs, channel_data, true_data, args):
     """Plot the alphas for multidimensional data"""
     if args[6]:
         axs[0].set_yscale('log')
@@ -332,8 +332,11 @@ def plot_alphas_stack(axs, channel_data, args):
         has_prior = alpha_prior is not None
         y = args[1](y, args[0])
         y_all.append(y)
-        y_p, x_p = np.histogram(y, args[2], density=True, range=args[3])
-        weight_all.append(weight)
+        _, x_p = np.histogram(y, args[2], density=True, range=args[3])
+        # if i == 0:
+        #     y_t, x_t = np.histogram(y, args[2], density=True, range=args[3], weights=weight)
+        #     axs[0].stairs(y_t, edges=x_t, ls="dashed", color='black', label="Truth")
+        weight_all.append(weight/alpha)
         alpha_all.append(alpha)
         weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
         alpha_binned = binned_statistic(y, weight, statistic='sum', bins=x_p)[0] / weight_norm
@@ -357,11 +360,16 @@ def plot_alphas_stack(axs, channel_data, args):
             axs[1].stairs(alpha_prior_binned, edges=x_p, color=color, ls="dashed",
                           linewidth=1.0, label=lbl2, baseline=None)
     
-    y_stack = np.stack(y_all, axis=-1)  
-    w_stack = np.stack(weight_all, axis=-1)
+    y_stack = np.stack(y_all, axis=-1)
     alpha_stack = np.stack(alpha_all, axis=-1)    
-    axs[0].hist(y_stack, args[2], density=True, histtype='step', stacked=True, label=labels, range=args[3], weights=alpha_stack)
-        
+    axs[0].hist(y_stack, args[2], density=True, histtype='bar', stacked=True, label=labels, range=args[3], weights=alpha_stack)
+    
+    # Plot truth data
+    y_comb = args[1](true_data[0], args[0])
+    weight_comb = true_data[1]
+    y_t, x_t = np.histogram(y_comb, args[2], density=True, range=args[3], weights=weight_comb)
+    axs[0].stairs(y_t, edges=x_t, ls="dashed", color='black', label="Truth")
+    
     for j in range(2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
                         axs[j].get_xticklabels() + axs[j].get_yticklabels()):

@@ -1,5 +1,6 @@
 import os
 from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 import numpy as np
@@ -7,7 +8,6 @@ import argparse
 import time
 
 from mcw import mcw_model, residual_mcw_model
-from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
@@ -34,17 +34,33 @@ parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=1000000)
 
 # model params
-parser.add_argument("--use_prior_weights", action='store_true')
+parser.add_argument("--use_prior_weights", action="store_true")
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
-parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
-parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument(
+    "--activation",
+    type=str,
+    default="leakyrelu",
+    choices={"relu", "elu", "leakyrelu", "tanh"},
+)
+parser.add_argument(
+    "--initializer",
+    type=str,
+    default="glorot_uniform",
+    choices={"glorot_uniform", "he_uniform"},
+)
+parser.add_argument(
+    "--loss",
+    type=str,
+    default="variance",
+    choices={"variance", "neyman_chi2", "kl_divergence"},
+)
 parser.add_argument("--separate_flows", action="store_true")
 
-# sm-parameters
+# physics model-parameters
 parser.add_argument("--z_width_scale", type=float, default=1)
+parser.add_argument("--zp_width_scale", type=float, default=1)
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
@@ -59,13 +75,13 @@ parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
-parser.add_argument('--train_mcw', action='store_true')
-parser.add_argument('--fixed_mcw', dest='train_mcw', action='store_false')
+parser.add_argument("--train_mcw", action="store_true")
+parser.add_argument("--fixed_mcw", dest="train_mcw", action="store_false")
 parser.set_defaults(train_mcw=True)
 
 # Plot
-parser.add_argument("--pre_plotting", action='store_true')
-parser.add_argument("--post_plotting", action='store_true')
+parser.add_argument("--pre_plotting", action="store_true")
+parser.add_argument("--post_plotting", action="store_true")
 
 args = parser.parse_args()
 
@@ -79,20 +95,35 @@ DIMS_IN = 4  # dimensionality of data space
 N_CHANNELS = args.channels  # number of Channels. Default is 2
 INT_SAMPLES = args.int_samples
 PLOT_SAMPLES = int(1e6)
-RES_TO_PB = 0.389379 * 1e9 # Conversion factor from GeV^-2 to pb
+RES_TO_PB = 0.389379 * 1e9  # Conversion factor from GeV^-2 to pb
 CUT = args.cut
 SINGLE_MAP = args.single_map
-MAPS = SINGLE_MAP if N_CHANNELS == 1  else "ZZp"
+MAPS = SINGLE_MAP if N_CHANNELS == 1 else "ZpZy"
 
 Z_SCALE = args.z_width_scale
-WZ = 2.441404e-02 * Z_SCALE
+WZ = 2.441404e-00 * Z_SCALE
 
-LOG_DIR = f'./plots/zprime/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll/'
-#LOG_DIR = f'./plots/zprime/test/'
+ZP_SCALE = args.zp_width_scale
+WZP = 5.000000e-01 * ZP_SCALE
+
+if args.separate_flows:
+    mode = "seperate"
+else:
+    mode = "cond"
+
+LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{mode}/"
+# LOG_DIR = f'./plots/zprime/test/'
 print(LOG_DIR)
 
 # Define truth integrand
-integrand = FudgeDrellYan(["u", "d", "c", "s"], input_format="convpolar", wz=WZ, z_scale=Z_SCALE)
+integrand = FudgeDrellYan(
+    ["u", "d", "c", "s"],
+    input_format="convpolar",
+    wz=WZ,
+    wzp=WZP,
+    z_scale=Z_SCALE,
+    zp_scale=ZP_SCALE,
+)
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
@@ -103,14 +134,14 @@ print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
 map_Zp = TwoParticlePhasespaceB(s_mass=MZP, s_gamma=WZP, sqrt_s_min=CUT)
-map_Z  = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
-map_y  = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
+map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
+map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
 
 ################################
 # Define the flow network
 ################################
 
-PRIOR = True #args.use_prior_weights
+PRIOR = True  # args.use_prior_weights
 
 FLOW_META = {
     "units": args.units,
@@ -122,14 +153,19 @@ FLOW_META = {
 N_BLOCKS = args.blocks
 
 if args.separate_flows:
-    flow = MultiFlow([RQSVegasFlow(
-        [DIMS_IN],
-        dims_c=None,
-        n_blocks=N_BLOCKS,
-        subnet_meta=FLOW_META,
-        subnet_constructor=MLP,
-        hypercube_target=True,
-    ) for i in range(N_CHANNELS)])
+    flow = MultiFlow(
+        [
+            RQSVegasFlow(
+                [DIMS_IN],
+                dims_c=None,
+                n_blocks=N_BLOCKS,
+                subnet_meta=FLOW_META,
+                subnet_constructor=MLP,
+                hypercube_target=True,
+            )
+            for i in range(N_CHANNELS)
+        ]
+    )
 else:
     flow = RQSVegasFlow(
         [DIMS_IN],
@@ -152,9 +188,7 @@ MCW_META = {
 }
 
 if PRIOR:
-    mcw_net = residual_mcw_model(
-        dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META
-    )
+    mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 else:
     mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
@@ -197,30 +231,34 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
-MAPPINGS = [map_Zp, map_Z]
+MAPPINGS = [map_Z, map_Zp]
 N_MAPS = len(MAPPINGS)
-for i in range(N_CHANNELS-N_MAPS):
+for i in range(N_CHANNELS - N_MAPS):
     MAPPINGS.append(map_y)
 
 base_dist = StandardUniform((DIMS_IN,))
 
 if TRAIN_MCW:
     integrator = MultiChannelIntegrator(
-        integrand, flow, opt,
+        integrand,
+        flow,
+        opt,
         mcw_model=mcw_net,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
-        loss_func=LOSS
+        loss_func=LOSS,
     )
 else:
     integrator = MultiChannelIntegrator(
-        integrand, flow, opt,
+        integrand,
+        flow,
+        opt,
         mcw_model=None,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
-        loss_func=LOSS
+        loss_func=LOSS,
     )
 
 ################################
@@ -235,25 +273,32 @@ if PLOTTING_PRE:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    dist = DistributionPlot(log_dir, 'fudge_drell_yan', which_plots=[True, False, False, False])
+    dist = DistributionPlot(
+        log_dir, "fudge_drell_yan", which_plots=[True, False, False, False]
+    )
     channel_data = []
     for i in range(N_CHANNELS):
-        print(f'Sampling from channel {i}')
+        print(f"Sampling from channel {i}")
         x, weight, alphas, alphas_prior = integrator.sample_per_channel(
-            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True
+        )
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f'Plotting distributions for channel {i}')
-        dist.plot(p, p, f'pre_channel_{i}')
+        print(f"Plotting distributions for channel {i}")
+        dist.plot(p, p, f"pre_channel_{i}")
 
-    print('Plotting channel weights')
-    dist.plot_channels_stacked(channel_data, 'pre_stacked')
-    dist.plot_channel_weights(channel_data, 'pre_channel_weights')
+    events_truth = map_y.sample(PLOT_SAMPLES * 10)
+    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
+    p_truth = to_four_mom(events_truth).numpy()
+    true_data = (p_truth, weight_truth.numpy())
 
-    print('Plotting weight distribution')
-    plot_weights(channel_data, log_dir, 'pre_weight_dist')
-    
+    print("Plotting channel weights")
+    dist.plot_channels_stacked(channel_data, true_data, "pre_stacked")
+    dist.plot_channel_weights(channel_data, "pre_channel_weights")
+
+    print("Plotting weight distribution")
+    plot_weights(channel_data, log_dir, "pre_weight_dist")
 
 ################################
 # Pre train - integration
@@ -262,8 +307,8 @@ if PLOTTING_PRE:
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-res *=RES_TO_PB
-err *=RES_TO_PB
+res *= RES_TO_PB
+err *= RES_TO_PB
 
 print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):  ")
 print("----------------------------------------------------------------")
@@ -300,8 +345,8 @@ print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
-#integrator.save_weights(log_dir)
-#integrator.load_weights(log_dir + "model/")
+# integrator.save_weights(log_dir)
+# integrator.load_weights(log_dir + "model/")
 
 ################################
 # After train - plot sampling
@@ -315,25 +360,33 @@ if PLOTTING:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    dist = DistributionPlot(log_dir, 'fudge_drell_yan', which_plots=[True, False, False, False])
+    dist = DistributionPlot(
+        log_dir, "fudge_drell_yan", which_plots=[True, False, False, False]
+    )
     channel_data = []
     for i in range(N_CHANNELS):
-        print(f'Sampling from channel {i}')
+        print(f"Sampling from channel {i}")
         x, weight, alphas, alphas_prior = integrator.sample_per_channel(
-            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True)
+            PLOT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True
+        )
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f'Plotting distributions for channel {i}')
-        dist.plot(p, p, f'post_channel_{i}')
+        print(f"Plotting distributions for channel {i}")
+        dist.plot(p, p, f"post_channel_{i}")
 
-    print('Plotting channel weights')
-    dist.plot_channels_stacked(channel_data, 'post_stacked')
-    dist.plot_channel_weights(channel_data, 'post_channel_weights')
+    events_truth = map_y.sample(PLOT_SAMPLES * 10)
+    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
+    p_truth = to_four_mom(events_truth).numpy()
+    true_data = (p_truth, weight_truth.numpy())
 
-    print('Plotting weight distribution')
-    plot_weights(channel_data, log_dir, 'post_weight_dist')
-    
+    print("Plotting channel weights")
+    dist.plot_channels_stacked(channel_data, true_data, "post_stacked")
+    dist.plot_channel_weights(channel_data, "post_channel_weights")
+
+    print("Plotting weight distribution")
+    plot_weights(channel_data, log_dir, "post_weight_dist")
+
 
 ################################
 # After train - integration
@@ -342,8 +395,8 @@ if PLOTTING:
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-res *=RES_TO_PB
-err *=RES_TO_PB
+res *= RES_TO_PB
+err *= RES_TO_PB
 
 print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples): ")
 print("----------------------------------------------------------------")

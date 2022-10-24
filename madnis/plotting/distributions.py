@@ -105,12 +105,12 @@ class DistributionPlot(Observable):
                 fig.savefig(pp, bbox_inches='tight', format='pdf', pad_inches=0.05)
                 plt.close()
                 
-    def plot_channels_stacked(self, channel_data, name):
+    def plot_channels_stacked(self, channel_data, true_data, name):
         with PdfPages(self.log_dir + '/' + self.dataset + '_' + name + '.pdf') as pp:
             for observable in self.args.keys():
                 fig, axs = plt.subplots(2, 1, sharex=True, gridspec_kw={'height_ratios' : [2, 1], 'hspace' : 0.00}, figsize=(6.6,6))
                 fig.tight_layout(pad=0.0, w_pad=0.0, h_pad=0.0, rect=(0.1,0.1,0.99,0.95))
-                plot_alphas_stack(axs, channel_data, self.args[observable])
+                plot_alphas_stack(axs, channel_data, true_data, self.args[observable])
                 fig.savefig(pp, format='pdf')
                 plt.close()
 
@@ -247,13 +247,15 @@ class DistributionPlot(Observable):
         # Particle_id, observable, bins, range, x_label, log_scale
 
         args = {			 
-            'pt'  : ([0], self.transverse_momentum, 40, (0,155) ,
+            'pt'    : ([0], self.transverse_momentum, 40, (0,55) ,
                      r'$p_{\mathrm{T}}$ [GeV]', r'p_{\mathrm{T}}',False),
-            'E1'  : ([0], self.energy, 40, (0,1000),
-                     r'$E_1$ [GeV]', r'E_1',False),
+            'pt2'   : ([0], self.transverse_momentum, 40, (0,240) ,
+                     r'$p_{\mathrm{T}}$ [GeV]', r'p_{\mathrm{T}}',False),
+            'ptlog' : ([0], self.transverse_momentum, 40, (0,240) ,
+                     r'$p_{\mathrm{T}}$ [GeV]', r'p_{\mathrm{T}}',True),
             #---------------------#
-            'E2'  : ([1], self.energy, 40, (0,600),
-                     r'$E_2$ [GeV]', r'E_2',False),
+            'E1'  : ([0], self.energy, 40, (0,600),
+                     r'$E_1$ [GeV]', r'E_1', True),
             #---------------------#
             'dEta'   : ([0,1], self.delta_rapidity, 40, (0,5),
                         r'$\Delta\eta$', r'\Delta\eta',False),
@@ -261,6 +263,8 @@ class DistributionPlot(Observable):
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
             'm12log' : ([0,1], self.invariant_mass, 40, (10,350),
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
+            'm122'   : ([0,1], self.invariant_mass, 40, (10,650),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
             'm12log2': ([0,1], self.invariant_mass, 40, (10,650),
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
         }	 

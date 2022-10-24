@@ -1,7 +1,9 @@
 import tensorflow as tf
 
+E_BEAM = 6500
+
 def to_four_mom(x):
-    e_beam = 6500
+    e_beam = E_BEAM
     x1, x2, costheta, phi = tf.unstack(x, axis=1)
     s = 4 * e_beam**2 * x1 * x2
     r3 = (costheta + 1) / 2
