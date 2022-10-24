@@ -10,7 +10,8 @@ from madnis.transforms.coupling.all_in_one_block import AllInOneBlock
 from madnis.transforms.coupling.coupling_splines import RationalQuadraticSplineBlock
 from madnis.transforms import permutation as perm
 from madnis.transforms.nonlinearities import Sigmoid, Logit
-
+from madnis.transforms.coupling.coupling_linear import AffineCoupling
+from madnis.transforms.actnorm import ActNorm
 
 class VegasFlow(Flow):
     """Defines the vegas flow network"""
@@ -23,12 +24,54 @@ class VegasFlow(Flow):
             subnet_meta: Dict = None,
             subnet_constructor: callable = None,
             hypercube_target: bool = False,
+            permutations: str = 'random',
             name="VegasFlow",
             **kwargs,
     ):
 
         self.dims_in = dims_in
         self.dims_c = dims_c
+
+        # setting up permutations
+        if permutations == 'exchange':
+            perm_list = [perm.PermuteExchange(self.dims_in, dims_c=self.dims_c) \
+                         for _ in range(n_blocks)]
+        elif permutations == 'random':
+            perm_list = [perm.PermuteRandom(self.dims_in, dims_c=self.dims_c) \
+                         for _ in range(n_blocks)]
+        elif permutations == 'log':
+            # taken from i-flow: https://gitlab.com/i-flow/i-flow/-/blob/master/iflow_test.py#L365
+
+            n_perms = int(np.ceil(np.log2(self.dims_in)))
+            masks = np.transpose(np.array([binary_list(i, n_perms) \
+                                           for i in range(self.dims_in[0])]))[::-1]
+            # now find perm that moves all '1' of masks to the end
+            perm_list = []
+            for i, mask in enumerate(masks[::-1]):
+                mask = mask.astype(bool)
+                if i == 0:
+                    # first perm. starts from ordered dimensions
+                    permutation = np.concatenate([np.arange(self.dims_in[0])[mask],
+                                                  np.arange(self.dims_in[0])[~mask]])
+                else:
+                    # subsequent perm. start from previously permuted (and exchanged) dimensions
+                    previous_perm_corr = np.arange(self.dims_in[0])[np.argsort(permutation)]
+                    permutation = np.concatenate([previous_perm_corr[np.arange(self.dims_in[0])]\
+                                                  [mask],
+                                                  previous_perm_corr[np.arange(self.dims_in[0])]\
+                                                  [~mask]])
+                perm_list.append(perm.Permutation(self.dims_in, dims_c=self.dims_c,
+                                                  permutation=permutation))
+                perm_list.append(perm.PermuteExchange(self.dims_in, dims_c=self.dims_c))
+
+        elif permutations == 'soft':
+            perm_list = [perm.PermuteSoft(self.dims_in, dims_c=self.dims_c) \
+                         for _ in range(n_blocks)]
+        elif permutations == 'softlearn':
+            perm_list = [perm.PermuteSoftLearn(self.dims_in, dims_c=self.dims_c) \
+                         for _ in range(n_blocks)]
+        else:
+            raise ValueError("Permutation '{}' not recognized".format(permutations))
 
         # Define base_dist
         base_dist = StandardUniform(dims_in)
@@ -37,17 +80,27 @@ class VegasFlow(Flow):
         transforms = []
         if hypercube_target:
             transforms.append(Logit(dims_in))
-        for _ in range(n_blocks):
-            transforms.append(
-                AllInOneBlock(
-                    self.dims_in,
-                    dims_c=self.dims_c,
-                    clamp=0.5,
-                    permute_soft=True,
-                    subnet_meta=subnet_meta,
-                    subnet_constructor=subnet_constructor,
-                )
-            )
+        for i in range(n_blocks):
+            #transforms.append(
+            #    AllInOneBlock(
+            #        self.dims_in,
+            #        dims_c=self.dims_c,
+            #        clamp=0.5,
+            #        permute_soft=True,
+            #        subnet_meta=subnet_meta,
+            #        subnet_constructor=subnet_constructor,
+            #    )
+            #)
+            #permute(act(affine(x)))
+            transforms.append(AffineCoupling(self.dims_in,
+                                             dims_c=self.dims_c,
+                                             subnet_meta=subnet_meta,
+                                             subnet_constructor=subnet_constructor,
+                                             clamp=0.5)
+                              )
+            transforms.append(ActNorm(self.dims_in, dims_c=self.dims_c))
+            transforms.append(perm_list[i])
+
         transforms.append(Sigmoid(dims_in))
 
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
@@ -140,7 +193,8 @@ class RQSVegasFlow(Flow):
                 transforms.append(perm_list[i])
 
         # Remove last shuffle as it is useless
-        transforms.pop()
+        if 'soft' not in permutations:
+            transforms.pop()
 
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
 

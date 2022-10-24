@@ -25,7 +25,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 import madnis
-from vegasflow import RQSVegasFlow
+from vegasflow import VegasFlow, RQSVegasFlow
 
 
 # Use double precision
@@ -53,6 +53,8 @@ parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
 
 # model params
+parser.add_argument("--use_RQS", action='store_true', help='use RQS instead of affine trafo')
+parser.add_argument("--RQS_bins", type=int, default=8)
 parser.add_argument("--units", type=int, default=128)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
@@ -60,7 +62,8 @@ parser.add_argument("--activation", type=str, default="leakyrelu",
                     choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform",
                     choices={"glorot_uniform", "he_uniform"})
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--loss", type=str, default="variance",
+                    choices={"variance", "neyman_chi2", "kl_divergence"})
 
 args = parser.parse_args()
 
@@ -129,16 +132,23 @@ FLOW_META = {
 N_BLOCKS = args.blocks
 
 flows_dic = {}
+if args.use_RQS:
+    FLOW_CONST = RQSVegasFlow
+    kwargs = {'bins': args.RQS_bins}
+else:
+    FLOW_CONST = VegasFlow
+    kwargs = {}
 
 for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:
-    flows_dic[perm] = RQSVegasFlow(
+    flows_dic[perm] = FLOW_CONST(
         [DIMS_IN],
         dims_c=[[N_CHANNELS]],
         n_blocks=N_BLOCKS,
         subnet_meta=FLOW_META,
         subnet_constructor=MLP,
         hypercube_target=True,
-        permutations=perm
+        permutations=perm,
+        **kwargs
     )
 
 ################################
