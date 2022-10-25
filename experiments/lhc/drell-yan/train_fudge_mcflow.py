@@ -55,7 +55,7 @@ parser.add_argument(
     "--loss",
     type=str,
     default="variance",
-    choices={"variance", "neyman_chi2", "kl_divergence"},
+    choices={"variance", "neyman_chi2", "exponential"},
 )
 parser.add_argument("--separate_flows", action="store_true")
 
@@ -64,8 +64,8 @@ parser.add_argument("--z_width_scale", type=float, default=1)
 parser.add_argument("--zp_width_scale", type=float, default=1)
 
 # mcw model params
-parser.add_argument("--mcw_units", type=int, default=16)
-parser.add_argument("--mcw_layers", type=int, default=2)
+parser.add_argument("--mcw_units", type=int, default=32)
+parser.add_argument("--mcw_layers", type=int, default=3)
 
 # Define the number of channels and process
 parser.add_argument("--channels", type=int, default=2)
@@ -73,7 +73,7 @@ parser.add_argument("--cut", type=float, default=15)
 parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 
 # Train params
-parser.add_argument("--epochs", type=int, default=40)
+parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
 parser.add_argument("--train_mcw", action="store_true")
@@ -258,7 +258,7 @@ base_dist = StandardUniform((DIMS_IN,))
 if TRAIN_MCW:
     integrator = MultiChannelIntegrator(
         integrand,
-        flow,
+        base_dist,
         opt,
         mcw_model=mcw_net,
         mappings=MAPPINGS,
