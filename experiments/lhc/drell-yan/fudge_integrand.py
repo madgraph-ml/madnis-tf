@@ -292,6 +292,17 @@ class FudgeDrellYan:
         pdf_factor = pdf_1a * pdf_2a + pdf_1b * pdf_2b
 
         return pdf_factor * self.partonic_dxs(cos_theta, s_parton, isq)
+    
+    def single_channel(self, p: tf.Tensor, channel: int):
+        # Map input to needed quantities
+        x1, x2, cos_theta, _ = tf.unstack(p, axis=-1)
+        s_parton = x1 * x2 * self.s_had
+        
+        # Calculate full weight
+        m0u, m1u, m2u, _, _, _ = self.amp2_single(cos_theta, s_parton, 'u')
+        m0d, m1d, m2d, _, _, _ = self.amp2_single(cos_theta, s_parton, 'd')
+        m = [m0u + m0d, m1u + m1d, m2u + m2d]
+        return m[channel]
 
     def __call__(self, p: tf.Tensor):
         """Calculate the full hadronic event weight including pdfs and

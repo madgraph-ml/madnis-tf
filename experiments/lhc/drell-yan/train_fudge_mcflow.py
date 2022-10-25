@@ -16,6 +16,7 @@ from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
 from madnis.mappings.multi_flow import MultiFlow
+from madnis.models.mc_prior import WeightPrior
 from utils import to_four_mom
 
 import sys
@@ -72,7 +73,7 @@ parser.add_argument("--cut", type=float, default=15)
 parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 
 # Train params
-parser.add_argument("--epochs", type=int, default=20)
+parser.add_argument("--epochs", type=int, default=40)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
 parser.add_argument("--train_mcw", action="store_true")
@@ -142,7 +143,7 @@ map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
 # Define the flow network
 ################################
 
-PRIOR = True  # args.use_prior_weights
+PRIOR = False # args.use_prior_weights
 
 FLOW_META = {
     "units": args.units,
@@ -192,20 +193,35 @@ if PRIOR:
     mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 else:
     mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+    
+print(mcw_net.summary())
 
 ################################
 # Define the prior
 ################################
 
-# TODO: Add parts of Matrix-Element as prior
-# if PRIOR:
-#     # Define prior weight
-#     prior = WeightPrior([map_1,map_2], N_CHANNELS)
-#     madgraph_prior = prior.get_prior_weights
-# else:
-#     madgraph_prior = None
-
-madgraph_prior = None
+def y_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 0)
+    
+def z_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 1)
+    
+def zp_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 2)
+    
+#TODO: Add parts of Matrix-Element as prior
+if PRIOR:
+    # Define prior weight
+    if N_CHANNELS == 2:
+        prior = WeightPrior([z_prior, zp_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif N_CHANNELS == 3:
+        prior = WeightPrior([z_prior, zp_prior, y_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    else:
+        raise ValueError("Too many channels")
+else:
+    madgraph_prior = None
 
 ################################
 # Define the integrator
@@ -224,7 +240,7 @@ TRAIN_MCW = args.train_mcw
 ITERS = args.train_batches
 
 # Decay of learning rate
-DECAY_RATE = 0.01
+DECAY_RATE = 0.1
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer

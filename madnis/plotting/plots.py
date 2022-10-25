@@ -330,9 +330,6 @@ def plot_alphas_stack(axs, channel_data, true_data, args):
         y = args[1](y, args[0])
         y_all.append(y)
         _, x_p = np.histogram(y, args[2], density=True, range=args[3])
-        # if i == 0:
-        #     y_t, x_t = np.histogram(y, args[2], density=True, range=args[3], weights=weight)
-        #     axs[0].stairs(y_t, edges=x_t, ls="dashed", color='black', label="Truth")
         weight_all.append(weight/alpha)
         alpha_all.append(alpha)
         weight_norm, _, _ = binned_statistic(y, weight/alpha, statistic='sum', bins=x_p)
