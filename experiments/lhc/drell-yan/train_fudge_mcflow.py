@@ -2,12 +2,16 @@ import os
 from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+###### disable GPU, if needed
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 import tensorflow as tf
 import numpy as np
 import argparse
 import time
 
-from mcw import mcw_model, residual_mcw_model
+from mcw import mcw_model, residual_mcw_model, alternative_residual_mcw_model
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
@@ -23,6 +27,11 @@ import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
+
+if tf.test.gpu_device_name():
+    print('GPU found')
+else:
+    print("No GPU found")
 
 #########
 # Setup #
@@ -68,7 +77,7 @@ parser.add_argument("--mcw_units", type=int, default=32)
 parser.add_argument("--mcw_layers", type=int, default=3)
 
 # Define the number of channels and process
-parser.add_argument("--channels", type=int, default=2)
+parser.add_argument("--channels", type=int, default=3)
 parser.add_argument("--cut", type=float, default=15)
 parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
 
@@ -101,6 +110,8 @@ CUT = args.cut
 SINGLE_MAP = args.single_map
 MAPS = SINGLE_MAP if N_CHANNELS == 1 else "ZpZy"
 PRIOR = True # args.use_prior_weights
+
+#print("Using MadGraph prior: ", PRIOR)
 
 Z_SCALE = args.z_width_scale
 WZ = 2.441404e-00 * Z_SCALE
@@ -189,11 +200,13 @@ MCW_META = {
     "activation": args.activation,
 }
 
-if PRIOR:
-    mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
-else:
-    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
-    
+#if PRIOR:
+#mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+mcw_net = alternative_residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+print(mcw_net.get_layer(name='additive_residual_weight').weights)
+#else:
+#    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+
 print(mcw_net.summary())
 
 ################################
@@ -225,6 +238,8 @@ if PRIOR:
         raise ValueError("Too many channels")
 else:
     madgraph_prior = None
+
+madgraph_prior = None
 
 ################################
 # Define the integrator
@@ -351,7 +366,7 @@ for e in range(EPOCHS):
 
     train_loss = tf.reduce_mean(batch_train_losses)
     train_losses.append(train_loss)
-
+    print("weights: ", mcw_net.get_layer(name='additive_residual_weight').weights)
     if (e + 1) % 1 == 0:
         # Print metrics
         print(
