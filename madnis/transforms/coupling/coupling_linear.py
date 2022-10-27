@@ -367,6 +367,7 @@ class AffineCoupling(CouplingTransform):
         # j: log det Jacobian
 
         a = self.subnet(x1_c)
+        a *= 0.1
         s, t = tf.split(a, [self.split_len2, self.split_len2], axis=-1)
         s = self.clamp * self.f_clamp(s)
         j = tf.reduce_sum(s, axis=self.sum_dims)
@@ -386,6 +387,7 @@ class AffineCoupling(CouplingTransform):
         # j: log det Jacobian
 
         a = self.subnet(x1_c)
+        a *= 0.1
         s, t = tf.split(a, [self.split_len2, self.split_len2], axis=-1)
         s = self.clamp * self.f_clamp(s)
         j = tf.reduce_sum(s, axis=self.sum_dims)

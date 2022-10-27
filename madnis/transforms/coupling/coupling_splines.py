@@ -166,7 +166,7 @@ class QuadraticSplineBlock(CouplingTransform):
         # split into different contributions
         unnormalized_widths = a[..., :self.num_bins]
         unnormalized_heights = a[..., self.num_bins:]
-        
+
         y, ldj_elementwise = splines.unconstrained_quadratic_spline(
             x,
             unnormalized_widths,

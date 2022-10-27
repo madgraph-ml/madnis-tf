@@ -72,7 +72,7 @@ class Flow(Mapping):
 
         embedded_condition = self.embedding_net(condition)
         z = self.base_dist.sample(num_samples, condition=embedded_condition)
-        
+
         # if embedded_condition is not None:
         #     z = tfutils.merge_leading_dims(z, num_dims=2)
         #     embedded_condition = tfutils.repeat_rows(

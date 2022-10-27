@@ -247,14 +247,14 @@ class AllInOneBlock(CouplingTransform):
         # number of elements of the first channel of the first batch member
         # Fix n_pixels
         # n_pixels = tf.size(x) / self.channels
-        n_pixels = tf.size(x_out[0,...,:1], out_type=x_out.dtype)
+        n_pixels = tf.size(x_out[0, ..., :1], out_type=x_out.dtype)
         log_jac_det += 1 * global_scaling_jac * n_pixels
 
         if not jac:
             return x_out
 
         return x_out, log_jac_det
-    
+
     def inverse(self, x, c=None, jac=True):
         # Act Norm
         x, global_scaling_jac = self._permute(x, rev=True)
@@ -281,7 +281,7 @@ class AllInOneBlock(CouplingTransform):
         # trick to get the total number of non-channel dimensions:
         # number of elements of the first channel of the first batch member
         # Fix n_pixels
-        n_pixels = tf.size(x_out[0,...,:1], out_type=x_out.dtype)
+        n_pixels = tf.size(x_out[0, ..., :1], out_type=x_out.dtype)
         log_jac_det += (-1) * global_scaling_jac * n_pixels
 
         if not jac:
