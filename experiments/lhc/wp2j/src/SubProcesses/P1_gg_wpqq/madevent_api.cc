@@ -28,8 +28,8 @@ class MGInterface {
             madevent_api_(rans, ndim, channel, cut, result);
             return result;
         }
-        std::array<double, 20> Momenta() {
-            std::array<double, 20> momenta;
+        std::vector<double> Momenta(int npart) {
+            std::vector<double> momenta(npart*4);
             get_momenta_(momenta.data());
             return momenta;
         }
@@ -37,10 +37,10 @@ class MGInterface {
             static MGInterface interface;
             return interface;
         }
-    private:
 };
 
 REGISTER_OP("CallMadgraph")
+    .Attr("npart: int")
     .Input("rans: float64")
     .Input("channel: int32")
     .Output("mom: float64")
@@ -49,6 +49,13 @@ REGISTER_OP("CallMadgraph")
 class CallMadgraphOp : public OpKernel {
     public:
         explicit CallMadgraphOp(OpKernelConstruction *context) : OpKernel(context) {
+            // Get the number of particles
+            OP_REQUIRES_OK(context,
+                           context->GetAttr("npart", &npart_));
+            // Check that npart is greater than 3
+            OP_REQUIRES(context, npart_ > 3,
+                        errors::InvalidArgument("Need at least 4 particles, got ",
+                                                   npart_));
             MGInterface::Instance().Configure();
         }
 
@@ -71,7 +78,7 @@ class CallMadgraphOp : public OpKernel {
             TensorShape momenta_shape = input_shape;
             momenta_shape.RemoveDim(1);
             // Shape should be nbatch, npart, (E, px, py, pz)
-            momenta_shape.AddDim(5);
+            momenta_shape.AddDim(npart_);
             momenta_shape.AddDim(4);
             OP_REQUIRES_OK(context, context->allocate_output(0, momenta_shape, &momenta_tensor));
             auto momenta_flat = momenta_tensor->flat<double>();
@@ -92,14 +99,16 @@ class CallMadgraphOp : public OpKernel {
                 int channel = in_channel(ibatch);
                 double weight = MGInterface::Instance().CallMadgraph(rans, nRandom, ++channel);
                 weight_flat(ibatch) = weight;
-                auto mom = MGInterface::Instance().Momenta();
-                for(size_t imom = 0; imom < 20; ++imom)
-                    momenta_flat(ibatch*20+imom) = mom[imom];
+                auto mom = MGInterface::Instance().Momenta(npart_);
+                for(size_t imom = 0; imom < 4*npart_; ++imom)
+                    momenta_flat(ibatch*4*npart_+imom) = mom[imom];
             }
             delete[] rans;
         }
 
         ~CallMadgraphOp() {}
+    private:
+        int npart_;
 };
 
 REGISTER_KERNEL_BUILDER(Name("CallMadgraph").Device(DEVICE_CPU), CallMadgraphOp);
