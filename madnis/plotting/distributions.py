@@ -267,6 +267,8 @@ class DistributionPlot(Observable):
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',False),
             'm12log2': ([0,1], self.invariant_mass, 40, (10,650),
                         r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
+            'm12log3': ([0,1], self.invariant_mass, 40, (10,1650),
+                        r'$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]', r'M_{12}',True),
         }	 
 
         args2 = {			 

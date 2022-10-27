@@ -10,7 +10,7 @@ class MLP(SubNet):
     which can be used within the invertible modules.
     """
 
-    def __init__(self, meta, channels_in, channels_out):
+    def __init__(self, meta, channels_in, channels_out, initialize_zero=False):
         """
         Args:
           meta:

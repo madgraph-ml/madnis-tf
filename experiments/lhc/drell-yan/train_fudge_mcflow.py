@@ -100,6 +100,7 @@ RES_TO_PB = 0.389379 * 1e9  # Conversion factor from GeV^-2 to pb
 CUT = args.cut
 SINGLE_MAP = args.single_map
 MAPS = SINGLE_MAP if N_CHANNELS == 1 else "ZpZy"
+PRIOR = True # args.use_prior_weights
 
 Z_SCALE = args.z_width_scale
 WZ = 2.441404e-00 * Z_SCALE
@@ -113,8 +114,9 @@ else:
     mode = "cond"
 
 LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{mode}/"
-# LOG_DIR = f'./plots/zprime/test/'
-print(LOG_DIR)
+
+if PRIOR:
+    LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{mode}_prior/"
 
 # Define truth integrand
 integrand = FudgeDrellYan(
@@ -142,8 +144,6 @@ map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
 ################################
 # Define the flow network
 ################################
-
-PRIOR = False # args.use_prior_weights
 
 FLOW_META = {
     "units": args.units,
@@ -201,13 +201,16 @@ print(mcw_net.summary())
 ################################
 
 def y_prior(p: tf.Tensor):
-    return integrand.single_channel(p, 0)
+    # return integrand.single_channel(p, 0)
+    return map_y.prob(p)
     
 def z_prior(p: tf.Tensor):
-    return integrand.single_channel(p, 1)
+    # return integrand.single_channel(p, 1)
+    return map_Z.prob(p)
     
 def zp_prior(p: tf.Tensor):
-    return integrand.single_channel(p, 2)
+    # return integrand.single_channel(p, 2)
+    return map_Zp.prob(p)
     
 #TODO: Add parts of Matrix-Element as prior
 if PRIOR:
@@ -240,7 +243,7 @@ TRAIN_MCW = args.train_mcw
 ITERS = args.train_batches
 
 # Decay of learning rate
-DECAY_RATE = 0.1
+DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer

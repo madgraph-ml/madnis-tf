@@ -113,6 +113,7 @@ class MultiChannelIntegrator:
         # Define the loss functions
         self.divergence = Divergence(n_channels=self.n_channels, **kwargs)
         self.loss_func = self.divergence(loss_func)
+        self.class_loss = tf.keras.losses.categorical_crossentropy
 
         self.uniform_channel_ratio = tf.constant(uniform_channel_ratio, dtype=self._dtype)
         self.variance_history_length = variance_history_length
@@ -314,6 +315,45 @@ class MultiChannelIntegrator:
         alphas = tf.gather(alphas, channels, batch_dims=1)
 
         return nsamples, q_test, logq, alphas, alphas_prior
+    
+    @tf.function
+    def _get_alpha_vector(
+        self,
+        samples: tf.Tensor,
+        channels: tf.Tensor,
+        weight_prior: Callable = None,
+    ):  
+        nsamples = tf.shape(samples)[0]
+        one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
+        logq = self.dist.log_prob(samples, condition=one_hot_channels)
+        y, logq = self._compute_analytic_mappings(samples, logq, channels)
+
+        if self.train_mcw:
+            if self.use_weight_init:
+                if weight_prior is not None:
+                    init_weights = weight_prior(y)
+                    assert init_weights.shape[1] == self.n_channels
+                else:
+                    init_weights = (
+                        1
+                        / self.n_channels
+                        * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                    )
+                alphas = self.mcw_model([y, init_weights])
+            else:
+                alphas = self.mcw_model(y)
+        else:
+            if weight_prior is not None:
+                alphas = weight_prior(y)
+                assert alphas.shape[1] == self.n_channels
+            else:
+                alphas = (
+                    1
+                    / self.n_channels
+                    * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
+                )
+
+        return alphas
 
 
     @tf.function
@@ -381,6 +421,25 @@ class MultiChannelIntegrator:
         self.optimizer.apply_gradients(zip(grads, trainable_weights))
 
         return loss, means, vars, counts
+    
+    @tf.function
+    def _classification_optimization_step(
+        self,
+        samples: tf.Tensor,
+        channels: tf.Tensor,
+        weight_prior: Callable,
+    ):
+        if not self.train_mcw:
+            raise ValueError("No network defined which can be optimized")
+
+        with tf.GradientTape() as tape:
+            alpha_vector = self._get_alpha_vector(samples, channels, weight_prior)
+            loss = tf.reduce_mean(self.class_loss(channels, alpha_vector), axis=0)
+        
+        grads = tape.gradient(loss, self.mcw_model.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
+
+        return loss
 
     def _get_variance_weights(self):
         if len(self.variance_history) < self.variance_history_length:
@@ -399,7 +458,32 @@ class MultiChannelIntegrator:
         del self.stored_func_vals[:]
         del self.stored_channels[:]
         self.stored_dataset = None
+    
+    def train_one_classification_step(
+        self, nsamples: int, weight_prior: Callable = None,
+    ):
+        """Perform one step of alpha optimization using classification
 
+        Args:
+            nsamples (int): Number of samples to be taken in a training step
+            weight_prior (Callable, optional): returns the prior weights. Defaults to None.
+            integral (bool, optional): return the integral value. Defaults to False.
+
+        Returns:
+            loss: Value of the loss function for this step
+            integral (optional): Estimate of the integral value
+            uncertainty (optional): Integral statistical uncertainty
+        """
+
+        # Sample from flow
+        samples, _, _, channels = self._get_samples(
+            tf.constant(nsamples), self._get_variance_weights(), self.uniform_channel_ratio
+        )
+        
+        loss = self._classification_optimization_step(samples, channels, weight_prior)
+
+        return loss
+    
     def train_one_step(
         self, nsamples: int, weight_prior: Callable = None, integral: bool = False
     ):
