@@ -117,16 +117,16 @@ else:
 ################################
 # Define the prior
 ################################
+    
+def prior_1(p: tf.Tensor):
+    return map_1.prob(p)
 
-# Define prior functions
-# LOGST1 = tf.math.log(STD1) * tf.ones((1,1))
-# LOGST2 = tf.math.log(STD2) * tf.ones((1,1))
-# f1 = Normal((1,), mean=MEAN1, log_std=LOGST1)
-# f2 = Normal((1,), mean=MEAN2, log_std=LOGST2)
+def prior_2(p: tf.Tensor):
+    return map_2.prob(p)
 
 if PRIOR:
     # Define prior weight 
-    prior = WeightPrior([map_1,map_2], N_CHANNELS)
+    prior = WeightPrior([prior_1,prior_2], N_CHANNELS)
     madgraph_prior = prior.get_prior_weights
 else:
     madgraph_prior = None
@@ -161,7 +161,7 @@ base_dist = StandardUniform((DIMS_IN,))
 integrator = MultiChannelIntegrator(
     camel,
     base_dist,
-    [opt],
+    opt,
     mappings=[map_1, map_2],
     mcw_model=mcw_net,
     use_weight_init=PRIOR,

@@ -11,11 +11,11 @@ from ..utils import tfutils
 
 class Flow(Mapping):
     def __init__(
-            self,
-            base_dist: Distribution,
-            transforms: Union[Transform, List[Transform]],
-            embedding_net: tf.keras.Model = None,
-            **kwargs
+        self,
+        base_dist: Distribution,
+        transforms: Union[Transform, List[Transform]],
+        embedding_net: tf.keras.Model = None,
+        **kwargs
     ):
         super().__init__(base_dist, **kwargs)
 
@@ -52,10 +52,10 @@ class Flow(Mapping):
         return z, log_det
 
     def _log_det(
-            self,
-            x_or_z: tf.Tensor,
-            condition: tf.Tensor = None,
-            inverse: bool = False,
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ):
         embedded_condition = self.embedding_net(condition)
         if inverse:
@@ -88,10 +88,10 @@ class Flow(Mapping):
         return sample
 
     def log_prob(
-            self,
-            x_or_z: tf.Tensor,
-            condition: tf.Tensor = None,
-            inverse: bool = False,
+        self,
+        x_or_z: tf.Tensor,
+        condition: tf.Tensor = None,
+        inverse: bool = False,
     ):
         """
         Calculate log probability of the mapping combined

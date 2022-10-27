@@ -8,14 +8,19 @@ import time
 from mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
-from madnis.distributions.camel import NormalizedMultiDimCamel
+from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
-from vegasflow import VegasFlow
+from vegasflow import VegasFlow, RQSVegasFlow
+from utils import translate_channels
 
 import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
+
+# Ensure only single CPU thread
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
 
 #########
 # Setup #
@@ -25,7 +30,7 @@ parser = argparse.ArgumentParser()
 
 # Data params
 parser.add_argument("--train_batches", type=int, default=1000)
-parser.add_argument("--int_samples", type=int, default=10000)
+parser.add_argument("--int_samples", type=int, default=1000000)
 
 # model params
 parser.add_argument("--use_prior_weights", action='store_true')
@@ -41,11 +46,11 @@ parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
 # Define the number of channels
-parser.add_argument("--channels", type=int, default=2)
+parser.add_argument("--channels", type=int, default=4)
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
-parser.add_argument("--batch_size", type=int, default=128)
+parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
 
 args = parser.parse_args()
@@ -55,16 +60,18 @@ args = parser.parse_args()
 ################################
 
 DTYPE = tf.keras.backend.floatx()
-DIMS_IN = 10  # dimensionality of data space
-N_CHANNELS = 8  # number of Channels
+DIMS_IN = 12  # dimensionality of data space (apparently it must be 12?)
+N_CHANNELS = args.channels  # number of Channels
 
-#cwd = os.getcwd()
-os.chdir("MadNis_example")
+# Need to go to /src as it looks for "../symfact.dat" in parent folder
+os.chdir("src")
 madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
-#os.chdir(cwd)
+
+# TODO: feed momenta to integrator to also train alphas
 def integrand(x, channels):
-    #return madgraph.call_madgraph(x, tf.one_hot(channels, N_CHANNELS, dtype=tf.int32))
-    return madgraph.call_madgraph(x, channels)
+    channels_api = translate_channels(channels)
+    _, wgt = madgraph.call_madgraph(x, channels_api)
+    return wgt
 
 print(f"\n Integrand specifications:")
 print("-----------------------------------------------------------")
@@ -77,6 +84,7 @@ print("-----------------------------------------------------------\n")
 # Naive integration
 ################################
 
+# TODO: should be possible here. Re-implement this!
 INT_SAMPLES = args.int_samples
 #
 ## Uniform sampling in range [0,1]^d
@@ -109,7 +117,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = RQSVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,
@@ -168,9 +176,11 @@ lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DE
 opt1 = tf.keras.optimizers.Adam(lr_schedule1)
 opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 
+base_dist = StandardUniform((DIMS_IN,))
+
 integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1, opt2],
-    mcw_model=mcw_net,
+    integrand, flow, [opt1],
+    mcw_model=None,
     use_weight_init=PRIOR,
     n_channels=N_CHANNELS,
     loss_func=LOSS,
@@ -184,12 +194,11 @@ integrator = MultiChannelIntegrator(
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
-print("--------------------------------------------------------------")
-print(f" Number of channels: {N_CHANNELS}                            ")
-print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
-print("------------------------------------------------------------\n")
-
+print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):  ")
+print("----------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                              ")
+print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
+print("----------------------------------------------------------------\n")
 
 ################################
 # Train the network
@@ -227,8 +236,8 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
 relerr = err / res * 100
 
-print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
-print("---------------------------------------------------------------")
-print(f" Number of channels: {N_CHANNELS}                             ")
-print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
-print("-------------------------------------------------------------\n")
+print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples): ")
+print("----------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                              ")
+print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
+print("----------------------------------------------------------------\n")

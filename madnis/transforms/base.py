@@ -33,10 +33,10 @@ class Transform(tf.keras.layers.Layer):
         self.dims_c = list(dims_c)
 
     def call(  # pylint: disable=W0221
-            self,
-            x: tf.Tensor,
-            c: Iterable[tf.Tensor] = None,
-            jac: bool = True,
+        self,
+        x: tf.Tensor,
+        c: Iterable[tf.Tensor] = None,
+        jac: bool = True,
     ):
         """
         Perform a forward pass through this layer.
@@ -50,10 +50,10 @@ class Transform(tf.keras.layers.Layer):
         )
 
     def inverse(  # pylint: disable=W0221
-            self,
-            z: tf.Tensor,
-            c: Iterable[tf.Tensor] = None,
-            jac: bool = True,
+        self,
+        z: tf.Tensor,
+        c: Iterable[tf.Tensor] = None,
+        jac: bool = True,
     ):
         """
         Perform a backward pass through this layer.

@@ -21,18 +21,18 @@ class AllInOneBlock(CouplingTransform):
     """
 
     def __init__(
-            self,
-            dims_in,
-            dims_c=None,
-            subnet_meta: Dict = None,
-            subnet_constructor: callable = None,
-            clamp: float = 2.0,
-            gin_block: bool = False,
-            global_affine_init: float = 1.0,
-            global_affine_type: str = "SOFTPLUS",
-            permute_soft: bool = False,
-            reverse_permutation: bool = False,
-            seed: Union[int, None] = None,
+        self,
+        dims_in,
+        dims_c=None,
+        subnet_meta: Dict = None,
+        subnet_constructor: callable = None,
+        clamp: float = 2.0,
+        gin_block: bool = False,
+        global_affine_init: float = 1.0,
+        global_affine_type: str = "SOFTPLUS",
+        permute_soft: bool = False,
+        reverse_permutation: bool = False,
+        seed: Union[int, None] = None,
     ):
         """
         Args:

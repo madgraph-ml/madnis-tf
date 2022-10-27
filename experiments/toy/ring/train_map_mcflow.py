@@ -15,7 +15,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
 from madnis.plotting.distributions import DistributionPlot
-from vegasflow import VegasFlow
+from vegasflow import VegasFlow, RQSVegasFlow
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
@@ -191,7 +191,7 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt1 = tf.keras.optimizers.Adam(lr_schedule)
 opt2 = tf.keras.optimizers.Adam(lr_schedule)
 
-MAPPINGS = []
+MAPPINGS = [map_2]
 N_MAPS = len(MAPPINGS)
 for i in range(N_CHANNELS-N_MAPS):
     MAPPINGS.append(identity)
@@ -199,8 +199,8 @@ for i in range(N_CHANNELS-N_MAPS):
 integrator = MultiChannelIntegrator(
     line_ring, 
     flow, 
-    [opt1, opt2], 
-    mcw_model=mcw_net, 
+    [opt1], 
+    mcw_model=None, 
     mappings=MAPPINGS, 
     use_weight_init=PRIOR, 
     n_channels=N_CHANNELS, 
@@ -211,16 +211,16 @@ integrator = MultiChannelIntegrator(
 # Pre train - plot sampling
 ################################
 
-log_dir = f'./plots/no_mappings/{N_CHANNELS}_channels/'
+log_dir = f'./plots/with_mappings/{N_CHANNELS}_channels/'
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
+dist = DistributionPlot(log_dir, "ring", which_plots=[0,0,0,1])
 for i in range(N_CHANNELS):
     x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
 
-    dist = DistributionPlot(x0, x0, f'pre-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
-    dist.plot()
+    dist.plot(x0, x0, f'pre-channel-{i}')
     
 ################################
 # Pre train - integration
@@ -270,9 +270,7 @@ print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
 for i in range(N_CHANNELS):
     x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
-
-    dist = DistributionPlot(x0, x0, f'after-channel-{i}', log_dir, "ring", which_plots=[0,0,0,1])
-    dist.plot()
+    dist.plot(x0, x0, f'after-channel-{i}')
     
 ################################
 # After train - integration

@@ -12,7 +12,7 @@ class WeightPrior:
 
     def __init__(
         self,
-        func: List[Distribution],
+        func: List[Union[Distribution, Callable]],
         n_channels: int,
         **kwargs,
     ):
@@ -31,7 +31,7 @@ class WeightPrior:
         gs = []
         g_tot = 0
         for i in range(self.n_channels):
-            gi = self.func[i].prob(inputs)
+            gi = self.func[i](inputs)
             g_tot += gi[..., None]
             gs.append(gi[..., None])
 

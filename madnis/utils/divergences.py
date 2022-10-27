@@ -33,12 +33,6 @@ def wrapped_multi_channel(func):
         if sigma is None:
             sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
-        if self.train_mcw:
-            q_test = tf.stop_gradient(q_test)
-            logq = tf.stop_gradient(logq)
-        else:
-            p_true = tf.stop_gradient(p_true)
-            logp = tf.stop_gradient(logp)
         q_sample = tf.stop_gradient(q_sample)
 
         logps = tf.dynamic_partition(logp, channels, self.n_channels)

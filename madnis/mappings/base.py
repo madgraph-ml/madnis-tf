@@ -44,10 +44,10 @@ class Mapping(Distribution):
         x = tf.convert_to_tensor(x, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if x.shape[0] != condition.shape[0]:
-                raise ValueError(
-                    "Number of input items must be equal to number of condition items."
-                )
+            tf.debugging.assert_equal(
+                tf.shape(x)[0], tf.shape(condition)[0],
+                "Number of input items must be equal to number of condition items."
+            )
         return self._forward(x, condition)
 
     def _forward(self, x, condition):
@@ -80,7 +80,7 @@ class Mapping(Distribution):
         z = tf.convert_to_tensor(z, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if z.shape[0] != condition.shape[0]:
+            if tf.shape(z)[0] != tf.shape(condition)[0]:
                 raise ValueError(
                     "Number of input items must be equal to number of condition items."
                 )
@@ -165,7 +165,7 @@ class Mapping(Distribution):
         x_or_z = tf.convert_to_tensor(x_or_z, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if x_or_z.shape[0] != condition.shape[0]:
+            if tf.shape(x_or_z)[0] != tf.shape(condition)[0]:
                 raise ValueError(
                     "Number of input items must be equal to number of condition items."
                 )
@@ -211,7 +211,7 @@ class Mapping(Distribution):
         x = tf.convert_to_tensor(x_or_z, dtype=self._dtype)
         if condition is not None:
             condition = tf.convert_to_tensor(condition, dtype=self._dtype)
-            if x.shape[0] != condition.shape[0]:
+            if tf.shape(x)[0] != tf.shape(condition)[0]:
                 raise ValueError(
                     "Number of input items must be equal to number of condition items."
                 )
