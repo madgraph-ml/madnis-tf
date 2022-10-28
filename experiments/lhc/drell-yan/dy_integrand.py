@@ -271,6 +271,17 @@ class DrellYan:
         )
         det = det1 / det2
         return det
+    
+    def single_channel(self, p: tf.Tensor, channel: int):
+        # Map input to needed quantities
+        x1, x2, cos_theta, _ = tf.unstack(p, axis=-1)
+        s_parton = x1 * x2 * self.s_had
+        
+        # Calculate full weight
+        m0u, m1u, _ = self.amp2_single(cos_theta, s_parton, 'u')
+        m0d, m1d, _ = self.amp2_single(cos_theta, s_parton, 'd')
+        m = [m0u + m0d, m1u + m1d]
+        return m[channel]
 
     def __call__(self, p: tf.Tensor):
         """Calculate the full hadronic event weight including pdfs and

@@ -16,7 +16,9 @@ from dy_integrand import DrellYan, MZ
 from madnis.plotting.distributions import DistributionPlot
 from madnis.plotting.plots import plot_weights
 from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.models.mc_prior import WeightPrior
 from madnis.mappings.multi_flow import MultiFlow
+from utils import to_four_mom
 
 import sys
 
@@ -87,7 +89,7 @@ MAPS = SINGLE_MAP if N_CHANNELS == 1  else "yZ"
 Z_SCALE = args.z_width_scale
 WZ = 2.441404e-00 * Z_SCALE
 
-LOG_DIR = f'./plots/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll_{Z_SCALE}scale/'
+LOG_DIR = f'./plots/sm/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll_{Z_SCALE}scale/'
 print(LOG_DIR)
 
 # Define truth integrand
@@ -161,15 +163,23 @@ else:
 # Define the prior
 ################################
 
-# TODO: Add parts of Matrix-Element as prior
-# if PRIOR:
-#     # Define prior weight
-#     prior = WeightPrior([map_1,map_2], N_CHANNELS)
-#     madgraph_prior = prior.get_prior_weights
-# else:
-#     madgraph_prior = None
+def y_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 0)
+    # return map_y.prob(p)
+    
+def z_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 1)
+    # return map_Z.prob(p)
 
-madgraph_prior = None
+if PRIOR:
+    # Define prior weight
+    if N_CHANNELS == 2:
+        prior = WeightPrior([y_prior, z_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    else:
+        madgraph_prior = None
+else:
+    madgraph_prior = None
 
 ################################
 # Define the integrator
@@ -237,21 +247,7 @@ if PLOTTING_PRE:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    def to_four_mom(x):
-        e_beam = 6500
-        x1, x2, costheta, phi = tf.unstack(x, axis=1)
-        s = 4 * e_beam**2 * x1 * x2
-        r3 = (costheta + 1) / 2
-        pz1 = e_beam * (x1*r3 + x2*(r3-1))
-        pz2 = e_beam * (x1*(1-r3) - x2*r3)
-        pt = tf.math.sqrt(s*r3*(1-r3))
-        px1 = pt * tf.math.cos(phi)
-        py1 = pt * tf.math.sin(phi)
-        e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
-        e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
-        return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
-
-    dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
+    dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, False])
     channel_data = []
     for i in range(N_CHANNELS):
         print(f'Sampling from channel {i}')
@@ -260,11 +256,16 @@ if PLOTTING_PRE:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f'Plotting distributions for channel {i}')
-        dist.plot(p, p, f'pre_channel_{i}')
+        # print(f'Plotting distributions for channel {i}')
+        # dist.plot(p, p, f'pre_channel_{i}')
 
-    print('Plotting channel weights')
-    dist.plot_channel_weights(channel_data, 'pre_channel_weights')
+    events_truth = map_y.sample(PLOT_SAMPLES * 10)
+    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
+    p_truth = to_four_mom(events_truth).numpy()
+    true_data = (p_truth, weight_truth.numpy())
+
+    print("Plotting channel weights")
+    dist.plot_channels_stacked(channel_data, true_data, "pre_stacked")
 
     print('Plotting weight distribution')
     plot_weights(channel_data, log_dir, 'pre_weight_dist')
@@ -329,20 +330,6 @@ if PLOTTING:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    def to_four_mom(x):
-        e_beam = 6500
-        x1, x2, costheta, phi = tf.unstack(x, axis=1)
-        s = 4 * e_beam**2 * x1 * x2
-        r3 = (costheta + 1) / 2
-        pz1 = e_beam * (x1*r3 + x2*(r3-1))
-        pz2 = e_beam * (x1*(1-r3) - x2*r3)
-        pt = tf.math.sqrt(s*r3*(1-r3))
-        px1 = pt * tf.math.cos(phi)
-        py1 = pt * tf.math.sin(phi)
-        e1 = tf.math.sqrt(px1**2 + py1**2 + pz1**2)
-        e2 = tf.math.sqrt(px1**2 + py1**2 + pz2**2)
-        return tf.stack((e1, px1, py1, pz1, e2, -px1, -py1, pz2), axis=-1)
-
     dist = DistributionPlot(log_dir, 'drell_yan', which_plots=[True, False, False, True])
     channel_data = []
     for i in range(N_CHANNELS):
@@ -352,11 +339,16 @@ if PLOTTING:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        print(f'Plotting distributions for channel {i}')
-        dist.plot(p, p, f'post_channel_{i}')
+        # print(f'Plotting distributions for channel {i}')
+        # dist.plot(p, p, f'post_channel_{i}')
 
-    print('Plotting channel weights')
-    dist.plot_channel_weights(channel_data, 'post_channel_weights')
+    events_truth = map_y.sample(PLOT_SAMPLES * 10)
+    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
+    p_truth = to_four_mom(events_truth).numpy()
+    true_data = (p_truth, weight_truth.numpy())
+
+    print("Plotting channel weights")
+    dist.plot_channels_stacked(channel_data, true_data, "post_stacked")
 
     print('Plotting weight distribution')
     plot_weights(channel_data, log_dir, 'post_weight_dist')
