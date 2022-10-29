@@ -206,8 +206,9 @@ class MultiChannelIntegrator:
         self,
         nsamples: tf.Tensor,
         channel_weights: tf.Tensor,
-        uniform_channel_ratio: tf.Tensor
-    ):  
+        uniform_channel_ratio: tf.Tensor,
+        return_mom: bool = False,
+    ):
         """
         Args:
             nsamples (tf.Tensor): Numper of samples to be generated.
@@ -244,6 +245,10 @@ class MultiChannelIntegrator:
         channels = tf.concat((uniform_channels, sampled_channels), axis=0)
 
         x, y, logq = self._get_samples_fixed(nsamples, channels)
+
+        if return_mom:
+            return x, y, tf.math.exp(logq), self._func(y, channels), channels
+
         return x, tf.math.exp(logq), self._func(y, channels), channels
 
     @tf.function(reduce_retracing=True)
@@ -315,23 +320,25 @@ class MultiChannelIntegrator:
         alphas = tf.gather(alphas, channels, batch_dims=1)
 
         return nsamples, q_test, logq, alphas, alphas_prior
-    
+
     @tf.function
     def _get_alpha_vector(
         self,
         samples: tf.Tensor,
         channels: tf.Tensor,
         weight_prior: Callable = None,
-    ):  
+    ):
         nsamples = tf.shape(samples)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         logq = self.dist.log_prob(samples, condition=one_hot_channels)
         y, logq = self._compute_analytic_mappings(samples, logq, channels)
 
+        alphas_prior = None
         if self.train_mcw:
             if self.use_weight_init:
                 if weight_prior is not None:
                     init_weights = weight_prior(y)
+                    alphas_prior = init_weights
                     assert init_weights.shape[1] == self.n_channels
                 else:
                     init_weights = (
@@ -345,6 +352,7 @@ class MultiChannelIntegrator:
         else:
             if weight_prior is not None:
                 alphas = weight_prior(y)
+                alphas_prior = alphas
                 assert alphas.shape[1] == self.n_channels
             else:
                 alphas = (
@@ -353,7 +361,7 @@ class MultiChannelIntegrator:
                     * tf.ones((nsamples, self.n_channels), dtype=self._dtype)
                 )
 
-        return alphas
+        return alphas, alphas_prior
 
 
     @tf.function
@@ -421,7 +429,7 @@ class MultiChannelIntegrator:
         self.optimizer.apply_gradients(zip(grads, trainable_weights))
 
         return loss, means, vars, counts
-    
+
     @tf.function
     def _classification_optimization_step(
         self,
@@ -433,9 +441,9 @@ class MultiChannelIntegrator:
             raise ValueError("No network defined which can be optimized")
 
         with tf.GradientTape() as tape:
-            alpha_vector = self._get_alpha_vector(samples, channels, weight_prior)
+            alpha_vector, _ = self._get_alpha_vector(samples, channels, weight_prior)
             loss = tf.reduce_mean(self.class_loss(channels, alpha_vector), axis=0)
-        
+
         grads = tape.gradient(loss, self.mcw_model.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.mcw_model.trainable_weights))
 
@@ -458,7 +466,7 @@ class MultiChannelIntegrator:
         del self.stored_func_vals[:]
         del self.stored_channels[:]
         self.stored_dataset = None
-    
+
     def train_one_classification_step(
         self, nsamples: int, weight_prior: Callable = None,
     ):
@@ -479,11 +487,11 @@ class MultiChannelIntegrator:
         samples, _, _, channels = self._get_samples(
             tf.constant(nsamples), self._get_variance_weights(), self.uniform_channel_ratio
         )
-        
+
         loss = self._classification_optimization_step(samples, channels, weight_prior)
 
         return loss
-    
+
     def train_one_step(
         self, nsamples: int, weight_prior: Callable = None, integral: bool = False
     ):
@@ -640,7 +648,9 @@ class MultiChannelIntegrator:
         return y, weight, alphas, alphas_prior
 
     def sample_weights(
-        self, nsamples: int, yield_samples: bool = False, weight_prior: Callable = None
+        self, nsamples: int,
+        yield_samples: bool = False,
+        weight_prior: Callable = None,
     ):
         """Sample from the trained distribution and return their weights.
 
@@ -662,8 +672,7 @@ class MultiChannelIntegrator:
 
         """
         weight, samples = self._sample_weights(
-            tf.constant(nsamples),
-            yield_samples,
+            nsamples,
             weight_prior
         )
         if yield_samples:
@@ -673,16 +682,17 @@ class MultiChannelIntegrator:
 
     @tf.function
     def _sample_weights(self, nsamples, weight_prior):
-        samples, q_sample, func_vals, channels = self._get_samples(
+        samples, p_samples, q_sample, func_vals, channels = self._get_samples(
             tf.constant(nsamples),
             self._get_variance_weights(),
-            uniform_channel_ratio=tf.constant(0.0, dtype=self._dtype)
+            uniform_channel_ratio=tf.constant(0.0, dtype=self._dtype),
+            return_mom=True,
         )
         weight = self._get_probs(
             samples, q_sample, func_vals, channels, weight_prior, return_integrand=True
         )
 
-        return weight, samples
+        return weight, p_samples
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
         """Calculate the acceptance, i.e. the unweighting
@@ -707,9 +717,14 @@ class MultiChannelIntegrator:
         sample = np.random.choice(weights, (nreplica, nopt))
         s_max = np.max(sample, axis=1)
         s_mean = np.mean(sample, axis=1)
-        s_acc = np.mean(s_mean) / np.median(s_max)
 
-        return s_acc
+        s_acc = np.mean(s_mean / np.median(s_max))
+        s_acc_partial = np.mean(np.minimum(sample / np.median(s_max), 1))
+
+        # Get accuracy without overweights
+        over_weight_rate  = np.mean(sample > np.median(s_max))
+
+        return s_acc, s_acc_partial, over_weight_rate
 
     def save_weights(self, path: str):
         """Save the networks."""

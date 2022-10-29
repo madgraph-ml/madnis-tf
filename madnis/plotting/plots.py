@@ -86,8 +86,8 @@ def plot_weights(channel_data, log_dir=".", name=""):
     m_weight = np.mean(all_weights)
     w_min = np.min(all_weights/m_weight)
     w_max = np.max(all_weights/m_weight)
-    bins = np.logspace(np.log10(1e-12), np.log10(1e03), 40)
-    
+    bins = np.logspace(np.log10(1e-2), np.log10(1e02), 40)
+
     for label in ( [ax1.yaxis.get_offset_text()] +
                     ax1.get_xticklabels() + ax1.get_yticklabels()):
         label.set_fontsize(FONTSIZE-2)
@@ -148,7 +148,7 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
 
     # Fig layout
     #
-    
+
     fig, axs = plt.subplots(
         2, 1, sharex=True, gridspec_kw={"height_ratios": [2, 1], "hspace": 0.00}
     )
@@ -178,8 +178,8 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     )
     axs[0].minorticks_on()
     axs[1].minorticks_on()
-    
-    
+
+
     for j in range(2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
                         axs[j].get_xticklabels() + axs[j].get_yticklabels()):
@@ -188,7 +188,7 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
 
     # Upper panel
     #
-    
+
     axs[0].plot(xs, truth, color="black", markersize=12, label=r"$\mathrm{Camel}(x)$")
     axs[0].plot(xs, m1, color="red", markersize=12, label=r"$g_1(x)$")
     axs[0].plot(xs, m2, color="blue", markersize=12, label=r"$g_2(x)$")
@@ -198,10 +198,10 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
     axs[0].set_ylabel(r"Probability density", fontsize = FONTSIZE)
     maxi = np.max([np.max(m1), np.max(m2), np.max(truth)])
     axs[0].set_ylim(top=maxi * 1.1)
-    
+
     # Lower panel
     #
-    
+
     axs[1].plot(xs, ys[0], color="red", markersize=12, label=r"$\alpha_1(x)$", linestyle="dashed")
     axs[1].plot(xs, ys[1], color="blue", markersize=12, label=r"$\alpha_2(x)$", linestyle="dashed")
     axs[1].plot(xs, amg1, color="red", markersize=12, label=r"$\alpha_{\mathrm{opt},1}(x)$", linestyle="dotted")
@@ -310,8 +310,8 @@ def plot_alphas_multidim(axs, channel_data, args):
     if has_prior:
         axs[1].legend(loc="upper center", ncol=2, frameon=False,
                       prop={"size": int(FONTSIZE-8)})
-        
-        
+
+
 def plot_alphas_stack(axs, channel_data, true_data, args):
     """Plot the alphas for multidimensional data"""
     if args[6]:
@@ -353,17 +353,17 @@ def plot_alphas_stack(axs, channel_data, true_data, args):
         if has_prior:
             axs[1].stairs(alpha_prior_binned, edges=x_p, color=color, ls="dashed",
                           linewidth=1.0, label=lbl2, baseline=None)
-    
+
     y_stack = np.stack(y_all, axis=-1)
-    alpha_stack = np.stack(alpha_all, axis=-1)    
+    alpha_stack = np.stack(alpha_all, axis=-1)
     axs[0].hist(y_stack, args[2], density=True, histtype='bar', stacked=True, label=labels, range=args[3], weights=alpha_stack)
-    
+
     # Plot truth data
     y_comb = args[1](true_data[0], args[0])
     weight_comb = true_data[1]
     y_t, x_t = np.histogram(y_comb, args[2], density=True, range=args[3], weights=weight_comb)
     axs[0].stairs(y_t, edges=x_t, ls="dashed", color='black', label="Truth")
-    
+
     for j in range(2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
                         axs[j].get_xticklabels() + axs[j].get_yticklabels()):
@@ -380,7 +380,7 @@ def plot_alphas_stack(axs, channel_data, true_data, args):
     if has_prior:
         axs[1].legend(loc="upper center", ncol=2, frameon=False,
                       prop={"size": int(FONTSIZE-8)})
-    
+
 #######################
 # Plot Distributions ##
 #######################
@@ -452,8 +452,8 @@ def plot_distribution_ratio(axs, y_train, y_predict, weights, args):
     axs[1].axhline(y=1,linewidth=1, linestyle='--', color='grey')
     axs[1].axhline(y=2,linewidth=1, linestyle='--', color='grey')
     axs[1].set_xlabel(args[4], fontsize = FONTSIZE)
- 
- 
+
+
 def plot_distribution_diff_ratio(axs, y_train, y_predict, weights, args):
     """Plot the distributions including ratio ind absolute difference"""
 
@@ -574,7 +574,7 @@ def plot_2d_distribution(fig, axs, y_train, y_predict, weights, args1, args2):
         for label in ( [axs[j].yaxis.get_offset_text()] +
                         axs[j].get_xticklabels() + axs[j].get_yticklabels()):
             label.set_fontsize(fontsize)
-   
+
         Z = h[j].T
         yfmt = ScalarFormatterForceFormat()
         yfmt.set_powerlimits((0,0))

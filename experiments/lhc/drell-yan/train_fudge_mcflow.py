@@ -39,38 +39,23 @@ parser.add_argument("--use_prior_weights", action="store_true")
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
-parser.add_argument(
-    "--activation",
-    type=str,
-    default="leakyrelu",
-    choices={"relu", "elu", "leakyrelu", "tanh"},
-)
-parser.add_argument(
-    "--initializer",
-    type=str,
-    default="glorot_uniform",
-    choices={"glorot_uniform", "he_uniform"},
-)
-parser.add_argument(
-    "--loss",
-    type=str,
-    default="variance",
-    choices={"variance", "neyman_chi2", "exponential"},
-)
+parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "exponential"})
 parser.add_argument("--separate_flows", action="store_true")
 
 # physics model-parameters
 parser.add_argument("--z_width_scale", type=float, default=1)
 parser.add_argument("--zp_width_scale", type=float, default=1)
+parser.add_argument("--cut", type=float, default=15)
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=32)
 parser.add_argument("--mcw_layers", type=int, default=3)
 
-# Define the number of channels and process
-parser.add_argument("--channels", type=int, default=2)
-parser.add_argument("--cut", type=float, default=15)
-parser.add_argument("--single_map", type=str, default="y", choices={"y", "Z"})
+# prior and mapping setting
+parser.add_argument("--prior", type=str, default="mg5", choices={"mg5", "sherpa", "flat"})
+parser.add_argument("--maps", type=str, default="y", choices={"y", "z", "p", "zy", "py", "pz", "pzy"})
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
@@ -93,14 +78,13 @@ args = parser.parse_args()
 
 DTYPE = tf.keras.backend.floatx()
 DIMS_IN = 4  # dimensionality of data space
-N_CHANNELS = args.channels  # number of Channels. Default is 2
+N_CHANNELS = len(args.maps)
 INT_SAMPLES = args.int_samples
-PLOT_SAMPLES = int(1e6)
+PLOT_SAMPLES = INT_SAMPLES
 RES_TO_PB = 0.389379 * 1e9  # Conversion factor from GeV^-2 to pb
 CUT = args.cut
-SINGLE_MAP = args.single_map
-MAPS = SINGLE_MAP if N_CHANNELS == 1 else "ZpZy"
-PRIOR = True # args.use_prior_weights
+MAPS = args.maps
+PRIOR = args.prior
 
 Z_SCALE = args.z_width_scale
 WZ = 2.441404e-00 * Z_SCALE
@@ -113,10 +97,12 @@ if args.separate_flows:
 else:
     mode = "cond"
 
-LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{mode}/"
+if args.train_mcw:
+    alphas = "trained"
+else:
+    alphas = "fixed"
 
-if PRIOR:
-    LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{mode}_prior/"
+LOG_DIR = f"./plots/zprime/{N_CHANNELS}channels_{MAPS}map_{mode}_{PRIOR}_{alphas}/"
 
 # Define truth integrand
 integrand = FudgeDrellYan(
@@ -137,7 +123,7 @@ print(f" Z'-Width   : {WZP} GeV                                    ")
 print("-----------------------------------------------------------\n")
 
 # Define the channel mappings
-map_Zp = TwoParticlePhasespaceB(s_mass=MZP, s_gamma=WZP, sqrt_s_min=CUT)
+map_p = TwoParticlePhasespaceB(s_mass=MZP, s_gamma=WZP, sqrt_s_min=CUT)
 map_Z = TwoParticlePhasespaceB(s_mass=MZ, s_gamma=WZ, sqrt_s_min=CUT)
 map_y = TwoParticlePhasespaceB(sqrt_s_min=CUT, nu=2)
 
@@ -189,40 +175,62 @@ MCW_META = {
     "activation": args.activation,
 }
 
-if PRIOR:
-    mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
-else:
-    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
-    
-print(mcw_net.summary())
+mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
 ################################
 # Define the prior
 ################################
 
-def y_prior(p: tf.Tensor):
-    # return integrand.single_channel(p, 0)
+def y_mg_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 0)
+
+def z_mg_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 1)
+
+def p_mg_prior(p: tf.Tensor):
+    return integrand.single_channel(p, 2)
+
+def y_map_prior(p: tf.Tensor):
     return map_y.prob(p)
-    
-def z_prior(p: tf.Tensor):
-    # return integrand.single_channel(p, 1)
+
+def z_map_prior(p: tf.Tensor):
     return map_Z.prob(p)
-    
-def zp_prior(p: tf.Tensor):
-    # return integrand.single_channel(p, 2)
-    return map_Zp.prob(p)
-    
-#TODO: Add parts of Matrix-Element as prior
-if PRIOR:
+
+def p_map_prior(p: tf.Tensor):
+    return map_p.prob(p)
+
+if PRIOR == "mg5":
     # Define prior weight
-    if N_CHANNELS == 2:
-        prior = WeightPrior([z_prior, zp_prior], N_CHANNELS)
+    if MAPS == "zy":
+        prior = WeightPrior([z_mg_prior, y_mg_prior], N_CHANNELS)
         madgraph_prior = prior.get_prior_weights
-    elif N_CHANNELS == 3:
-        prior = WeightPrior([z_prior, zp_prior, y_prior], N_CHANNELS)
+    elif MAPS == "py":
+        prior = WeightPrior([p_mg_prior, y_mg_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif MAPS == "pz":
+        prior = WeightPrior([p_mg_prior, z_mg_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif MAPS == "pzy":
+        prior = WeightPrior([p_mg_prior, z_mg_prior, y_mg_prior], N_CHANNELS)
         madgraph_prior = prior.get_prior_weights
     else:
-        raise ValueError("Too many channels")
+        madgraph_prior = None
+elif PRIOR == "sherpa":
+    # Define prior weight
+    if MAPS == "zy":
+        prior = WeightPrior([z_map_prior, y_map_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif MAPS == "py":
+        prior = WeightPrior([p_map_prior, y_map_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif MAPS == "pz":
+        prior = WeightPrior([p_map_prior, z_map_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    elif MAPS == "pzy":
+        prior = WeightPrior([p_map_prior, z_map_prior, z_map_prior], N_CHANNELS)
+        madgraph_prior = prior.get_prior_weights
+    else:
+        madgraph_prior = None
 else:
     madgraph_prior = None
 
@@ -236,6 +244,7 @@ BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
 TRAIN_MCW = args.train_mcw
+UNIFORM_CHANNEL_RATIO = N_CHANNELS / 10
 
 # Number of samples
 # TRAIN_SAMPLES = args.train_batches
@@ -251,22 +260,23 @@ lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DEC
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 # Add mappings to integrator
-MAPPINGS = [map_Z, map_Zp]
-N_MAPS = len(MAPPINGS)
-for i in range(N_CHANNELS - N_MAPS):
-    MAPPINGS.append(map_y)
+map_dict = {"y": map_y, "z": map_Z, "p": map_p}
+MAPPINGS = []
+for i in range(N_CHANNELS):
+    MAPPINGS.append(map_dict[MAPS[i]])
 
 base_dist = StandardUniform((DIMS_IN,))
 
 if TRAIN_MCW:
     integrator = MultiChannelIntegrator(
         integrand,
-        base_dist,
+        flow,
         opt,
         mcw_model=mcw_net,
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
+        uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
         loss_func=LOSS,
     )
 else:
@@ -278,6 +288,7 @@ else:
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
+        uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
         loss_func=LOSS,
     )
 
@@ -305,11 +316,8 @@ if PLOTTING_PRE:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        # print(f"Plotting distributions for channel {i}")
-        # dist.plot(p, p, f"pre_channel_{i}")
 
-    events_truth = map_y.sample(PLOT_SAMPLES * 10)
-    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
+    weight_truth, events_truth = integrator.sample_weights(PLOT_SAMPLES, yield_samples=True, weight_prior=madgraph_prior)
     p_truth = to_four_mom(events_truth).numpy()
     true_data = (p_truth, weight_truth.numpy())
 
@@ -391,13 +399,11 @@ if PLOTTING:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        # print(f"Plotting distributions for channel {i}")
-        # dist.plot(p, p, f"post_channel_{i}")
 
-    events_truth = map_y.sample(PLOT_SAMPLES * 10)
-    weight_truth = integrand(events_truth) / map_y.prob(events_truth)
-    p_truth = to_four_mom(events_truth).numpy()
-    true_data = (p_truth, weight_truth.numpy())
+    if not PLOTTING_PRE:
+        weight_truth, events_truth = integrator.sample_weights(PLOT_SAMPLES, yield_samples=True)
+        p_truth = to_four_mom(events_truth).numpy()
+        true_data = (p_truth, weight_truth.numpy())
 
     print("Plotting channel weights")
     dist.plot_channels_stacked(channel_data, true_data, "post_stacked")
@@ -420,4 +426,22 @@ print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples): ")
 print("----------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                              ")
 print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
+print("----------------------------------------------------------------\n")
+
+########################################
+# After train - unweighting efficiency
+########################################
+
+n_opt = INT_SAMPLES // 100
+uwgt_eff, uwgt_eff_part, over_weights = integrator.acceptance(n_opt)
+over_weights *= 100
+uwgt_eff_part *= 100
+uwgt_eff *= 100
+
+print(f"\n Unweighting efficiency using ({n_opt:.1e} samples): ")
+print("----------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                              ")
+print(f" Efficiency 1 : {uwgt_eff:.8f} %                               ")
+print(f" Efficiency 2 : {uwgt_eff_part:.8f} %                          ")
+print(f" Over_weights : {over_weights:.8f} %                           ")
 print("----------------------------------------------------------------\n")
