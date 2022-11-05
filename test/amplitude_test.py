@@ -7,7 +7,7 @@ import sys
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
-CUT = 10
+CUT = 15
 # setting path
 dydir = os.path.abspath("../experiments/lhc/drell-yan/")
 sys.path.append(dydir)
@@ -65,7 +65,7 @@ mB1 = invariant_mass(eventsB1,"convpolar")
 # Define histos
 rmax = 250
 rmin = CUT
-bins = 50
+bins = 39
 
 m_a0, x_bins = np.histogram(mA0, bins=np.linspace(rmin,rmax, bins+1), density=True, weights=weightA0.numpy())
 m_a1, _ = np.histogram(mA1, bins=np.linspace(rmin,rmax, bins+1), density=True, weights=weightA1.numpy())
@@ -74,15 +74,21 @@ m_b1, _ = np.histogram(mB1, bins=np.linspace(rmin,rmax, bins+1), density=True, w
 
 # make plot
 plt.rc("text", usetex=True)
-plt.rc('font', family='serif', size=12.0)
-plt.rc('axes', labelsize='large')   
-fig, ax1 = plt.subplots()
-ax1.step(x_bins[:bins], m_a0, label=r"MapA - Z", linewidth=1.0, where='mid')
-ax1.step(x_bins[:bins], m_a1, label=r"MapA - $\gamma$", linewidth=1.0, where='mid')
-ax1.step(x_bins[:bins], m_b0, label=r"MapB - Z", linewidth=1.0, where='mid')
-ax1.step(x_bins[:bins], m_b1, label=r"MapB - $\gamma$", linewidth=1.0, where='mid')
-ax1.legend(frameon=False)
+plt.rc("font", family="serif")
+plt.rc('text.latex', preamble=r'\usepackage{amsmath}')
+FONTSIZE = 18
+fig, ax1 = plt.subplots(figsize=(6.6,6))
+
+for label in ( [ax1.yaxis.get_offset_text()] +
+                ax1.get_xticklabels() + ax1.get_yticklabels()):
+    label.set_fontsize(FONTSIZE)
+
+# ax1.step(x_bins[:bins], m_a0, label=r"MapA - Z", linewidth=1.0, where='mid')
+ax1.step(x_bins[:bins], m_a1, label=r"Drell-Yan", linewidth=1.0, where='mid')
+# ax1.step(x_bins[:bins], m_b0, label=r"MapB - Z", linewidth=1.0, where='mid')
+# ax1.step(x_bins[:bins], m_b1, label=r"MapB - $\gamma$", linewidth=1.0, where='mid')
+ax1.legend(prop={'size': int(FONTSIZE-4)}, frameon=False)
 ax1.set_yscale("log")
-ax1.set_xlabel(r"$m_{\mathrm{e}^+\mathrm{e}^-}$")
-ax1.set_ylabel(r"$\frac{\mathrm{d}\sigma}{\mathrm{d}m_{\mathrm{e}^+\mathrm{e}^-}}$")
+ax1.set_xlabel(r"$M_{\mathrm{e}^+\mathrm{e}^-}$ [GeV]", fontsize = FONTSIZE)
+ax1.set_ylabel(r"Normalized", fontsize = FONTSIZE)
 fig.savefig("test_amplitude.pdf", bbox_inches="tight")

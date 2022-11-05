@@ -50,8 +50,8 @@ parser.add_argument("--zp_width_scale", type=float, default=1)
 parser.add_argument("--cut", type=float, default=15)
 
 # mcw model params
-parser.add_argument("--mcw_units", type=int, default=32)
-parser.add_argument("--mcw_layers", type=int, default=3)
+parser.add_argument("--mcw_units", type=int, default=16)
+parser.add_argument("--mcw_layers", type=int, default=2)
 
 # prior and mapping setting
 parser.add_argument("--prior", type=str, default="mg5", choices={"mg5", "sherpa", "flat"})
@@ -244,7 +244,7 @@ BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
 TRAIN_MCW = args.train_mcw
-UNIFORM_CHANNEL_RATIO = N_CHANNELS / 10
+UNIFORM_CHANNEL_RATIO = 1.0 #N_CHANNELS / 10
 
 # Number of samples
 # TRAIN_SAMPLES = args.train_batches
