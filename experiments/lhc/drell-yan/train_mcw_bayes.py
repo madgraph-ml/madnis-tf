@@ -7,7 +7,7 @@ import numpy as np
 import argparse
 import time
 
-from mcw import mcw_model, residual_mcw_model
+from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.utils.bayesian import BayesianHelper
 from madnis.models.mc_integrator import MultiChannelIntegrator

@@ -69,7 +69,7 @@ class AffineVegasFlow(Flow):
         subnet_meta: Dict = None,
         subnet_constructor: callable = None,
         hypercube_target: bool = False,
-        permutations: str = "random",
+        permutations: str = "soft",
         name="VegasFlow",
         **kwargs,
     ):

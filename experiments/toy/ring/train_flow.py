@@ -13,7 +13,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
 from madnis.plotting.distributions import DistributionPlot
-from vegasflow import VegasFlow
+from madnis.models.vegasflow import AffineVegasFlow
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
@@ -108,7 +108,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = AffineVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,

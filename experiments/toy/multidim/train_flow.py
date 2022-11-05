@@ -8,7 +8,7 @@ from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
-from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 
 import sys
 
@@ -113,7 +113,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = AffineVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,

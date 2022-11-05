@@ -5,7 +5,7 @@ import argparse
 import time
 import sys
 
-from mcw import mcw_model, residual_mcw_model
+from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 
 from madnis.distributions.gaussians_2d import TwoChannelLineRing
@@ -15,7 +15,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
 from madnis.plotting.distributions import DistributionPlot
-from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 
 # Use double precision
 tf.keras.backend.set_floatx("float64")
@@ -123,7 +123,7 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = VegasFlow(
+flow = AffineVegasFlow(
     [DIMS_IN],
     dims_c=[[N_CHANNELS]],
     n_blocks=N_BLOCKS,

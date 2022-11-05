@@ -25,7 +25,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.camel import NormalizedMultiDimCamel
 from madnis.nn.nets.mlp import MLP
 import madnis
-from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 
 
 # Use double precision
@@ -136,7 +136,7 @@ if args.use_RQS:
     FLOW_CONST = RQSVegasFlow
     kwargs = {'bins': args.RQS_bins}
 else:
-    FLOW_CONST = VegasFlow
+    FLOW_CONST = AffineVegasFlow
     kwargs = {}
 
 for perm in ['exchange', 'random', 'log', 'soft', 'softlearn']:

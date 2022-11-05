@@ -5,7 +5,7 @@ import argparse
 import time
 import sys
 
-from mcw import mcw_model, residual_mcw_model
+from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.plotting.plots import plot_alphas
 

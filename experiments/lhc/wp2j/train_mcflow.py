@@ -5,12 +5,12 @@ import numpy as np
 import argparse
 import time
 
-from mcw import mcw_model, residual_mcw_model
+from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
-from vegasflow import VegasFlow, RQSVegasFlow
+from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 from utils import translate_channels
 
 import sys
