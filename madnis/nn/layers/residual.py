@@ -37,3 +37,27 @@ class ResidualWeight(tf.keras.layers.Layer):
         """
         out = self.w_x * x + tf.math.log(residual)  # log guarantees the residual is restored after normalization
         return out
+
+class AdditiveResidualWeight(tf.keras.layers.Layer):
+    """ Defines a layer that adds a residual """
+
+    def __init__(
+            self,
+            **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self.scale = self.add_weight(
+            "scale",
+            shape=(1,),
+            initializer=tf.keras.initializers.Ones(),
+            #initializer=tf.keras.initializers.Constant(10.),
+            trainable=True,
+            )
+
+    def call(self, x, residual):
+        """ combines x and residual with a trainable relative weight beta """
+
+        beta = tf.sigmoid(10.*self.scale)
+
+        return beta*residual + (1. - beta) * x
