@@ -4,6 +4,7 @@ import warnings
 
 import tensorflow as tf
 from pdfflow import mkPDFs
+from lhapdf_vectorized.lhapdf_vec_wrapper import LhaPdfWrapper
 
 warnings.filterwarnings("ignore")
 
@@ -75,7 +76,7 @@ class DrellYan:
 
         # Factorisation scale and pdfset
         self.muf2 = self.mz**2
-        self.pdf = mkPDFs(pdfset, [0])
+        self.pdf = LhaPdfWrapper(pdfset, 0) #mkPDFs(pdfset, [0])
 
         # Basic Definitions
         self.cw2 = self.mw**2 / self.mz**2
@@ -239,20 +240,28 @@ class DrellYan:
         """
         # Get Particle ID
         pid = {"d": 1, "u": 2, "s": 3, "c": 4, "b": 5}[isq]
-        pid = tf.cast([pid], dtype=tf.int32)
+        #pid = tf.cast([pid], dtype=tf.int32)
 
         # Calculate momentum fractions and partonic CM energy
-        q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
+        #q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
+        q2 = tf.get_static_value(self.muf2)
         x1 = tf.cast(x1, dtype=self._dtype)
         x2 = tf.cast(x2, dtype=self._dtype)
         s_parton = x1 * x2 * self.s_had
 
         # Calculate pdfs
         # Taking account symmetry in p p
-        pdf_1a = self.pdf.xfxQ2(pid, x1, q2) / x1
-        pdf_2a = self.pdf.xfxQ2(-pid, x2, q2) / x2
-        pdf_1b = self.pdf.xfxQ2(-pid, x1, q2) / x1
-        pdf_2b = self.pdf.xfxQ2(pid, x2, q2) / x2
+        pdf_plus = lambda x: self.pdf.xfxQ2(pid, x, q2) 
+        pdf_minus = lambda x: self.pdf.xfxQ2(-pid, x, q2) 
+        pdf_1a = tf.numpy_function(pdf_plus, [x1], self._dtype) / x1
+        pdf_2a = tf.numpy_function(pdf_minus, [x2], self._dtype) / x2
+        pdf_1b = tf.numpy_function(pdf_minus, [x1], self._dtype) / x1
+        pdf_2b = tf.numpy_function(pdf_plus, [x2], self._dtype) / x2
+
+        #pdf_1a = tf.convert_to_tensor(self.pdf.xfxQ2(pid, x1.numpy(), self.muf2)) / x1
+        #pdf_2a = tf.convert_to_tensor(self.pdf.xfxQ2(-pid, x2.numpy(), self.muf2)) / x2
+        #pdf_1b = tf.convert_to_tensor(self.pdf.xfxQ2(-pid, x1.numpy(), self.muf2)) / x1
+        #pdf_2b = tf.convert_to_tensor(self.pdf.xfxQ2(pid, x2.numpy(), self.muf2)) / x2
         pdf_factor = pdf_1a * pdf_2a + pdf_1b * pdf_2b
 
         return pdf_factor * self.partonic_dxs(cos_theta, s_parton, isq)
@@ -294,6 +303,7 @@ class DrellYan:
         Returns:
             w (tf.Tensor): Returns weight of the event with shape `(1,)`.
         """
+        #return p[:,0] * 0. + 1.
         if self.input_format == "cartesian":
             # Map input to needed quantities
             px1, py1, pz1, pz2 = tf.unstack(p, axis=-1)
