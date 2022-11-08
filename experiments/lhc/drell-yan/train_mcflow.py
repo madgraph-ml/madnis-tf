@@ -296,12 +296,9 @@ for e in range(EPOCHS):
 
     batch_train_losses = []
     # do multiple iterations.
-    for i in range(ITERS):
+    for _ in range(ITERS):
         batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
         batch_train_losses.append(batch_loss)
-        if i == 0:
-            first_batch_time = time.time()
-            print(f"First batch after {first_batch_time - start_time} s")
 
     train_loss = tf.reduce_mean(batch_train_losses)
     train_losses.append(train_loss)
@@ -314,7 +311,6 @@ for e in range(EPOCHS):
             )
         )
 end_time = time.time()
-print(f"{end_time - first_batch_time} s since first batch")
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
