@@ -364,6 +364,8 @@ for e in range(EPOCHS):
         batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
         batch_train_losses.append(batch_loss)
 
+        # todo: check alphas here for normalization!
+
     train_loss = tf.reduce_mean(batch_train_losses)
     train_losses.append(train_loss)
     print("weights: ", mcw_net.get_layer(name='additive_residual_weight').weights)

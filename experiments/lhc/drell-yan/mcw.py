@@ -57,7 +57,7 @@ def alternative_residual_mcw_model(
     residual = tf.keras.Input((n_channels,))
     x = MLP(meta, dims_in, n_channels)(x_input)
     x = NormalizeWeights(use_probs=True)(x)
-    residual = NormalizeWeights(use_probs=True)(residual)
+    #residual = NormalizeWeights(use_probs=True)(residual)
     x_out = AdditiveResidualWeight()(x, residual)
 
     return tf.keras.Model(inputs=[x_input, residual], outputs=x_out, name=name)

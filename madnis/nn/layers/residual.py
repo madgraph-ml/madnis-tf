@@ -44,7 +44,7 @@ class AdditiveResidualWeight(tf.keras.layers.Layer):
     def __init__(
             self,
             **kwargs,
-            ):
+    ):
         super().__init__(**kwargs)
 
         self.scale = self.add_weight(
