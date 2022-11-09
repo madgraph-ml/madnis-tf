@@ -567,9 +567,8 @@ class MultiChannelIntegrator:
         This method estimates the value of the integral based on
         Monte Carlo importance sampling. It returns a tuple of two
         tf.tensors. The first one is the mean, i.e. the estimate of
-        the integral. The second one gives the variance of the integrand.
-        To get the variance of the estimated mean, the returned variance
-        needs to be divided by (nsamples - 1).
+        the integral. The second one is the variance of the estimated mean,
+        i.e. the square root of (the variance divided by (nsamples - 1)).
 
         Args:
             nsamples (int): Number of points on which the estimate is based on.
