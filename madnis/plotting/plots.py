@@ -204,8 +204,8 @@ def plot_alphas(p_values, alphas, truth, mappings, prefix=""):
 
     axs[1].plot(xs, ys[0], color="red", markersize=12, label=r"$\alpha_1(x)$", linestyle="dashed")
     axs[1].plot(xs, ys[1], color="blue", markersize=12, label=r"$\alpha_2(x)$", linestyle="dashed")
-    axs[1].plot(xs, amg1, color="red", markersize=12, label=r"$\alpha_{\mathrm{opt},1}(x)$", linestyle="dotted")
-    axs[1].plot(xs, amg2, color="blue", markersize=12, label=r"$\alpha_{\mathrm{opt},2}(x)$", linestyle="dotted")
+    axs[1].plot(xs, amg1, color="red", markersize=12, label=r"$\alpha_{\mathrm{prior},1}(x)$", linestyle="dotted")
+    axs[1].plot(xs, amg2, color="blue", markersize=12, label=r"$\alpha_{\mathrm{prior},2}(x)$", linestyle="dotted")
 
     axs[1].legend(loc="upper center", ncol=4, frameon=False, prop={"size": int(FONTSIZE-8)})
     axs[1].set_xlabel(r"$x$", fontsize = FONTSIZE)
@@ -631,3 +631,54 @@ def plot_2d_distribution_single(fig, axs, y_train, y_predict, weights, args1, ar
     for label in ([cbar.ax.yaxis.get_offset_text()]):
         label.set_fontsize(FONTSIZE)
 
+
+##################
+# Plot Variance ##
+##################
+
+def plot_variances(variances, prefix="", log_axis=False):
+    """ plots variances in training """
+    plt.rc("figure", figsize=(4.4, 4))
+    plt.rc("text", usetex=True)
+    plt.rc("font", family="serif")
+    FONTSIZE = 16
+
+    # Define as numpy
+    variances = np.array(variances)
+    epochs = np.arange(len(variances)) + 1
+    epochs = np.repeat(epochs, variances.shape[1])
+
+    if prefix != "":
+        np.save(prefix+'_variances.npy', variances)
+
+    fig, ax1 = plt.subplots(1, figsize=(10, 4))
+
+    if log_axis:
+        ax1.set_yscale("log")
+
+    plt.scatter(epochs, variances.flatten(), color="b", alpha=0.5, s=1., label='variance '+prefix)
+
+    if prefix == 'residual':
+        try:
+            variances_scratch = np.load('scratch_variances.npy')
+            plt.scatter(epochs, variances_scratch.flatten(), color="r", alpha=0.5, s=1.,
+                        label='variance scratch')
+            prefix = 'both'
+
+        except FileNotFoundError:
+            pass
+
+    ax1.legend(
+        loc="upper right",
+        ncol=9,
+        #bbox_to_anchor=(0.5, 1.15),
+        fancybox=True,
+        shadow=True,
+        prop={"size": FONTSIZE-4},
+    )
+    ax1.set_xlabel(r"Epochs")
+    ax1.set_xlim(0, len(variances)+1)
+    ax1.set_ylabel(r"Variance")
+    name = f"{prefix}_variances"
+    fig.savefig(f"{name}.pdf", format="pdf")
+    plt.close("all")
