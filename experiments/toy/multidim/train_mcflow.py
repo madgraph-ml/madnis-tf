@@ -171,14 +171,19 @@ DECAY_RATE = 0.01
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
-lr_schedule1 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-lr_schedule2 = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
+lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 
-opt1 = tf.keras.optimizers.Adam(lr_schedule1)
-opt2 = tf.keras.optimizers.Adam(lr_schedule2)
+opt = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelIntegrator(
-    multi_camel, flow, [opt1, opt2], mcw_model=mcw_net, use_weight_init=PRIOR, n_channels=N_CHANNELS, loss_func=LOSS)
+    multi_camel, 
+    flow, opt, 
+    mcw_model=mcw_net, 
+    use_weight_init=PRIOR, 
+    n_channels=N_CHANNELS, 
+    loss_func=LOSS,
+    single_pass_opt=True,
+)
 
 ################################
 # Pre train - integration
@@ -215,7 +220,7 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt1._decayed_lr(tf.float32)
+                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
 end_time = time.time()
