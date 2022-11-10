@@ -18,6 +18,7 @@ from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 from madnis.mappings.multi_flow import MultiFlow
 from madnis.models.mc_prior import WeightPrior
 from utils import to_four_mom
+from madnis.utils.train_utils import parse_schedule
 
 import sys
 
@@ -59,11 +60,16 @@ parser.add_argument("--maps", type=str, default="y", choices={"y", "z", "p", "zy
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
+parser.add_argument("--schedule", type=str)
 parser.add_argument("--batch_size", type=int, default=1000)
 parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--lr_decay", type=float, default=0.01)
 parser.add_argument("--train_mcw", action="store_true")
 parser.add_argument("--fixed_mcw", dest="train_mcw", action="store_false")
 parser.set_defaults(train_mcw=True)
+parser.add_argument("--sample_capacity", type=int, default=0)
+parser.add_argument("--uniform_channel_ratio", type=float, default=1.)
+parser.add_argument("--variance_history_length", type=int, default=1000)
 
 # Plot
 parser.add_argument("--pre_plotting", action="store_true")
@@ -239,12 +245,17 @@ else:
 ################################
 
 # Define training params
-EPOCHS = args.epochs
+if args.schedule is None:
+    SCHEDULE = ["g"] * args.epochs
+else:
+    SCHEDULE = parse_schedule(args.schedule)
 BATCH_SIZE = args.batch_size
 LR = args.lr
 LOSS = args.loss
 TRAIN_MCW = args.train_mcw
-UNIFORM_CHANNEL_RATIO = 1.0 #N_CHANNELS / 10
+SAMPLE_CAPACITY = args.sample_capacity
+UNIFORM_CHANNEL_RATIO = args.uniform_channel_ratio
+VARIANCE_HISTORY_LENGTH = args.variance_history_length
 
 # Number of samples
 # TRAIN_SAMPLES = args.train_batches
@@ -252,7 +263,7 @@ UNIFORM_CHANNEL_RATIO = 1.0 #N_CHANNELS / 10
 ITERS = args.train_batches
 
 # Decay of learning rate
-DECAY_RATE = 0.01
+DECAY_RATE = args.lr_decay
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
@@ -267,30 +278,19 @@ for i in range(N_CHANNELS):
 
 base_dist = StandardUniform((DIMS_IN,))
 
-if TRAIN_MCW:
-    integrator = MultiChannelIntegrator(
-        integrand,
-        flow,
-        opt,
-        mcw_model=mcw_net,
-        mappings=MAPPINGS,
-        use_weight_init=PRIOR,
-        n_channels=N_CHANNELS,
-        uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
-        loss_func=LOSS,
-    )
-else:
-    integrator = MultiChannelIntegrator(
-        integrand,
-        flow,
-        opt,
-        mcw_model=None,
-        mappings=MAPPINGS,
-        use_weight_init=PRIOR,
-        n_channels=N_CHANNELS,
-        uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
-        loss_func=LOSS,
-    )
+integrator = MultiChannelIntegrator(
+    integrand,
+    flow,
+    opt,
+    mcw_model=mcw_net if TRAIN_MCW else None,
+    mappings=MAPPINGS,
+    use_weight_init=PRIOR,
+    n_channels=N_CHANNELS,
+    uniform_channel_ratio=UNIFORM_CHANNEL_RATIO,
+    loss_func=LOSS,
+    sample_capacity=SAMPLE_CAPACITY,
+    variance_history_length=VARIANCE_HISTORY_LENGTH
+)
 
 ################################
 # Pre train - plot sampling
@@ -349,24 +349,34 @@ print("----------------------------------------------------------------\n")
 
 train_losses = []
 start_time = time.time()
-for e in range(EPOCHS):
+for e, etype in enumerate(SCHEDULE):
+    if etype == "g":
+        batch_train_losses = []
+        # do multiple iterations.
+        for _ in range(ITERS):
+            batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
+            batch_train_losses.append(batch_loss)
 
-    batch_train_losses = []
-    # do multiple iterations.
-    for _ in range(ITERS):
-        batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
-        batch_train_losses.append(batch_loss)
+        train_loss = tf.reduce_mean(batch_train_losses)
+        train_losses.append(train_loss)
 
-    train_loss = tf.reduce_mean(batch_train_losses)
-    train_losses.append(train_loss)
-
-    if (e + 1) % 1 == 0:
-        # Print metrics
         print(
-            "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
-            )
+            f"Epoch #{e+1}: generating, Loss: {train_loss}, " +
+            f"Learning_Rate: {opt._decayed_lr(tf.float32)}"
         )
+
+    elif etype == "r":
+        train_loss = integrator.train_on_stored_samples(BATCH_SIZE, weight_prior=madgraph_prior)
+
+        print(
+            f"Epoch #{e+1}: on samples, Loss: {train_loss}, " +
+            f"Learning_Rate: {opt._decayed_lr(tf.float32)}"
+        )
+
+    elif etype == "d":
+        integrator.delete_samples()
+
+        print(f"Epoch #{e+1}: delete samples")
 end_time = time.time()
 print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
