@@ -40,6 +40,7 @@ class FudgeDrellYan:
         wzp: float = WZP,
         gf: float = GF,
         pdfset: str = "NNPDF40_lo_as_01180",
+        pdflib: str = "lhapdf",
         input_format: str = "cartesian",
         z_scale: float = 1.0,
         zp_scale: float = 1.0,
@@ -59,6 +60,8 @@ class FudgeDrellYan:
             gf (float, optional): Fermi constant. Defaults to GF.
             pdfset (str, optional): PDF-set to use.. Defaults to "NNPDF40_lo_as_01180".
                 Requires `lhapdf` and `lhapdf-management`.
+            pdflib (str, optional): PDF library to use.
+                Options "lhapdf" (default) or "pdfflow"
             input_format (str,optional): Which parametrization do the momenta have.
                 Default is `"cartesian"` which means `p = {px1,py1,pz1,pz2}`. Alternative
                 is `"convpolar"` as `p = {x1,x2,costheta,phi}`.
@@ -83,7 +86,34 @@ class FudgeDrellYan:
 
         # Factorisation scale and pdfset
         self.muf2 = self.mz**2
-        self.pdf = mkPDFs(pdfset, [0])
+        if pdflib == "lhapdf":
+            from lhapdf_vectorized.lhapdf_vec_wrapper import LhaPdfWrapper
+            pdf = LhaPdfWrapper(pdfset, 0)
+
+            def pdffunc(x1, x2, pid):
+                q2 = tf.get_static_value(self.muf2)
+                pdf_plus = lambda x: pdf.xfxQ2(pid, x, q2) 
+                pdf_minus = lambda x: pdf.xfxQ2(-pid, x, q2) 
+                pdf_1a = tf.numpy_function(pdf_plus, [x1], self._dtype) / x1
+                pdf_2a = tf.numpy_function(pdf_minus, [x2], self._dtype) / x2
+                pdf_1b = tf.numpy_function(pdf_minus, [x1], self._dtype) / x1
+                pdf_2b = tf.numpy_function(pdf_plus, [x2], self._dtype) / x2
+                return pdf_1a * pdf_2a + pdf_1b * pdf_2b
+        elif pdflib == "pdfflow":
+            from pdfflow import mkPDFs
+            pdf = mkPDFs(pdfset, [0])
+
+            def pdffunc(x1, x2, pid):
+                pid = tf.cast([pid], dtype=tf.int32)
+                q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
+                pdf_1a = tf.convert_to_tensor(pdf.xfxQ2(pid, x1, q2)) / x1
+                pdf_2a = tf.convert_to_tensor(pdf.xfxQ2(-pid, x2, q2)) / x2
+                pdf_1b = tf.convert_to_tensor(pdf.xfxQ2(-pid, x1, q2)) / x1
+                pdf_2b = tf.convert_to_tensor(pdf.xfxQ2(pid, x2, q2)) / x2
+                return pdf_1a * pdf_2a + pdf_1b * pdf_2b
+        else:
+            raise ValueError(f"Unknown pdf library '{pdflib}'")
+        self._eval_pdfs = pdffunc
 
         # Basic Definitions
         self.cw2 = self.mw**2 / self.mz**2
@@ -275,21 +305,14 @@ class FudgeDrellYan:
         """
         # Get Particle ID
         pid = {"d": 1, "u": 2, "s": 3, "c": 4, "b": 5}[isq]
-        pid = tf.cast([pid], dtype=tf.int32)
 
         # Calculate momentum fractions and partonic CM energy
-        q2 = tf.cast(tf.ones_like(x1) * self.muf2, dtype=self._dtype)
         x1 = tf.cast(x1, dtype=self._dtype)
         x2 = tf.cast(x2, dtype=self._dtype)
         s_parton = x1 * x2 * self.s_had
 
         # Calculate pdfs
-        # Taking account symmetry in p p
-        pdf_1a = self.pdf.xfxQ2(pid, x1, q2) / x1
-        pdf_2a = self.pdf.xfxQ2(-pid, x2, q2) / x2
-        pdf_1b = self.pdf.xfxQ2(-pid, x1, q2) / x1
-        pdf_2b = self.pdf.xfxQ2(pid, x2, q2) / x2
-        pdf_factor = pdf_1a * pdf_2a + pdf_1b * pdf_2b
+        pdf_factor = self._eval_pdfs(x1, x2, pid)
 
         return pdf_factor * self.partonic_dxs(cos_theta, s_parton, isq)
     
