@@ -305,7 +305,6 @@ class MultiChannelIntegrator:
         )
 
     @tf.function(reduce_retracing=True)
->>>>>>> a59ba2536ad1e9e76e819958520d13584af9c7c6
     def _get_probs(
         self,
         samples: tf.Tensor,
