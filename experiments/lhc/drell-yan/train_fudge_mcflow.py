@@ -2,6 +2,10 @@ import os
 from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+
+###### disable GPU, if needed
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 import tensorflow as tf
 import numpy as np
 import argparse
@@ -13,7 +17,7 @@ from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
 from fudge_integrand import FudgeDrellYan, MZ, MZP, WZP
 from madnis.plotting.distributions import DistributionPlot
-from madnis.plotting.plots import plot_weights
+from madnis.plotting.plots import plot_weights, plot_variances
 from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 from madnis.mappings.multi_flow import MultiFlow
 from madnis.models.mc_prior import WeightPrior
@@ -36,13 +40,16 @@ parser.add_argument("--train_batches", type=int, default=1000)
 parser.add_argument("--int_samples", type=int, default=1000000)
 
 # model params
-parser.add_argument("--use_prior_weights", action="store_true")
+#parser.add_argument("--use_prior_weights", action="store_true")
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
-parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
-parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "exponential"})
+parser.add_argument("--activation", type=str, default="leakyrelu",
+                    choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--initializer", type=str, default="glorot_uniform",
+                    choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--loss", type=str, default="variance",
+                    choices={"variance", "neyman_chi2", "exponential"})
 parser.add_argument("--separate_flows", action="store_true")
 
 # physics model-parameters
@@ -56,7 +63,8 @@ parser.add_argument("--mcw_layers", type=int, default=2)
 
 # prior and mapping setting
 parser.add_argument("--prior", type=str, default="mg5", choices={"mg5", "sherpa", "flat"})
-parser.add_argument("--maps", type=str, default="y", choices={"y", "z", "p", "zy", "py", "pz", "pzy"})
+parser.add_argument("--maps", type=str, default="y",
+                    choices={"y", "z", "p", "zy", "py", "pz", "pzy"})
 
 # Train params
 parser.add_argument("--epochs", type=int, default=20)
@@ -317,7 +325,8 @@ if PLOTTING_PRE:
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
 
-    weight_truth, events_truth = integrator.sample_weights(PLOT_SAMPLES, yield_samples=True, weight_prior=madgraph_prior)
+    weight_truth, events_truth = integrator.sample_weights(PLOT_SAMPLES, yield_samples=True,
+                                                           weight_prior=madgraph_prior)
     p_truth = to_four_mom(events_truth).numpy()
     true_data = (p_truth, weight_truth.numpy())
 
@@ -349,7 +358,14 @@ print("----------------------------------------------------------------\n")
 
 train_losses = []
 start_time = time.time()
+train_variance = []
 for e, etype in enumerate(SCHEDULE):
+    if args.post_plotting:
+        train_variance.append([])
+        for _ in range(25):
+            _, err = integrator.integrate(BATCH_SIZE, weight_prior=madgraph_prior)
+            var_int = err**2 * (BATCH_SIZE - 1.)
+            train_variance[-1].append(var_int.numpy())
     if etype == "g":
         batch_train_losses = []
         # do multiple iterations.
@@ -421,6 +437,8 @@ if PLOTTING:
     print("Plotting weight distribution")
     plot_weights(channel_data, log_dir, "post_weight_dist")
 
+    print("Plotting variances during training")
+    plot_variances(train_variance, prefix=PRIOR, log_axis=True, log_dir=log_dir)
 
 ################################
 # After train - integration

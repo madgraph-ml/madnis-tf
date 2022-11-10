@@ -636,7 +636,7 @@ def plot_2d_distribution_single(fig, axs, y_train, y_predict, weights, args1, ar
 # Plot Variance ##
 ##################
 
-def plot_variances(variances, prefix="", log_axis=False):
+def plot_variances(variances, prefix="", log_axis=False, log_dir='.'):
     """ plots variances in training """
     plt.rc("figure", figsize=(4.4, 4))
     plt.rc("text", usetex=True)
@@ -649,7 +649,7 @@ def plot_variances(variances, prefix="", log_axis=False):
     epochs = np.repeat(epochs, variances.shape[1])
 
     if prefix != "":
-        np.save(prefix+'_variances.npy', variances)
+        np.save(log_dir+'/'+prefix+'_variances.npy', variances)
 
     fig, ax1 = plt.subplots(1, figsize=(10, 4))
 
@@ -659,16 +659,34 @@ def plot_variances(variances, prefix="", log_axis=False):
     plt.scatter(epochs, variances.flatten(), color="b", alpha=0.5, s=1., label='variance '+prefix)
 
     if prefix == 'residual':
+        # for camel toy case
         try:
-            variances_scratch = np.load('scratch_variances.npy')
+            variances_scratch = np.load(log_dir+'/'+'scratch_variances.npy')
             plt.scatter(epochs, variances_scratch.flatten(), color="r", alpha=0.5, s=1.,
                         label='variance scratch')
             prefix = 'both'
 
         except FileNotFoundError:
             pass
+    if prefix == 'flat':
+        # for drell-yan case
+        try:
+            variances_mg5 = np.load(log_dir+'/mg5_variances.npy')
+            plt.scatter(epochs, variances_mg5.flatten(), color="r", alpha=0.5, s=1.,
+                        label='variance mg5')
+            prefix = 'multi'
+        except FileNotFoundError:
+            pass
 
-    ax1.legend(
+        try:
+            variances_sherpa = np.load(log_dir+'/sherpa_variances.npy')
+            plt.scatter(epochs, variances_sherpa.flatten(), color="orange", alpha=0.5, s=1.,
+                        label='variance sherpa')
+            prefix = 'multi'
+        except FileNotFoundError:
+            pass
+
+    lgnd = ax1.legend(
         loc="upper right",
         ncol=9,
         #bbox_to_anchor=(0.5, 1.15),
@@ -676,9 +694,11 @@ def plot_variances(variances, prefix="", log_axis=False):
         shadow=True,
         prop={"size": FONTSIZE-4},
     )
+    for handle in lgnd.legendHandles:
+        handle.set_sizes([6.0])
     ax1.set_xlabel(r"Epochs")
     ax1.set_xlim(0, len(variances)+1)
     ax1.set_ylabel(r"Variance")
     name = f"{prefix}_variances"
-    fig.savefig(f"{name}.pdf", format="pdf")
+    fig.savefig(log_dir+f"/{name}.pdf", format="pdf")
     plt.close("all")
