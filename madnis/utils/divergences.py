@@ -33,7 +33,8 @@ def wrapped_multi_channel(func):
         if sigma is None:
             sigma = tf.ones((self.n_channels,), dtype=self._dtype)
 
-        q_sample = tf.stop_gradient(q_sample)
+        if not self.single_pass_opt:
+            q_sample = tf.stop_gradient(q_sample)
 
         logps = tf.dynamic_partition(logp, channels, self.n_channels)
         logqs = tf.dynamic_partition(logq, channels, self.n_channels)
@@ -83,6 +84,7 @@ class Divergence:
         beta: float = None,
         train_mcw: bool = False,
         n_channels: int = 1,
+        single_pass_opt: bool = False,
     ):
         """
         Args:
@@ -101,6 +103,7 @@ class Divergence:
         self.beta = beta
         self.train_mcw = train_mcw
         self.n_channels = n_channels
+        self.single_pass_opt = single_pass_opt
         self._dtype = tf.keras.backend.floatx()
         self.divergences = [
             x
@@ -111,6 +114,7 @@ class Divergence:
                 and "beta" not in x
                 and "train_mcw" not in x
                 and "n_channels" not in x
+                and "single_pass_opt" not in x
                 and "_dtype" not in x
             )
         ]

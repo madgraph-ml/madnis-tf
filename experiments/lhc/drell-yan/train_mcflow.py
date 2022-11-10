@@ -93,7 +93,7 @@ LOG_DIR = f'./plots/sm/{N_CHANNELS}channels_{MAPS}map_{int(CUT)}mll_{Z_SCALE}sca
 print(LOG_DIR)
 
 # Define truth integrand
-integrand = DrellYan(["u", "d", "c", "s"], input_format="convpolar", wz=WZ, z_scale=Z_SCALE) # 
+integrand = DrellYan(["u", "d", "c", "s"], input_format="convpolar", wz=WZ, z_scale=Z_SCALE) #
 #integrand = lambda x: tf.constant(1.0, dtype=DTYPE) # For testing phase-space volume
 
 print(f"\n Integrand specifications:")
@@ -166,7 +166,7 @@ else:
 def y_prior(p: tf.Tensor):
     return integrand.single_channel(p, 0)
     # return map_y.prob(p)
-    
+
 def z_prior(p: tf.Tensor):
     return integrand.single_channel(p, 1)
     # return map_Z.prob(p)
@@ -186,6 +186,7 @@ else:
 ################################
 
 # Define training params
+SINGLE_PASS_OPT = False
 EPOCHS = args.epochs
 BATCH_SIZE = args.batch_size
 LR = args.lr
@@ -223,7 +224,8 @@ if TRAIN_MCW:
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
-        loss_func=LOSS
+        loss_func=LOSS,
+        single_pass_opt=SINGLE_PASS_OPT,
     )
 else:
     integrator = MultiChannelIntegrator(
@@ -232,7 +234,8 @@ else:
         mappings=MAPPINGS,
         use_weight_init=PRIOR,
         n_channels=N_CHANNELS,
-        loss_func=LOSS
+        loss_func=LOSS,
+        single_pass_opt=SINGLE_PASS_OPT,
     )
 
 ################################
@@ -256,8 +259,6 @@ if PLOTTING_PRE:
         p = to_four_mom(x).numpy()
         alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
         channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-        # print(f'Plotting distributions for channel {i}')
-        # dist.plot(p, p, f'pre_channel_{i}')
 
     events_truth = map_y.sample(PLOT_SAMPLES * 10)
     weight_truth = integrand(events_truth) / map_y.prob(events_truth)

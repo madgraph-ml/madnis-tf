@@ -7,7 +7,7 @@ import sys
 
 from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
-from madnis.plotting.plots import plot_alphas
+from madnis.plotting.plots import plot_alphas, plot_variances
 
 from madnis.distributions.camel import Camel
 from madnis.distributions.uniform import StandardUniform
@@ -27,22 +27,25 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 parser = argparse.ArgumentParser()
 
 # Data params
-parser.add_argument("--train_batches", type=int, default=1000)
+parser.add_argument("--train_batches", type=int, default=100)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # Model params
 parser.add_argument("--use_prior_weights", action='store_true')
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=3)
-parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
-parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--activation", type=str, default="leakyrelu",
+                    choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--initializer", type=str, default="glorot_uniform",
+                    choices={"glorot_uniform", "he_uniform"})
 
 # Train params
-parser.add_argument("--epochs", type=int, default=10)
+parser.add_argument("--epochs", type=int, default=30)
 parser.add_argument("--sample_capacity", type=int, default=2000)
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--loss", type=str, default="variance",
+                    choices={"variance", "neyman_chi2", "kl_divergence"})
 parser.add_argument("--uniform_channel_ratio", type=float, default=1.0)
 parser.add_argument("--variance_history_length", type=int, default=100)
 
@@ -59,7 +62,7 @@ MEAN2 = 5.0
 STD2 = 0.1
 
 # Define truth distribution
-camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.5, 0.5])
+camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.35, 0.65])
 
 # Define the channel mappings
 GAMMA1 = np.sqrt(2.) * STD1
@@ -125,12 +128,12 @@ def prior_2(p: tf.Tensor):
     return map_2.prob(p)
 
 if PRIOR:
-    # Define prior weight 
-    prior = WeightPrior([prior_1,prior_2], N_CHANNELS)
+    # Define prior weight
+    prior = WeightPrior([prior_1, prior_2], N_CHANNELS)
     madgraph_prior = prior.get_prior_weights
 else:
     madgraph_prior = None
-    
+
 ################################
 # Define the integrator
 ################################
@@ -210,7 +213,14 @@ print("------------------------------------------------------------\n")
 
 train_losses = []
 start_time = time.time()
+train_variance = []
 for e in range(EPOCHS):
+
+    train_variance.append([])
+    for _ in range(25):
+        _, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+        var_int = err**2 * (INT_SAMPLES - 1.)
+        train_variance[-1].append(var_int.numpy())
 
     batch_train_losses = []
     # do multiple iterations.
@@ -233,7 +243,6 @@ print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
 print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
 print("--- Run time: %s secs ---" % ((end_time - start_time)))
 
-
 ################################
 # After train - plot alphas
 ################################
@@ -249,6 +258,11 @@ m1 = map_1.prob(p)
 m2 = map_2.prob(p)
 plot_alphas(p, alphas, truth, [m1, m2], prefix=f"after_{PREFIX}")
 
+################################
+# After train - plot variances
+################################
+
+plot_variances(train_variance, prefix=PREFIX, log_axis=True)
 
 ################################
 # After train - integration
