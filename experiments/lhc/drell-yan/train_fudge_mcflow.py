@@ -4,7 +4,7 @@ from madnis.mappings.phasespace_2p import TwoParticlePhasespaceB
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
 ###### disable GPU, if needed
-os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import tensorflow as tf
 import numpy as np
