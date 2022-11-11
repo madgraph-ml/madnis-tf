@@ -134,7 +134,6 @@ class MultiChannelIntegrator:
             self.stored_q_sample = []
             self.stored_func_vals = []
             self.stored_channels = []
-            self.stored_dataset = None
 
         self.bayesian_helper = bayesian_helper
 
@@ -166,7 +165,6 @@ class MultiChannelIntegrator:
         del self.stored_q_sample[: -self.sample_capacity]
         del self.stored_func_vals[: -self.sample_capacity]
         del self.stored_channels[: -self.sample_capacity]
-        self.stored_dataset = None
 
     @tf.function
     def _compute_analytic_mappings(
@@ -438,7 +436,7 @@ class MultiChannelIntegrator:
             tf.convert_to_tensor(counts),
         )
 
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def _optimization_step(
         self,
         samples: tf.Tensor,
@@ -550,7 +548,6 @@ class MultiChannelIntegrator:
         del self.stored_q_sample[:]
         del self.stored_func_vals[:]
         del self.stored_channels[:]
-        self.stored_dataset = None
 
     def train_one_classification_step(
         self,
@@ -657,24 +654,26 @@ class MultiChannelIntegrator:
         Returns:
             loss: Value of the loss function for this step
         """
-        if self.stored_dataset is None:
-            samples = tf.concat(self.stored_samples, axis=0)
-            q_sample = tf.concat(self.stored_q_sample, axis=0)
-            func_vals = tf.concat(self.stored_func_vals, axis=0)
-            channels = tf.concat(self.stored_channels, axis=0)
-            self.stored_dataset = (
-                tf.data.Dataset.from_tensor_slices(
-                    (samples, q_sample, func_vals, channels)
-                )
-                .shuffle(int(tf.shape(samples)[0]))
-                .batch(batch_size, drop_remainder=True)
-            )
+        samples = tf.concat(self.stored_samples, axis=0)
+        q_sample = tf.concat(self.stored_q_sample, axis=0)
+        func_vals = tf.concat(self.stored_func_vals, axis=0)
+        channels = tf.concat(self.stored_channels, axis=0)
+        perm = tf.random.shuffle(tf.range(int(tf.shape(samples)[0])))
+
+        dataset = (
+            tf.data.Dataset.from_tensor_slices((
+                tf.gather(samples, perm, axis=0),
+                tf.gather(q_sample, perm, axis=0),
+                tf.gather(func_vals, perm, axis=0),
+                tf.gather(channels, perm, axis=0)
+            ))
+            .batch(batch_size, drop_remainder=True)
+        )
 
         losses = []
-        for ys, qs, fs, cs in self.stored_dataset:
+        for ys, qs, fs, cs in dataset:
             loss, _, _, _ = self._optimization_step(ys, qs, fs, cs, weight_prior)
             losses.append(loss)
-
         return tf.reduce_mean(losses)
 
     def integrate(self, nsamples: int, weight_prior: Callable = None):
