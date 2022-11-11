@@ -7,6 +7,7 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
 import tensorflow as tf
+#import tensorflow_addons as tfa
 import numpy as np
 import argparse
 import time
@@ -188,7 +189,7 @@ MCW_META = {
     "initializer": args.initializer,
     "activation": args.activation,
 }
-
+# method = additive/multiplicative
 mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
 ################################
@@ -241,7 +242,7 @@ elif PRIOR == "sherpa":
         prior = WeightPrior([p_map_prior, z_map_prior], N_CHANNELS)
         madgraph_prior = prior.get_prior_weights
     elif MAPS == "pzy":
-        prior = WeightPrior([p_map_prior, z_map_prior, z_map_prior], N_CHANNELS)
+        prior = WeightPrior([p_map_prior, z_map_prior, y_map_prior], N_CHANNELS)
         madgraph_prior = prior.get_prior_weights
     else:
         madgraph_prior = None
@@ -275,6 +276,13 @@ DECAY_RATE = args.lr_decay
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
+#lr_schedule = [tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE),
+#               tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)]
+#opt_list = [tf.keras.optimizers.Adam(lr_schedule[0]), tf.keras.optimizers.Adam(lr_schedule[1])]
+#opt_list = [tf.keras.optimizers.Adam(LR), tf.keras.optimizers.Adam(LR)]
+#opt_and_lay = [(opt_list[0], mcw_net.layers), (opt_list[1], flow.layers)]
+#opt = tfa.optimizers.MultiOptimizer(opt_and_lay)
+
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
