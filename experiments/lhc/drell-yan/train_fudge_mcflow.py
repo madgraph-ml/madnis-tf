@@ -12,7 +12,7 @@ import numpy as np
 import argparse
 import time
 
-from madnis.models.mcw import mcw_model, residual_mcw_model
+from madnis.models.mcw import mcw_model, residual_mcw_model, additive_residual_mcw_model
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
@@ -61,6 +61,8 @@ parser.add_argument("--cut", type=float, default=15)
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
+parser.add_argument("--mcw_res_additive", action="store_true", default=False,
+                    help="use additive residual layers")
 
 # prior and mapping setting
 parser.add_argument("--prior", type=str, default="mg5", choices={"mg5", "sherpa", "flat"})
@@ -189,8 +191,11 @@ MCW_META = {
     "initializer": args.initializer,
     "activation": args.activation,
 }
-# method = additive/multiplicative
-mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+
+if args.mcw_res_additive:
+    mcw_net = additive_residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+else:
+    mcw_net = residual_mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
 ################################
 # Define the prior

@@ -41,11 +41,11 @@ def residual_mcw_model(
 
     return tf.keras.Model(inputs=[x_input, residual], outputs=x_out, name=name)
 
-def alternative_residual_mcw_model(
+def additive_residual_mcw_model(
         dims_in: int,
         n_channels: int,
         meta: dict,
-        name: str = "AlternativeResidualMCW",
+        name: str = "AdditiveResidualMCW",
         **kwargs,
         ):
     """Defines a network to fit multi channel weights
