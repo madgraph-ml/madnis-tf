@@ -294,7 +294,7 @@ class MadnisTraining:
             self.run_plots("pre")
         self.run_integration("pre")
         self.run_training()
-        if self.args.pre_plotting:
+        if self.args.post_plotting:
             self.run_plots("post")
         self.run_integration("post")
         self.run_unweighting()
