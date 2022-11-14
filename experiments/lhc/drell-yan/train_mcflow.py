@@ -16,6 +16,8 @@ class FudgeDrellYanMadnis(MadnisTraining):
         parser.add_argument("--maps", type=str, default="y",
                             choices={"y", "z", "zy"})
 
+        parser.add_argument("--run_name", type=str)
+
     def define_integrand(self):
         self.n_channels = len(self.args.maps)
         self.dims_in = 4  # dimensionality of data space
@@ -58,10 +60,13 @@ class FudgeDrellYanMadnis(MadnisTraining):
     def define_output(self):
         mode = "separate" if self.args.separate_flows else "cond"
         alphas = "trained" if self.args.train_mcw else "fixed"
-        self.log_dir = (
-            f"./plots/sm/{self.n_channels}channels_{self.args.maps}map_{mode}_" +
-            f"{self.args.prior}_{alphas}/"
-        )
+        if self.args.run_name is None:
+            self.log_dir = (
+                f"./plots/sm/{self.n_channels}channels_{self.args.maps}map_{mode}_" +
+                f"{self.args.prior}_{alphas}/"
+            )
+        else:
+            self.log_dir = f"./plots/sm/{self.args.run_name}/"
         self.plot_name = "drell_yan"
 
 FudgeDrellYanMadnis().run()

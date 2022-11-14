@@ -181,7 +181,7 @@ class MadnisTraining:
             p_truth = to_four_mom(events_truth).numpy()
             self.true_data = (p_truth, weight_truth.numpy())
 
-        with open(f"{self.log_dir}{prefix}_data.pkl", "wb") as f:
+        with open(os.path.join(self.log_dir, f"{prefix}_data.pkl"), "wb") as f:
             pickle.dump({
                 "channel_data": channel_data,
                 "true_data": self.true_data
