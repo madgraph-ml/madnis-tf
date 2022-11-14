@@ -221,7 +221,8 @@ class MadnisTraining:
     def run_training(self):
         train_losses = []
         start_time = time.time()
-        self.train_variance = []
+        if self.args.plot_var_scatter:
+            self.train_variance = []
         batch_size = self.args.batch_size
         for e, etype in enumerate(self.schedule):
             if self.args.plot_var_scatter:
