@@ -116,12 +116,16 @@ class MadnisTraining:
             "activation": self.args.activation,
         }
 
-        if self.args.mcw_res_additive:
-            self.mcw_net = additive_residual_mcw_model(
+        if self.prior is None:
+            self.mcw_net = mcw_model(
                     dims_in=self.dims_in, n_channels=self.n_channels, meta=MCW_META)
         else:
-            self.mcw_net = residual_mcw_model(
-                    dims_in=self.dims_in, n_channels=self.n_channels, meta=MCW_META)
+            if self.args.mcw_res_additive:
+                self.mcw_net = additive_residual_mcw_model(
+                        dims_in=self.dims_in, n_channels=self.n_channels, meta=MCW_META)
+            else:
+                self.mcw_net = residual_mcw_model(
+                        dims_in=self.dims_in, n_channels=self.n_channels, meta=MCW_META)
 
     def define_integrator(self):
         # Define training params
