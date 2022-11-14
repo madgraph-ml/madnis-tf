@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 import time
 import sys
+import pickle
 
 from madnis.models.mcw import mcw_model, residual_mcw_model, additive_residual_mcw_model
 from madnis.models.mc_integrator import MultiChannelIntegrator
@@ -179,6 +180,12 @@ class MadnisTraining:
                     self.args.int_samples, yield_samples=True)
             p_truth = to_four_mom(events_truth).numpy()
             self.true_data = (p_truth, weight_truth.numpy())
+
+        with open(f"{self.log_dir}{prefix}_data.pkl", "wb") as f:
+            pickle.dump({
+                "channel_data": channel_data,
+                "true_data": self.true_data
+            }, f)
 
         print("Plotting channel weights")
         dist.plot_channels_stacked(channel_data, self.true_data, f"{prefix}_stacked")
