@@ -648,9 +648,6 @@ def plot_variances(variances, prefix="", log_axis=False, log_dir='.'):
     epochs = np.arange(len(variances)) + 1
     epochs = np.repeat(epochs, variances.shape[1])
 
-    if prefix != "":
-        np.save(log_dir+'/'+prefix+'_variances.npy', variances)
-
     fig, ax1 = plt.subplots(1, figsize=(10, 4))
 
     if log_axis:

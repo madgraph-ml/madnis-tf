@@ -185,11 +185,8 @@ class MadnisTraining:
             p_truth = to_four_mom(events_truth).numpy()
             self.true_data = (p_truth, weight_truth.numpy())
 
-        with open(os.path.join(self.log_dir, f"{prefix}_data.pkl"), "wb") as f:
-            pickle.dump({
-                "channel_data": channel_data,
-                "true_data": self.true_data
-            }, f)
+        self.pickle_data[f"{prefix}_channel_data"] = channel_data
+        self.pickle_data["true_data"] = self.true_data
 
         print("Plotting channel weights")
         dist.plot_channels_stacked(channel_data, self.true_data, f"{prefix}_stacked")
@@ -201,6 +198,7 @@ class MadnisTraining:
             print("Plotting variances during training")
             plot_variances(self.train_variance, prefix=self.plot_name, log_axis=True,
                            log_dir=self.log_dir)
+            self.pickle_data["train_variance"] = np.array(self.train_variance)
 
     def run_integration(self, prefix):
         res, err = self.integrator.integrate(self.args.int_samples, weight_prior=self.prior)
@@ -217,6 +215,12 @@ class MadnisTraining:
         print(f" Number of channels: {self.n_channels}                         ")
         print(f" Result: {res:.8f} +- {err:.8f} pb ( Rel error: {relerr:.4f} %)")
         print("----------------------------------------------------------------\n")
+
+        self.pickle_data.update({
+            f"{prefix}_integral": float(res),
+            f"{prefix}_integral_err": float(err),
+            f"{prefix}_integral_relerr": float(relerr),
+        })
 
     def run_training(self):
         train_losses = []
@@ -250,6 +254,7 @@ class MadnisTraining:
             elif etype == "r":
                 train_loss = self.integrator.train_on_stored_samples(
                         batch_size, weight_prior=self.prior)
+                train_losses.append(train_loss)
 
                 print(
                     f"Epoch #{e+1}: on samples, Loss: {train_loss}, " +
@@ -260,10 +265,13 @@ class MadnisTraining:
                 self.integrator.delete_samples()
 
                 print(f"Epoch #{e+1}: delete samples")
-        end_time = time.time()
-        print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
-        print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
-        print("--- Run time: %s secs ---" % ((end_time - start_time)))
+        train_time = time.time() - start_time
+        print("--- Run time: %s hour ---" % (train_time / 60 / 60))
+        print("--- Run time: %s mins ---" % (train_time / 60))
+        print("--- Run time: %s secs ---" % (train_time))
+
+        self.pickle_data["train_losses"] = np.array(train_losses)
+        self.pickle_data["train_time"] = train_time
 
     def run_unweighting(self):
         n_opt = self.args.int_samples // 100
@@ -280,6 +288,12 @@ class MadnisTraining:
         print(f" Over_weights : {over_weights:.8f} %                           ")
         print("----------------------------------------------------------------\n")
 
+        self.pickle_data.update({
+            "uwgt_eff": uwgt_eff,
+            "uwgt_eff_part": uwgt_eff_part,
+            "over_weights": over_weights
+        })
+
     def run(self):
         self.tf_setup()
         self.parse_arguments()
@@ -291,6 +305,7 @@ class MadnisTraining:
         self.define_integrator()
         self.define_output()
 
+        self.pickle_data = {}
         if self.args.pre_plotting:
             self.run_plots("pre")
         self.run_integration("pre")
@@ -299,3 +314,5 @@ class MadnisTraining:
             self.run_plots("post")
         self.run_integration("post")
         self.run_unweighting()
+        with open(os.path.join(self.log_dir, "results.pkl"), "wb") as f:
+            pickle.dump(self.pickle_data, f)

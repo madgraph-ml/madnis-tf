@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import time
 import sys
+import pickle
 
 from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
@@ -19,6 +20,7 @@ from madnis.models.mc_prior import WeightPrior
 tf.keras.backend.set_floatx("float64")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
+pickle_data = {}
 
 #########
 # Setup #
@@ -89,6 +91,11 @@ print("-------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)")
 print("-----------------------------------------------------------\n")
 
+pickle_data.update({
+    "naive_integral": float(res),
+    "naive_integral_err": float(err),
+    "naive_integral_relerr": float(relerr),
+})
 
 ################################
 # Define the network
@@ -163,7 +170,7 @@ base_dist = StandardUniform((DIMS_IN,))
 integrator = MultiChannelIntegrator(
     camel,
     base_dist,
-    [opt],
+    opt,
     mappings=[map_1, map_2],
     mcw_model=mcw_net,
     use_weight_init=PRIOR,
@@ -188,6 +195,13 @@ m1 = map_1.prob(p)
 m2 = map_2.prob(p)
 plot_alphas(p, alphas, truth, [m1, m2], prefix=f"pre_{PREFIX}")
 
+pickle_data.update({
+    "pre_p": p.numpy(),
+    "pre_alphas": alphas.numpy(),
+    "pre_truth": truth.numpy(),
+    "pre_m1": m1.numpy(),
+    "pre_m2": m2.numpy()
+})
 
 ################################
 # Pre train - integration
@@ -204,6 +218,11 @@ print("--------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
 
+pickle_data.update({
+    "pre_integral": float(res),
+    "pre_integral_err": float(err),
+    "pre_integral_relerr": float(relerr),
+})
 
 ################################
 # Train the network
@@ -230,11 +249,13 @@ for e in range(EPOCHS):
                 e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
-end_time = time.time()
-print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
-print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
-print("--- Run time: %s secs ---" % ((end_time - start_time)))
+train_time = time.time() - start_time
+print("--- Run time: %s hour ---" % (train_time / 60 / 60))
+print("--- Run time: %s mins ---" % (train_time / 60))
+print("--- Run time: %s secs ---" % (train_time))
 
+pickle_data["train_losses"] = np.array(train_losses)
+pickle_data["train_time"] = train_time
 
 ################################
 # After train - plot alphas
@@ -251,6 +272,13 @@ m1 = map_1.prob(p)
 m2 = map_2.prob(p)
 plot_alphas(p, alphas, truth, [m1, m2], prefix=f"after_{PREFIX}")
 
+pickle_data.update({
+    "post_p": p.numpy(),
+    "post_alphas": alphas.numpy(),
+    "post_truth": truth.numpy(),
+    "post_m1": m1.numpy(),
+    "post_m2": m2.numpy()
+})
 
 ################################
 # After train - integration
@@ -263,3 +291,12 @@ print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
 print("---------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
 print("-------------------------------------------------------------\n")
+
+pickle_data.update({
+    "post_integral": float(res),
+    "post_integral_err": float(err),
+    "post_integral_relerr": float(relerr),
+})
+
+with open("results_trunc.pkl", "wb") as f:
+    pickle.dump(pickle_data, f)
