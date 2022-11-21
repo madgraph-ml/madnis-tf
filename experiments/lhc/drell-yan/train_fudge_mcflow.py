@@ -72,13 +72,14 @@ class DrellYanMadnis(MadnisTraining):
                 prior = WeightPrior([p_mg_prior, z_mg_prior, y_mg_prior], self.n_channels)
         elif self.args.prior == "sherpa":
             if self.args.maps == "zy":
-                prior = WeightPrior([map_Z.prob, map_y.prob], self.n_channels)
+                prior = WeightPrior([self.map_Z.prob, self.map_y.prob], self.n_channels)
             elif self.args.maps == "py":
-                prior = WeightPrior([map_p.prob, map_y.prob], self.n_channels)
+                prior = WeightPrior([self.map_p.prob, self.map_y.prob], self.n_channels)
             elif self.args.maps == "pz":
-                prior = WeightPrior([map_p.prob, map_Z.prob], self.n_channels)
+                prior = WeightPrior([self.map_p.prob, self.map_Z.prob], self.n_channels)
             elif self.args.maps == "pzy":
-                prior = WeightPrior([map_p.prob, map_Z.prob, map_y.prob], self.n_channels)
+                prior = WeightPrior([self.map_p.prob, self.map_Z.prob, self.map_y.prob],
+                                    self.n_channels)
 
         self.prior = None if prior is None else prior.get_prior_weights
 
