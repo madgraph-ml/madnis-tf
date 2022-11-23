@@ -15,7 +15,7 @@ from madnis.mappings.unit_hypercube import RealsToUnit
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
-from madnis.models.vegasflow import AffineVegasFlow
+from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 from madnis.mappings.multi_flow import MultiFlow
 from madnis.plotting.distributions import DistributionPlot
 
@@ -42,13 +42,17 @@ parser.add_argument("--prior", type=str, default="flat",
                     choices={"mg5", "sherpa", "flat"})
 
 # model params
-parser.add_argument("--use_prior_weights", action='store_true')
+parser.add_argument("--couplings", type=str, default="affine",
+                    choices={"affine", "rqs"})
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
-parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
-parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
-parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--activation", type=str, default="leakyrelu",
+                    choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--initializer", type=str, default="glorot_uniform",
+                    choices={"glorot_uniform", "he_uniform"})
+parser.add_argument("--loss", type=str, default="variance",
+                    choices={"variance", "neyman_chi2", "kl_divergence"})
 parser.add_argument("--separate_flows", action="store_true")
 
 # mcw model params
@@ -56,7 +60,7 @@ parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
 # Train params
-parser.add_argument("--epochs", type=int, default=20)
+parser.add_argument("--epochs", type=int, default=40)
 parser.add_argument("--batch_size", type=int, default=1024)
 parser.add_argument("--lr", type=float, default=5e-4)
 
@@ -104,6 +108,11 @@ print("-------------------------------------------------------------")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)")
 print("-----------------------------------------------------------\n")
 
+pickle_data.update({
+    "naive_integral": float(res),
+    "naive_integral_err": float(err),
+    "naive_integral_relerr": float(relerr),
+})
 
 ################################
 # Define the flow network
@@ -120,7 +129,8 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-make_flow = lambda dims_c: AffineVegasFlow(
+CouplingBlock = {"affine": AffineVegasFlow, "rqs": RQSVegasFlow}[args.couplings]
+make_flow = lambda dims_c: CouplingBlock(
     [DIMS_IN],
     dims_c=dims_c,
     n_blocks=N_BLOCKS,
@@ -175,12 +185,12 @@ MCW_META = {
     "activation": args.activation,
 }
 
-if madgraph_prior is not None:
-    mcw_net = residual_mcw_model(
-        dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META
-    )
-else:
-    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
+#if madgraph_prior is not None:
+mcw_net = residual_mcw_model(
+    dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META
+)
+#else:
+#    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
 ################################
 # Define the integrator
@@ -196,7 +206,7 @@ LOSS = args.loss
 ITERS = args.train_batches
 
 # Decay of learning rate
-DECAY_RATE = 0.01
+DECAY_RATE = 0.02
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
@@ -210,7 +220,7 @@ integrator = MultiChannelIntegrator(
     opt,
     mappings=mappings,
     mcw_model=mcw_net,
-    use_weight_init=madgraph_prior is not None,
+    use_weight_init=True, #madgraph_prior is not None,
     n_channels=N_CHANNELS,
     loss_func=LOSS
 )
@@ -227,6 +237,12 @@ print("--------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                            ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %) ")
 print("------------------------------------------------------------\n")
+
+pickle_data.update({
+    "pre_integral": float(res),
+    "pre_integral_err": float(err),
+    "pre_integral_relerr": float(relerr),
+})
 
 ################################
 # Train the network
@@ -252,24 +268,49 @@ for e in range(EPOCHS):
                 e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
             )
         )
-end_time = time.time()
-print("--- Run time: %s hour ---" % ((end_time - start_time) / 60 / 60))
-print("--- Run time: %s mins ---" % ((end_time - start_time) / 60))
-print("--- Run time: %s secs ---" % ((end_time - start_time)))
+train_time = time.time() - start_time
+print("--- Run time: %s hour ---" % (train_time / 60 / 60))
+print("--- Run time: %s mins ---" % (train_time / 60))
+print("--- Run time: %s secs ---" % (train_time))
+
+pickle_data["train_losses"] = np.array(train_losses)
+pickle_data["train_time"] = train_time
 
 ################################
 # After train - plot sampling
 ################################
 
-log_dir = f'./plots/map_{args.maps}_prior_{args.prior}{"_sep" if args.separate_flows else ""}'
+sep_str = "_sep" if args.separate_flows else ""
+rqs_str = "_rqs" if args.couplings == "rqs" else ""
+log_dir = f'./plots/map_{args.maps}_prior_{args.prior}{sep_str}{rqs_str}'
 
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
 dist = DistributionPlot(log_dir, "ring", which_plots=[0,0,0,1])
+channel_data = []
 for i in range(N_CHANNELS):
-    x0, weight0 = integrator.sample_per_channel(10*INT_SAMPLES, i, weight_prior=madgraph_prior)
-    dist.plot(x0, x0, f'post-channel-{i}')
+    x, weight, alphas, alphas_prior = integrator.sample_per_channel(
+        10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True
+    )
+    dist.plot(x, x, f'post-channel-{i}')
+    alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
+    channel_data.append((x.numpy(), weight.numpy(), alphas.numpy(), alphas_prior))
+pickle_data["post_channel_data"] = channel_data
+
+grid = tf.cast(tf.linspace(-2, 2, 101), tf.keras.backend.floatx())
+xx = tf.reshape(tf.stack(tf.meshgrid(grid, grid), axis=-1), (-1,2))
+if madgraph_prior is not None:
+    res = madgraph_prior(xx)
+else:
+    res = 1. / N_CHANNELS * tf.ones(
+        (xx.shape[0], N_CHANNELS), dtype=tf.keras.backend.floatx()
+    )
+    #alphas = mcw_net(xx)
+alphas = mcw_net([xx, res])
+pickle_data["post_x"] = grid.numpy()
+pickle_data["post_y"] = grid.numpy()
+pickle_data["post_alphas"] = alphas.numpy()
 
 ################################
 # After train - integration
@@ -283,3 +324,12 @@ print("---------------------------------------------------------------")
 print(f" Number of channels: {N_CHANNELS}                             ")
 print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
 print("-------------------------------------------------------------\n")
+
+pickle_data.update({
+    "post_integral": float(res),
+    "post_integral_err": float(err),
+    "post_integral_relerr": float(relerr),
+})
+
+with open(os.path.join(log_dir, "results.pkl"), "wb") as f:
+    pickle.dump(pickle_data, f)
