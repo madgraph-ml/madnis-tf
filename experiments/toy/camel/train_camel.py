@@ -10,7 +10,7 @@ from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 from madnis.plotting.plots import plot_alphas, plot_variances
 
-from madnis.distributions.camel import Camel
+from madnis.distributions.camel import Camel, CuttedCamel
 from madnis.distributions.uniform import StandardUniform
 from madnis.mappings.cauchy import CauchyDistribution
 from madnis.models.mc_integrator import MultiChannelIntegrator
@@ -31,9 +31,11 @@ parser = argparse.ArgumentParser()
 # Data params
 parser.add_argument("--train_batches", type=int, default=100)
 parser.add_argument("--int_samples", type=int, default=10000)
+parser.add_argument("--truncate", action="store_true")
 
 # Model params
 parser.add_argument("--use_prior_weights", action='store_true')
+parser.add_argument("--prior", type=str, default="opt", choices={"flat", "opt"})
 parser.add_argument("--units", type=int, default=16)
 parser.add_argument("--layers", type=int, default=3)
 parser.add_argument("--activation", type=str, default="leakyrelu",
@@ -42,7 +44,7 @@ parser.add_argument("--initializer", type=str, default="glorot_uniform",
                     choices={"glorot_uniform", "he_uniform"})
 
 # Train params
-parser.add_argument("--epochs", type=int, default=30)
+parser.add_argument("--epochs", type=int, default=20)
 parser.add_argument("--sample_capacity", type=int, default=2000)
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--lr", type=float, default=1e-3)
@@ -62,9 +64,13 @@ MEAN1 = 2.0
 STD1 = 0.5
 MEAN2 = 5.0
 STD2 = 0.1
+CUT = 2.5
 
 # Define truth distribution
-camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.35, 0.65])
+if args.truncate:
+    camel = CuttedCamel([MEAN1, MEAN2], [STD1, STD2], cut=CUT)
+else:
+    camel = Camel([MEAN1, MEAN2], [STD1, STD2], peak_ratios=[0.35, 0.65])
 
 # Define the channel mappings
 GAMMA1 = np.sqrt(2.) * STD1
@@ -122,21 +128,17 @@ if PRIOR:
 else:
     mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=META)
     PREFIX = "scratch"
+if args.truncate:
+    PREFIX = "trunc_" + PREFIX
 
 
 ################################
 # Define the prior
 ################################
-    
-def prior_1(p: tf.Tensor):
-    return map_1.prob(p)
 
-def prior_2(p: tf.Tensor):
-    return map_2.prob(p)
-
-if PRIOR:
+if PRIOR and args.prior != "flat":
     # Define prior weight
-    prior = WeightPrior([prior_1, prior_2], N_CHANNELS)
+    prior = WeightPrior([map_1.prob, map_2.prob], N_CHANNELS)
     madgraph_prior = prior.get_prior_weights
 else:
     madgraph_prior = None
@@ -187,24 +189,33 @@ integrator = MultiChannelIntegrator(
 # Pre train - plot alphas
 ################################
 
-p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
-if PRIOR:
-    res = madgraph_prior(p)
-    alphas = mcw_net([p, res])
-else:
-    alphas = mcw_net(p)
-truth = camel.prob(p)
-m1 = map_1.prob(p)
-m2 = map_2.prob(p)
-plot_alphas(p, alphas, truth, [m1, m2], prefix=f"pre_{PREFIX}")
+def eval_alpha(eval_prefix):
+    p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
+    if PRIOR:
+        if madgraph_prior is not None:
+            res = madgraph_prior(p)
+        else:
+            res = 0.5 * tf.ones((p.shape[0], 2), dtype=tf.keras.backend.floatx())
+        alphas = mcw_net([p, res])
+    else:
+        alphas = mcw_net(p)
+    truth = camel.prob(p)
+    if args.prior == "opt":
+        m1 = map_1.prob(p)
+        m2 = map_2.prob(p)
+    else:
+        m1 = 0.5 * tf.ones_like(alphas[:,0])
+        m2 = 0.5 * tf.ones_like(alphas[:,0])
+    plot_alphas(p, alphas, truth, [m1, m2], prefix=f"{eval_prefix}_{PREFIX}")
 
-pickle_data.update({
-    "pre_p": p.numpy(),
-    "pre_alphas": alphas.numpy(),
-    "pre_truth": truth.numpy(),
-    "pre_m1": m1.numpy(),
-    "pre_m2": m2.numpy()
-})
+    pickle_data.update({
+        f"{eval_prefix}_p": p.numpy(),
+        f"{eval_prefix}_alphas": alphas.numpy(),
+        f"{eval_prefix}_truth": truth.numpy(),
+        f"{eval_prefix}_m1": m1.numpy(),
+        f"{eval_prefix}_m2": m2.numpy()
+    })
+eval_alpha("pre")
 
 ################################
 # Pre train - integration
@@ -271,24 +282,7 @@ pickle_data["train_time"] = train_time
 # After train - plot alphas
 ################################
 
-p = tf.cast(tf.linspace([0], [6], 1000, axis=0), tf.keras.backend.floatx())
-if PRIOR:
-    res = madgraph_prior(p)
-    alphas = mcw_net([p, res])
-else:
-    alphas = mcw_net(p)
-truth = camel.prob(p)
-m1 = map_1.prob(p)
-m2 = map_2.prob(p)
-plot_alphas(p, alphas, truth, [m1, m2], prefix=f"after_{PREFIX}")
-
-pickle_data.update({
-    "post_p": p.numpy(),
-    "post_alphas": alphas.numpy(),
-    "post_truth": truth.numpy(),
-    "post_m1": m1.numpy(),
-    "post_m2": m2.numpy()
-})
+eval_alpha("post")
 
 ################################
 # After train - plot variances
