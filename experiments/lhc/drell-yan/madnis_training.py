@@ -43,6 +43,7 @@ class MadnisTraining:
         parser.add_argument("--loss", type=str, default="variance",
                             choices={"variance", "neyman_chi2", "exponential"})
         parser.add_argument("--separate_flows", action="store_true")
+        parser.add_argument("--permutations", type=str, default="random")
 
         # mcw model params
         parser.add_argument("--mcw_units", type=int, default=16)
@@ -101,6 +102,7 @@ class MadnisTraining:
             subnet_meta=FLOW_META,
             subnet_constructor=MLP,
             hypercube_target=True,
+            permutations=self.args.permutations,
         )
 
         if self.args.separate_flows:
