@@ -5,6 +5,7 @@ import argparse
 import time
 import sys
 import pickle
+import matplotlib.pyplot as plt
 
 from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
@@ -284,6 +285,42 @@ sep_str = "_sep" if args.separate_flows else ""
 rqs_str = "_rqs" if args.couplings == "rqs" else ""
 log_dir = f'./plots/map_{args.maps}_prior_{args.prior}{sep_str}{rqs_str}'
 
+def hist_all(d):
+    pcd = d["post_channel_data"]
+    x = np.concatenate([c[0] for c in pcd], axis=0)
+    alpha = np.concatenate([c[2] for c in pcd], axis=0)
+    
+    bins = np.linspace(-2,2,100)
+    plt.figure(figsize=(5,4))
+    plt.title("All channels")
+    plt.hist2d(x[:,0], x[:,1], weights=alpha, bins=bins, density=True, rasterized=True)
+    plt.colorbar()
+    plt.savefig(os.path.join(log_dir, "all_channels.pdf"))
+    plt.close()
+
+def alphas_2c(d):
+    x = d["post_x"]
+    y = d["post_y"]
+    xx, yy = np.meshgrid(x, y)
+    alphas = d["post_alphas"].reshape(len(x), len(y), 2)
+    plt.figure(figsize=(5,4))
+    plt.title(r"$\alpha = 1$: channel 0, $\alpha = 0$: channel 1")
+    plt.pcolormesh(xx, yy, alphas[:,:,0], vmin=0., vmax=1., rasterized=True)
+    plt.colorbar()
+    plt.savefig(os.path.join(log_dir, "alphas.pdf"))
+    plt.close()
+
+def alphas_3c(d):
+    x = d["post_x"]
+    y = d["post_y"]
+    xx, yy = np.meshgrid(x, y)
+    alphas = d["post_alphas"].reshape(len(x), len(y), 3)
+    plt.figure(figsize=(4,4))
+    plt.title(r"red: chan 0, green: chan 1, blue: chan 2")
+    plt.imshow(alphas, origin="lower", extent=(-2,2,-2,2), rasterized=True)
+    plt.savefig(os.path.join(log_dir, "alphas.pdf"))
+    plt.close()
+
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
@@ -311,6 +348,12 @@ alphas = mcw_net([xx, res])
 pickle_data["post_x"] = grid.numpy()
 pickle_data["post_y"] = grid.numpy()
 pickle_data["post_alphas"] = alphas.numpy()
+
+hist_all(pickle_data)
+if N_CHANNELS == 2:
+    alphas_2c(pickle_data)
+elif N_CHANNELS == 3:
+    alphas_3c(pickle_data)
 
 ################################
 # After train - integration
