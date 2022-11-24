@@ -4,6 +4,8 @@ from madnis.models.mc_prior import WeightPrior
 from fudge_integrand import FudgeDrellYan, MZ, MZP, WZP
 from madnis_training import MadnisTraining
 
+from pathlib import Path
+
 class DrellYanMadnis(MadnisTraining):
     def define_physics_arguments(self, parser):
         # physics model-parameters
@@ -93,6 +95,7 @@ class DrellYanMadnis(MadnisTraining):
             )
         else:
             self.log_dir = f"./plots/zprime/{self.args.run_name}/"
+        Path(self.log_dir).mkdir(parents=True, exist_ok=True)
         self.plot_name = "fudge_drell_yan"
 
 DrellYanMadnis().run()
