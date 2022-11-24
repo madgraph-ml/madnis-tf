@@ -200,12 +200,8 @@ def eval_alpha(eval_prefix):
     else:
         alphas = mcw_net(p)
     truth = camel.prob(p)
-    if args.prior == "opt":
-        m1 = map_1.prob(p)
-        m2 = map_2.prob(p)
-    else:
-        m1 = 0.5 * tf.ones_like(alphas[:,0])
-        m2 = 0.5 * tf.ones_like(alphas[:,0])
+    m1 = map_1.prob(p)
+    m2 = map_2.prob(p)
     plot_alphas(p, alphas, truth, [m1, m2], prefix=f"{eval_prefix}_{PREFIX}")
 
     pickle_data.update({
