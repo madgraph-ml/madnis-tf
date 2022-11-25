@@ -156,7 +156,7 @@ class MadnisTraining:
             self.opt,
             mcw_model=self.mcw_net if self.args.train_mcw else None,
             mappings=self.mappings,
-            use_weight_init=self.prior is not None,
+            use_weight_init=True,
             n_channels=self.n_channels,
             uniform_channel_ratio=self.args.uniform_channel_ratio,
             loss_func=self.args.loss,
