@@ -50,6 +50,7 @@ parser.add_argument("--layers", type=int, default=2)
 parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu",
                     choices={"relu", "elu", "leakyrelu", "tanh"})
+parser.add_argument("--permutations", type=str, default="soft")
 parser.add_argument("--initializer", type=str, default="glorot_uniform",
                     choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance",
@@ -61,9 +62,11 @@ parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
 # Train params
-parser.add_argument("--epochs", type=int, default=40)
+parser.add_argument("--epochs", type=int, default=50)
 parser.add_argument("--batch_size", type=int, default=1024)
-parser.add_argument("--lr", type=float, default=5e-4)
+parser.add_argument("--lr", type=float, default=1e-3)
+
+parser.add_argument("--run_name", type=str)
 
 args = parser.parse_args()
 
@@ -75,13 +78,13 @@ DTYPE = tf.keras.backend.floatx()
 # Define peak positions and heights
 # Ring
 RADIUS = 1.0
-SIGMA0 = 0.01
+SIGMA0 = 0.05
 
 # Line
 MEAN1 = 0.0
 MEAN2 = 0.0
 SIGMA1 = 3.0
-SIGMA2 = 0.01
+SIGMA2 = 0.05
 ALPHA = np.pi/4
 
 # Define truth distribution
@@ -138,6 +141,7 @@ make_flow = lambda dims_c: CouplingBlock(
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
     hypercube_target=True,
+    permutations=args.permutations
 )
 
 if args.separate_flows:
@@ -281,9 +285,12 @@ pickle_data["train_time"] = train_time
 # After train - plot sampling
 ################################
 
-sep_str = "_sep" if args.separate_flows else ""
-rqs_str = "_rqs" if args.couplings == "rqs" else ""
-log_dir = f'./plots/map_{args.maps}_prior_{args.prior}{sep_str}{rqs_str}'
+if args.run_name is None:
+    sep_str = "_sep" if args.separate_flows else ""
+    rqs_str = "_rqs" if args.couplings == "rqs" else ""
+    log_dir = f'./plots/map_{args.maps}_prior_{args.prior}{sep_str}{rqs_str}'
+else:
+    log_dir = f'./plots/{args.run_name}'
 
 def hist_all(d):
     pcd = d["post_channel_data"]
