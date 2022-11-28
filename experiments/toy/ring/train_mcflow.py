@@ -34,7 +34,7 @@ pickle_data = {}
 parser = argparse.ArgumentParser()
 
 # Data params
-parser.add_argument("--train_batches", type=int, default=100)
+parser.add_argument("--train_batches", type=int, default=500)
 parser.add_argument("--int_samples", type=int, default=10000)
 
 # prior and mapping params
@@ -62,7 +62,7 @@ parser.add_argument("--mcw_units", type=int, default=16)
 parser.add_argument("--mcw_layers", type=int, default=2)
 
 # Train params
-parser.add_argument("--epochs", type=int, default=50)
+parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=1024)
 parser.add_argument("--lr", type=float, default=1e-3)
 
