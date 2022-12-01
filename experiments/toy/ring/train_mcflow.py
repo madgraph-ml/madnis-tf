@@ -66,6 +66,7 @@ parser.add_argument("--mcw_layers", type=int, default=2)
 parser.add_argument("--epochs", type=int, default=100)
 parser.add_argument("--batch_size", type=int, default=1024)
 parser.add_argument("--lr", type=float, default=1e-3)
+parser.add_argument("--lr_decay", type=float, default=0.02)
 
 parser.add_argument("--run_name", type=str)
 
@@ -225,7 +226,7 @@ LOSS = args.loss
 ITERS = args.train_batches
 
 # Decay of learning rate
-DECAY_RATE = 0.02
+DECAY_RATE = args.lr_decay
 DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
@@ -283,7 +284,8 @@ for e in range(EPOCHS):
         # Print metrics
         print(
             "Epoch #{}: Loss: {}, Learning_Rate: {}".format(
-                e + 1, train_losses[-1], opt._decayed_lr(tf.float32)
+                e + 1, train_losses[-1],
+                opt._decayed_lr(tf.float32) if hasattr(opt,"_decayed_lr") else "?"
             )
         )
 train_time = time.time() - start_time
@@ -293,6 +295,30 @@ print("--- Run time: %s secs ---" % (train_time))
 
 pickle_data["train_losses"] = np.array(train_losses)
 pickle_data["train_time"] = train_time
+
+################################
+# After train - integration
+################################
+
+res, err, chan_means, chan_errs = integrator.integrate(
+        INT_SAMPLES, weight_prior=madgraph_prior, return_channels=True)
+relerr = err / res * 100
+
+print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
+print("---------------------------------------------------------------")
+print(f" Number of channels: {N_CHANNELS}                             ")
+print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
+print("-------------------------------------------------------------\n")
+
+chan_means = np.array(chan_means)
+chan_errs = np.array(chan_errs)
+pickle_data.update({
+    "post_integral": float(res),
+    "post_integral_err": float(err),
+    "post_integral_relerr": float(relerr),
+    "post_integral_chan_means": chan_means,
+    "post_integral_chan_errs": chan_errs,
+})
 
 ################################
 # After train - plot sampling
@@ -305,10 +331,10 @@ if args.run_name is None:
 else:
     log_dir = f'./plots/{args.run_name}'
 
-def hist_all(d):
+def hist_all(d, chan_weights):
     pcd = d["post_channel_data"]
     x = np.concatenate([c[0] for c in pcd], axis=0)
-    alpha = np.concatenate([c[2] for c in pcd], axis=0)
+    alpha = np.concatenate([w*c[2] for w, c in zip(chan_weights, pcd)], axis=0)
     
     bins = np.linspace(-2,2,100)
     plt.figure(figsize=(5,4))
@@ -369,30 +395,11 @@ pickle_data["post_x"] = grid.numpy()
 pickle_data["post_y"] = grid.numpy()
 pickle_data["post_alphas"] = alphas.numpy()
 
-hist_all(pickle_data)
+hist_all(pickle_data, chan_means / np.sum(chan_means))
 if N_CHANNELS == 2:
     alphas_2c(pickle_data)
 elif N_CHANNELS == 3:
     alphas_3c(pickle_data)
-
-################################
-# After train - integration
-################################
-
-res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
-relerr = err / res * 100
-
-print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
-print("---------------------------------------------------------------")
-print(f" Number of channels: {N_CHANNELS}                             ")
-print(f" Result: {res:.8f} +- {err:.8f} ( Rel error: {relerr:.4f} %)  ")
-print("-------------------------------------------------------------\n")
-
-pickle_data.update({
-    "post_integral": float(res),
-    "post_integral_err": float(err),
-    "post_integral_relerr": float(relerr),
-})
 
 with open(os.path.join(log_dir, "results.pkl"), "wb") as f:
     pickle.dump(pickle_data, f)

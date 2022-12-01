@@ -676,7 +676,8 @@ class MultiChannelIntegrator:
             losses.append(loss)
         return tf.reduce_mean(losses)
 
-    def integrate(self, nsamples: int, weight_prior: Callable = None):
+    def integrate(self, nsamples: int, weight_prior: Callable = None,
+                  return_channels: bool = False):
         """Integrate the function with trained distribution.
 
         This method estimates the value of the integral based on
@@ -693,7 +694,11 @@ class MultiChannelIntegrator:
             tuple of 2 tf.tensors: mean and mc error
 
         """
-        return self._integrate(tf.constant(nsamples), weight_prior)
+        mean, std, chan_means, chan_stds = self._integrate(tf.constant(nsamples), weight_prior)
+        if return_channels:
+            return mean, std, chan_means, chan_stds
+        else:
+            return mean, std
 
     @tf.function
     def _integrate(self, nsamples, weight_prior):
@@ -706,13 +711,18 @@ class MultiChannelIntegrator:
             samples, q_sample, func_vals, channels, weight_prior, return_integrand=True
         )
         mean = 0.0
+        chan_means = []
         var = 0.0
+        chan_stds = []
         integs = tf.dynamic_partition(integrands, channels, self.n_channels)
         for integ in integs:
             meani, vari = tf.nn.moments(integ, axes=[0])
+            var_scale = tf.cast(tf.shape(integ)[0], self._dtype) - 1.0
+            chan_means.append(meani)
+            chan_stds.append(tf.sqrt(vari / var_scale))
             mean += meani
-            var += vari / (tf.cast(tf.shape(integ)[0], self._dtype) - 1.0)
-        return mean, tf.sqrt(var)
+            var += vari / var_scale
+        return mean, tf.sqrt(var), chan_means, chan_stds
 
     def sample_per_channel(
         self,
