@@ -54,7 +54,7 @@ class FudgeDrellYanMadnis(MadnisTraining):
             z_mg_prior = lambda p: self.integrand.single_channel(p, 1)
             prior = WeightPrior([z_mg_prior, y_mg_prior], self.n_channels)
         elif self.args.prior == "sherpa" and self.args.maps == "zy":
-            prior = WeightPrior([map_Z.prob, map_y.prob], self.n_channels)
+            prior = WeightPrior([self.map_Z.prob, self.map_y.prob], self.n_channels)
         self.prior = None if prior is None else prior.get_prior_weights
 
     def define_output(self):
