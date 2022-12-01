@@ -10,9 +10,10 @@ import matplotlib.pyplot as plt
 from madnis.models.mcw import mcw_model, residual_mcw_model
 from madnis.utils.train_utils import integrate
 
-from madnis.distributions.gaussians_2d import TwoChannelLineRing
+from madnis.distributions.gaussians_2d import TwoChannelLineRing, GaussianLine, GaussianRing
 from madnis.mappings.cauchy_2d import CauchyRingMap, CauchyLineMap
 from madnis.mappings.unit_hypercube import RealsToUnit
+from madnis.mappings.identity import Identity
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
 from madnis.nn.nets.mlp import MLP
@@ -134,18 +135,20 @@ FLOW_META = {
 N_BLOCKS = args.blocks
 
 CouplingBlock = {"affine": AffineVegasFlow, "rqs": RQSVegasFlow}[args.couplings]
-make_flow = lambda dims_c: CouplingBlock(
+make_flow = lambda dims_c, use_hyper: CouplingBlock(
     [DIMS_IN],
     dims_c=dims_c,
     n_blocks=N_BLOCKS,
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
-    hypercube_target=True,
-    permutations=args.permutations
+    hypercube_target=use_hyper,
+    clamp=0.5,
+    permutations=args.permutations,
 )
 
 if args.separate_flows:
-    flow = MultiFlow([make_flow(None) for i in range(N_CHANNELS)])
+    hyper_bool = lambda map: False if map == "f" else True
+    flow = MultiFlow([make_flow(None, hyper_bool(map)) for map in args.maps])
 else:
     flow = make_flow([[N_CHANNELS]])
 
@@ -159,7 +162,11 @@ GAMMA2 = np.sqrt(40.) * SIGMA2
 
 map_r = CauchyRingMap(RADIUS, GAMMA0)
 map_l = CauchyLineMap([MEAN1, MEAN2], [GAMMA1, GAMMA2], ALPHA)
-map_f = RealsToUnit((2,))
+
+if args.couplings == "affine" and args.separate_flows:
+    map_f = Identity((2,))
+else:
+    map_f = RealsToUnit((2,))
 
 map_dict = {"r": map_r, "l": map_l, "f": map_f}
 mappings = [map_dict[m] for m in args.maps]
@@ -194,8 +201,6 @@ MCW_META = {
 mcw_net = residual_mcw_model(
     dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META
 )
-#else:
-#    mcw_net = mcw_model(dims_in=DIMS_IN, n_channels=N_CHANNELS, meta=MCW_META)
 
 ################################
 # Define the integrator
@@ -216,7 +221,6 @@ DECAY_STEP = ITERS
 
 # Prepare scheduler and optimzer
 lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(LR, DECAY_STEP, DECAY_RATE)
-
 opt = tf.keras.optimizers.Adam(lr_schedule)
 
 integrator = MultiChannelIntegrator(

@@ -5,6 +5,7 @@ import numpy as np
 
 # Import Model blocks
 from ..distributions.uniform import StandardUniform
+from ..distributions.normal import StandardNormal
 from ..mappings.flow import Flow
 from ..transforms.coupling.all_in_one_block import AllInOneBlock
 from ..transforms.coupling.coupling_splines import RationalQuadraticSplineBlock
@@ -27,15 +28,17 @@ class AllInOneVegasFlow(Flow):
         subnet_meta: Dict = None,
         subnet_constructor: callable = None,
         hypercube_target: bool = False,
-        name="VegasFlow",
+        clamp: float = 0.5,
+        name="AiOVegasFlow",
         **kwargs,
     ):
 
         self.dims_in = dims_in
         self.dims_c = dims_c
+        self.clamp = clamp
 
         # Define base_dist
-        base_dist = StandardUniform(dims_in)
+        base_dist = StandardNormal(dims_in)
 
         # Define transforms
         transforms = []
@@ -46,13 +49,12 @@ class AllInOneVegasFlow(Flow):
                 AllInOneBlock(
                     self.dims_in,
                     dims_c=self.dims_c,
-                    clamp=0.5,
+                    clamp=self.clamp,
                     permute_soft=True,
                     subnet_meta=subnet_meta,
                     subnet_constructor=subnet_constructor,
                 )
             )
-        transforms.append(Sigmoid(dims_in))
 
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
 
@@ -70,12 +72,14 @@ class AffineVegasFlow(Flow):
         subnet_constructor: callable = None,
         hypercube_target: bool = False,
         permutations: str = "soft",
-        name="VegasFlow",
+        clamp: float = 0.5,
+        name="AffineVegasFlow",
         **kwargs,
     ):
 
         self.dims_in = dims_in
         self.dims_c = dims_c
+        self.clamp = clamp
 
         # setting up permutations
         if permutations == "exchange":
@@ -141,7 +145,7 @@ class AffineVegasFlow(Flow):
             raise ValueError("Permutation '{}' not recognized".format(permutations))
 
         # Define base_dist
-        base_dist = StandardUniform(dims_in)
+        base_dist = StandardNormal(dims_in)
 
         # Define transforms
         transforms = []
@@ -154,13 +158,11 @@ class AffineVegasFlow(Flow):
                     dims_c=self.dims_c,
                     subnet_meta=subnet_meta,
                     subnet_constructor=subnet_constructor,
-                    clamp=0.5,
+                    clamp=self.clamp,
                 )
             )
             transforms.append(ActNorm(self.dims_in, dims_c=self.dims_c))
             transforms.append(perm_list[i])
-
-        transforms.append(Sigmoid(dims_in))
 
         super().__init__(base_dist, transforms, embedding_net=None, name=name, **kwargs)
 

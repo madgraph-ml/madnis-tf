@@ -195,7 +195,7 @@ class MultiChannelIntegrator:
         for i, xi in enumerate(xs):
             yi, _ = self.mappings[i].inverse(xi)
             ys.append(yi)
-            jacs.append(self.mappings[i].log_prob(yi))
+            jacs.append(self.mappings[i].log_det(yi))
 
         y = tf.dynamic_stitch(idx, ys)
         jac = tf.dynamic_stitch(idx, jacs)

@@ -30,23 +30,26 @@ class Identity(Mapping):
     def _forward(self, x, condition):
         # Note: the condition is ignored.
         del condition
-        return x, 0.
+        return x, tf.zeros(tf.shape(x)[0], dtype=x.dtype)
 
     def _inverse(self, z, condition):
         # Note: the condition is ignored.
         del condition
-        return z, 0.
+        return z, tf.zeros(tf.shape(z)[0], dtype=z.dtype)
 
     def _det(self, x_or_z, condition=None, inverse=False):
         # Note: the condition is ignored.
-        del condition, x_or_z, inverse
-        return 1.
+        del condition, inverse
+        return tf.ones(tf.shape(x_or_z)[0], dtype=x_or_z.dtype)
     
     def _log_det(self, x_or_z, condition=None, inverse=False):
         # Note: the condition is ignored.
-        del condition, x_or_z, inverse
-        return 0.
+        del condition, inverse
+        return tf.zeros(tf.shape(x_or_z)[0], dtype=x_or_z.dtype)
 
     def _sample(self, num_samples, condition):
         sample = self.base_dist.sample(num_samples, condition)
         return sample
+
+    def log_prob(self, x_or_z, condition=None, inverse=False):  
+        return self._log_det(x_or_z, condition=condition, inverse=inverse)
