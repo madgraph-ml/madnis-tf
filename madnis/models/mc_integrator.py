@@ -343,7 +343,7 @@ class MultiChannelIntegrator:
                 if weight_prior is not None:
                     init_weights = weight_prior(y)
                     alphas_prior = init_weights
-                    assert init_weights.shape[1] == self.n_channels
+                    tf.debugging.assert_equal(tf.shape(init_weights)[1], self.n_channels)
                 else:
                     init_weights = (
                         1
