@@ -177,8 +177,8 @@ mappings = [map_dict[m] for m in args.maps]
 ################################
 
 # Maps for the MG prior (possibly change its widths if wanted)
-prior_r = CauchyRingMap(RADIUS, GAMMA0)
-prior_l = CauchyLineMap([MEAN1, MEAN2], [GAMMA1, GAMMA2], ALPHA)
+prior_r = CauchyRingMap(RADIUS, np.sqrt(2.) * SIGMA0)
+prior_l = CauchyLineMap([MEAN1, MEAN2], [np.sqrt(2.)*SIGMA1, np.sqrt(2.)*SIGMA2], ALPHA)
 prior_l2 = CauchyLineMap([-1, -1], [GAMMA1, GAMMA2], ALPHA)
 prior_l3 = CauchyLineMap([1, 1], [GAMMA1, GAMMA2], ALPHA)
 
