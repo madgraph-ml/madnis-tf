@@ -172,6 +172,7 @@ class MadnisTraining:
             self.log_dir, self.plot_name, which_plots=[True, False, False, False]
         )
         channel_data = []
+        all_alphas = []
         for i in range(self.n_channels):
             print(f"Sampling from channel {i}")
             x, weight, alphas, alphas_prior = self.integrator.sample_per_channel(
@@ -180,6 +181,8 @@ class MadnisTraining:
             p = to_four_mom(x).numpy()
             alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
             channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
+            a, p = self.integrator._get_alphas(x, self.prior)
+            all_alphas.append((a.numpy(), p.numpy() if p is not None else None))
 
         if not hasattr(self, "true_data"):
             weight_truth, events_truth = self.integrator.sample_weights(
@@ -189,6 +192,7 @@ class MadnisTraining:
 
         self.pickle_data[f"{prefix}_channel_data"] = channel_data
         self.pickle_data["true_data"] = self.true_data
+        self.pickle_data[f"{prefix}_all_alphas"] = all_alphas
 
         print("Plotting channel weights")
         dist.plot_channels_stacked(channel_data, self.true_data, f"{prefix}_stacked")
