@@ -333,7 +333,7 @@ class FudgeDrellYan:
 
         Args:
             p (tf.Tensor): Momentum input with shape `(N,4)` and parametrization
-                `p = {px1, py1, pz1, pz2}`
+                `p = {x1, x2, cos_theta, phi}`
 
         Returns:
             w (tf.Tensor): Returns weight of the event with shape `(1,)`.
