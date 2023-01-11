@@ -350,3 +350,26 @@ CF2PY double precision, intent(out), dimension(0:3,5) :: pout
       pout(:,:) = p(:,:)
       return
       end
+
+************************************************************************
+      subroutine get_multichannel(alphaout)
+************************************************************************
+CF2PY double precision, intent(out), dimension(8) :: alphaout
+      include maxamps.inc
+      DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
+      COMMON/TO_AMPS/  AMP2,       JAMP2
+
+      integer i
+      double precision total
+
+      total = 0d0
+      do i=1,MAXAMPS
+         total = total + amp2(i)
+      enddo
+
+      do i=1,MAXAMPS
+         alphaout(i) = amp2(i) / total
+      enddo
+
+      return
+      end      
