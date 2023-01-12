@@ -378,8 +378,9 @@ CF2PY double precision, intent(out), dimension(0:3,5) :: pout
       subroutine get_multichannel(alphaout)
 ************************************************************************
 CF2PY double precision, intent(out), dimension(8) :: alphaout
-      include maxamps.inc
+      include 'maxamps.inc'
       DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
+      double precision, intent(out) :: alphaout(8)
       COMMON/TO_AMPS/  AMP2,       JAMP2
 
       integer i

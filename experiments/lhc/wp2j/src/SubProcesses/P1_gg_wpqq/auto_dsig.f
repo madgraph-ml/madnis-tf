@@ -268,7 +268,7 @@ C     Cannot make a selection with all PDFs to zero, so we return now
 
 C     Perform the selection
 c     CALL RANMAR(R)
-      call nutple(R, 0d0 , 1d0, 2, ICONFIG)
+      call ntuple(R, 0d0 , 1d0, 2, ICONFIG)
 
 C     It is important to cache the status before adding any entries to
 C      this grid in this
