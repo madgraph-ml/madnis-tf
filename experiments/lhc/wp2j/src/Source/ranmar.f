@@ -25,9 +25,10 @@ c------
       common /to_seed/iseed
 
       double precision Rstore(20)
+      logical mode(20)
       integer r_used
       logical use_external_random_number
-      common/external_random/ Rstore, use_external_random_number, r_used
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
       
 c
 c     Data
@@ -41,6 +42,7 @@ c-----
       if(use_external_random_number)then
          r_used = r_used+1
          x = Rstore(r_used)
+         mode(r_used) = ii
          x = a+x*(b-a)
          return
       endif
@@ -215,11 +217,13 @@ c-----
       double precision Rstore(20)
       integer r_used
       logical use_external_random_number
-      common/external_random/ Rstore, use_external_random_number, r_used
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
       
       if(use_external_random_number)then
          r_used = r_used+1
          rvec = Rstore(r_used)
+         mode(r_used) = 1
 c         write(*,*) 'random number used (not p)', r_used, rvec
          return
       endif
