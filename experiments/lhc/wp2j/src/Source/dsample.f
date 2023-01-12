@@ -1098,7 +1098,7 @@ c      Begin code
 c
 C     Fetch a random number bewteen 0.0 and 1.0
 c     The fourth argument is not used and therefore a dummy
-      dummy = 0
+      dummy = 2
       call ntuple(rdm,0.0d0,1.0d0,dummy,iconfig)
 C     Pick a point using the DiscreteSampler module
       CALL DS_get_point(dim_name, rdm, picked_bin, jacobian, 'norm') 
@@ -1171,7 +1171,8 @@ c
       double precision Rstore(20)
       integer r_used
       logical use_external_random_number
-      common/external_random/ Rstore, use_external_random_number, r_used
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
       
 c-----
 c  Begin Code
@@ -1202,12 +1203,12 @@ c     Line which allows us to keep choosing same x
 c
 c         if (swidth(j) .ge. 0) then
          if (nzoom .le. 0) then
-            call ntuple(ddum(j), xbin_min,xbin_max, j, ipole)
+            call ntuple(ddum(j), xbin_min,xbin_max, j+100, ipole)
          else
 c            write(*,*) 'Reusing num',j,nzoom,tx(2,j)
 
             call ntuple(ddum(j),max(xbin_min,dble(int(tx(2,j)))),
-     $           min(xbin_max,dble(int(tx(2,j))+1)),j,ipole)
+     $           min(xbin_max,dble(int(tx(2,j))+1)),j+100,ipole)
 
             if(max(xbin_min,dble(int(tx(2,j)))).gt.
      $           min(xbin_max,dble(int(tx(2,j))+1))) then

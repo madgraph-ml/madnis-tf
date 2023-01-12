@@ -11,6 +11,7 @@ from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.distributions.uniform import StandardUniform
 from madnis.nn.nets.mlp import MLP
 from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
+from madnis.mappings.multi_flow import MultiFlow
 from utils import translate_channels
 
 import sys
@@ -40,6 +41,8 @@ parser.add_argument("--blocks", type=int, default=6)
 parser.add_argument("--activation", type=str, default="leakyrelu", choices={"relu", "elu", "leakyrelu", "tanh"})
 parser.add_argument("--initializer", type=str, default="glorot_uniform", choices={"glorot_uniform", "he_uniform"})
 parser.add_argument("--loss", type=str, default="variance", choices={"variance", "neyman_chi2", "kl_divergence"})
+parser.add_argument("--separate_flows", action="store_true")
+parser.add_argument("--permutations", type=str, default="random")
 
 # mcw model params
 parser.add_argument("--mcw_units", type=int, default=16)
@@ -117,14 +120,21 @@ FLOW_META = {
 
 N_BLOCKS = args.blocks
 
-flow = RQSVegasFlow(
+make_flow = lambda dims_c: RQSVegasFlow(
     [DIMS_IN],
-    dims_c=[[N_CHANNELS]],
+    dims_c=dims_c,
     n_blocks=N_BLOCKS,
     subnet_meta=FLOW_META,
     subnet_constructor=MLP,
     hypercube_target=True,
-)
+    permutations=args.permutations,
+    )
+
+if args.separate_flows:
+    flow = MultiFlow([make_flow(None) for i in range(N_CHANNELS)])
+else:
+    flow = make_flow([[N_CHANNELS]])
+            
 
 ################################
 # Define the mcw network
@@ -179,7 +189,9 @@ opt2 = tf.keras.optimizers.Adam(lr_schedule2)
 base_dist = StandardUniform((DIMS_IN,))
 
 integrator = MultiChannelIntegrator(
-    integrand, flow, [opt1],
+    integrand, 
+    flow, 
+    opt1,
     mcw_model=None,
     use_weight_init=PRIOR,
     n_channels=N_CHANNELS,

@@ -274,19 +274,19 @@ class PermuteSoftLearn(Transform):
         """
         n = len(angles)
         matrix_a = tf.eye(n, dtype=angles.dtype)
-        # region I, eq. 16:
+        # Region I, eq. 16:
         matrix_a = tf.multiply(matrix_a, tf.math.cos(angles))
-        # region II, eq. 17 tan:
+        # Region II, eq. 17 tan:
         tan_vec = tf.math.tan(angles)
-        # region II, eq. 17 cos:
+        # Region II, eq. 17 cos:
         cos_vec = tf.math.cumprod(tf.math.cos(angles))
-        # region II, eq. 17 all:
+        # Region II, eq. 17 all:
         matrix_a += tf.concat([tf.zeros((n, n-1), dtype=angles.dtype),
                                tf.reshape(tf.multiply(tan_vec, cos_vec), (n, 1))], 1)
-        # region III, eq. 18 tan:
+        # Region III, eq. 18 tan:
         region_iii_tan = -tf.multiply(tf.reshape(tf.math.tan(angles), (n, 1)),
                                       tf.reshape(tf.math.tan(angles), (1, n)))
-        # region III, eq. 18, cos:
+        # Region III, eq. 18, cos:
         shifted_cos = tf.math.cumprod(tf.math.cos(angles), exclusive=True)
         region_iii_cos = tf.multiply(tf.reshape(cos_vec, (n, 1)),
                                      tf.reshape(1./shifted_cos, (1, n)))

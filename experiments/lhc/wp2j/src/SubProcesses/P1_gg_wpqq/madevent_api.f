@@ -312,24 +312,47 @@ CF2PY   integer, intent(out) :: answer
       double precision Rstore(20)
       integer r_used
       logical use_external_random_number
-      common/external_random/ Rstore, use_external_random_number, r_used
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
 
       answer = r_used
       return
       end
 
+************************************************************************
+      subroutine get_random_used_utility(utility)
+************************************************************************
+c     0 means number used by genps.f (i.e. kinematic)
+c     1 means number taken by ranmar (i.e. auto_dsig and matrix.f) [not clear status yet]
+c     2 means number associated to dsample.f (related to discrete dimension for sure)      
+CF2PY   integer, intent(out) :: answer
+      implicit none
+      integer answer
+      integer utility(20)
+      double precision Rstore(20)
+      integer r_used
+      logical use_external_random_number
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
+
+      utility(:) = mode(:)
+      return
+      end
+      
       
       subroutine store_random_number(R)
 
       double precision R(20), Rstore(20)
       integer r_used
       logical use_external_random_number
-      common/external_random/ Rstore, use_external_random_number, r_used
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
 
       use_external_random_number = .true.
       Rstore(:) = R(:)
 C      write(*,*) "stored rans = ", Rstore
       r_used = 0
+      mode(:) = 0
       return
       end
 
@@ -355,8 +378,9 @@ CF2PY double precision, intent(out), dimension(0:3,5) :: pout
       subroutine get_multichannel(alphaout)
 ************************************************************************
 CF2PY double precision, intent(out), dimension(8) :: alphaout
-      include maxamps.inc
+      include 'maxamps.inc'
       DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
+      double precision, intent(out) :: alphaout(8)
       COMMON/TO_AMPS/  AMP2,       JAMP2
 
       integer i
