@@ -1,10 +1,13 @@
 import numpy as np
 import numpy.ctypeslib as npct
-from ctypes import c_int, c_void_p, c_char_p, c_double
+from ctypes import c_int, c_void_p, c_char_p, c_double, cdll
 import os
 
 double_arr = npct.ndpointer(dtype=np.float64, ndim=1, flags="CONTIGUOUS")
-pdf_lib = npct.load_library("lhapdf_vectorized", os.path.dirname(os.path.realpath(__file__)))
+pdf_lib = cdll.LoadLibrary(os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    "lhapdf_vectorized.so"
+))
 pdf_lib.lhapdf_vec_init.argtypes = [c_char_p, c_int]
 pdf_lib.lhapdf_vec_init.restype = c_void_p
 pdf_lib.lhapdf_vec_xfxQ2.argtypes = [c_void_p, c_int, double_arr, c_double, double_arr, c_int]

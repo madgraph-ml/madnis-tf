@@ -240,6 +240,7 @@ integrator = MultiChannelIntegrator(
     mappings=mappings,
     mcw_model=mcw_net,
     use_weight_init=True, #madgraph_prior is not None,
+    weight_prior=madgraph_prior,
     n_channels=N_CHANNELS,
     loss_func=LOSS
 )
@@ -248,7 +249,7 @@ integrator = MultiChannelIntegrator(
 # Pre train - integration
 ################################
 
-res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+res, err = integrator.integrate(INT_SAMPLES)
 relerr = err / res * 100
 
 print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
@@ -274,7 +275,7 @@ for e in range(EPOCHS):
     batch_train_losses = []
     # do multiple iterations.
     for _ in range(ITERS):
-        batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
+        batch_loss = integrator.train_one_step(BATCH_SIZE)
         batch_train_losses.append(batch_loss)
 
     train_loss = tf.reduce_mean(batch_train_losses)
@@ -300,8 +301,7 @@ pickle_data["train_time"] = train_time
 # After train - integration
 ################################
 
-res, err, chan_means, chan_errs = integrator.integrate(
-        INT_SAMPLES, weight_prior=madgraph_prior, return_channels=True)
+res, err, chan_means, chan_errs = integrator.integrate(INT_SAMPLES, return_channels=True)
 relerr = err / res * 100
 
 print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
@@ -374,11 +374,11 @@ dist = DistributionPlot(log_dir, "ring", which_plots=[0,0,0,1])
 channel_data = []
 for i in range(N_CHANNELS):
     x, weight, alphas, alphas_prior = integrator.sample_per_channel(
-        10*INT_SAMPLES, i, weight_prior=madgraph_prior, return_alphas=True
+        10*INT_SAMPLES, i, return_alphas=True
     )
     dist.plot(x, x, f'post-channel-{i}')
-    alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
-    channel_data.append((x.numpy(), weight.numpy(), alphas.numpy(), alphas_prior))
+    alphas_prior = None if alphas_prior is None else alphas_prior[:,i].numpy()
+    channel_data.append((x.numpy(), weight.numpy(), alphas[:,i].numpy(), alphas_prior))
 pickle_data["post_channel_data"] = channel_data
 
 grid = tf.cast(tf.linspace(-2, 2, 101), tf.keras.backend.floatx())

@@ -156,6 +156,7 @@ class MadnisTraining:
             self.opt,
             mcw_model=self.mcw_net if self.args.train_mcw else None,
             mappings=self.mappings,
+            weight_prior=self.prior,
             use_weight_init=True,
             n_channels=self.n_channels,
             uniform_channel_ratio=self.args.uniform_channel_ratio,
@@ -176,13 +177,12 @@ class MadnisTraining:
         for i in range(self.n_channels):
             print(f"Sampling from channel {i}")
             x, weight, alphas, alphas_prior = self.integrator.sample_per_channel(
-                self.args.int_samples, i, weight_prior=self.prior, return_alphas=True
+                self.args.int_samples, i, return_alphas=True
             )
             p = to_four_mom(x).numpy()
-            alphas_prior = None if alphas_prior is None else alphas_prior.numpy()
-            channel_data.append((p, weight.numpy(), alphas.numpy(), alphas_prior))
-            a, p = self.integrator._get_alphas(x, self.prior)
-            all_alphas.append((a.numpy(), p.numpy() if p is not None else None))
+            prior_np = None if alphas_prior is None else alphas_prior.numpy()
+            channel_data.append((p, weight.numpy(), alphas[:,i].numpy(), prior_np[:,i]))
+            all_alphas.append((alphas.numpy(), prior_np))
 
         if not hasattr(self, "true_data"):
             weight_truth, events_truth = self.integrator.sample_weights(
@@ -207,7 +207,7 @@ class MadnisTraining:
             self.pickle_data["train_variance"] = np.array(self.train_variance)
 
     def run_integration(self, prefix):
-        res, err = self.integrator.integrate(self.args.int_samples, weight_prior=self.prior)
+        res, err = self.integrator.integrate(self.args.int_samples)
         relerr = err / res * 100
 
         RES_TO_PB = 0.389379 * 1e9  # Conversion factor from GeV^-2 to pb
@@ -238,15 +238,14 @@ class MadnisTraining:
             if self.args.plot_var_scatter:
                 self.train_variance.append([])
                 for _ in range(25):
-                    _, err = self.integrator.integrate(batch_size, weight_prior=self.prior)
+                    _, err = self.integrator.integrate(batch_size)
                     var_int = err**2 * (batch_size - 1.)
                     self.train_variance[-1].append(var_int.numpy())
             if etype == "g":
                 batch_train_losses = []
                 # do multiple iterations.
                 for _ in range(self.args.train_batches):
-                    batch_loss = self.integrator.train_one_step(
-                            batch_size, weight_prior=self.prior)
+                    batch_loss = self.integrator.train_one_step(batch_size)
                     batch_train_losses.append(batch_loss)
 
                 train_loss = tf.reduce_mean(batch_train_losses)
@@ -258,8 +257,7 @@ class MadnisTraining:
                 )
 
             elif etype == "r":
-                train_loss = self.integrator.train_on_stored_samples(
-                        batch_size, weight_prior=self.prior)
+                train_loss = self.integrator.train_on_stored_samples(batch_size)
                 train_losses.append(train_loss)
 
                 print(

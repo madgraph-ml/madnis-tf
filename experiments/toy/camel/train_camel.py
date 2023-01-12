@@ -174,6 +174,7 @@ integrator = MultiChannelIntegrator(
     camel,
     base_dist,
     opt,
+    weight_prior=madgraph_prior,
     mappings=[map_1, map_2],
     mcw_model=mcw_net,
     use_weight_init=PRIOR,
@@ -220,7 +221,7 @@ eval_alpha("pre")
 # Uniform sampling in range [0,1]
 # integrand = integrator._get_integrand(INT_SAMPLES, weight_prior=madgraph_prior)
 # print(integrand)
-res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+res, err = integrator.integrate(INT_SAMPLES)
 relerr = err / res * 100
 
 print(f"\n Pre Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
@@ -246,14 +247,14 @@ for e in range(EPOCHS):
 
     train_variance.append([])
     for _ in range(25):
-        _, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+        _, err = integrator.integrate(INT_SAMPLES)
         var_int = err**2 * (INT_SAMPLES - 1.)
         train_variance[-1].append(var_int.numpy())
 
     batch_train_losses = []
     # do multiple iterations.
     for _ in range(ITERS):
-        batch_loss = integrator.train_one_step(BATCH_SIZE, weight_prior=madgraph_prior)
+        batch_loss = integrator.train_one_step(BATCH_SIZE)
         batch_train_losses.append(batch_loss)
 
     train_loss = tf.reduce_mean(batch_train_losses)
@@ -291,7 +292,7 @@ pickle_data["train_variance"] = np.array(train_variance)
 # After train - integration
 ################################
 
-res, err = integrator.integrate(INT_SAMPLES, weight_prior=madgraph_prior)
+res, err = integrator.integrate(INT_SAMPLES)
 relerr = err / res * 100
 
 print(f"\n Opt. Multi-Channel integration ({INT_SAMPLES:.1e} samples):")
