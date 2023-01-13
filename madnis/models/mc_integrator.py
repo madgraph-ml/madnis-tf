@@ -447,10 +447,10 @@ class MultiChannelIntegrator:
         perm = tf.random.shuffle(tf.range(sample_count))
 
         dataset = (
-            tf.data.Dataset.from_tensor_slices([
+            tf.data.Dataset.from_tensor_slices(tuple(
                 tf.gather(tf.concat(item, axis=0), perm, axis=0)
                 for item in zip(*self.stored_samples)
-            ])
+            ))
             .batch(batch_size, drop_remainder=True)
         )
 
