@@ -73,7 +73,7 @@ madgraph = tf.load_op_library("SubProcesses/P1_gg_wpqq/madevent_tf.so")
 # TODO: feed momenta to integrator to also train alphas
 def integrand(x, channels):
     channels_api = translate_channels(channels)
-    _, wgt = madgraph.call_madgraph(x, channels_api)
+    _, wgt = madgraph.call_madgraph(x, channels_api, npart=5)
     return wgt
 
 print(f"\n Integrand specifications:")
