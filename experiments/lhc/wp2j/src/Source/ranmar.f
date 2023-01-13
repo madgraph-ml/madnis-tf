@@ -25,7 +25,7 @@ c------
       common /to_seed/iseed
 
       double precision Rstore(20)
-      logical mode(20)
+      integer mode(20)
       integer r_used
       logical use_external_random_number
       common/external_random/ Rstore, use_external_random_number, r_used, mode
@@ -204,6 +204,30 @@ c-----
  25   iseed = 0
       end
 
+
+      subroutine ranmar_api(rvec, ii)
+      double precision rvec
+      integer ii
+
+      double precision Rstore(20)
+      integer r_used
+      logical use_external_random_number
+      integer mode(20)
+      common/external_random/ Rstore, use_external_random_number, r_used, mode
+
+      if(use_external_random_number)then
+         r_used = r_used+1
+         rvec = Rstore(r_used)
+         mode(r_used) = ii
+c         write(*,*) 'random number used (not p)', r_used, rvec
+         return
+      endif
+
+      call ranmar(rvec)
+      return
+      end
+      
+      
       subroutine ranmar(rvec)
 *     -----------------
 * universal random number generator proposed by marsaglia and zaman

@@ -324,7 +324,10 @@ CF2PY   integer, intent(out) :: answer
 ************************************************************************
 c     0 means number used by genps.f (i.e. kinematic)
 c     1 means number taken by ranmar (i.e. auto_dsig and matrix.f) [not clear status yet]
-c     2 means number associated to dsample.f (related to discrete dimension for sure)      
+c     2 means number associated to dsample.f (related to discrete dimension for sure)
+c     3 means for the selection of which helicity is written on disk
+c     4 means the selection of flavor written on disk
+c     random number for color selection and unweighting are using ran1 and are not catched      
 CF2PY   integer, intent(out), dimension(20) :: utility
       implicit none
       integer utility(20)
