@@ -15,7 +15,7 @@ _EPSILON = 1e-16
 
 
 class MultiChannelIntegrator:
-    """Class implementing a conditional normalizing flow
+    """Class implementing a (conditional) normalizing flow
     multi-channel integrator.
     """
 
@@ -43,8 +43,8 @@ class MultiChannelIntegrator:
             dist (Distribution):
                 Trainable flow distribution to match the function
                 or a fixed base distribution.
-            optimizer (List[tf.keras.optimizers.Optimizer]):
-                A list of optimizers for each of the two models
+            optimizer (tf.keras.optimizers.Optimizer):
+                Optimizer for the two models
             mcw_model (tf.keras.Model, optional):
                 Model which learns the multi-channel weights. Defaults to None.
             mappings (List(Mapping), optional): A list of analytic mappings applied
@@ -63,7 +63,11 @@ class MultiChannelIntegrator:
                 for weighting the channels of the next batch
             integrand_has_channels (bool, optional):
                 Whether to pass the channel number to the integrand as the second argument.
-                Defaults to False.
+                If active, the integrand is expected to return a tuple
+                (weights, momenta, alphas). Defaults to False.
+            weight_prior (Callable, optional):
+                If integrand_has_channels is False and a function is given for weight_prior,
+                this is used as the prior for the channel weights.
             kwargs: Additional arguments that need to be passed to the loss
         """
         self._dtype = tf.keras.backend.floatx()
@@ -129,15 +133,22 @@ class MultiChannelIntegrator:
         alphas_prior: tf.Tensor,
         channels: tf.Tensor,
     ):
-        """
-        Stores the generated samples and probabilites
-        to re-use for the two-stage training.
+        """Stores the generated samples and probabilites to re-use for the buffered training.
 
         Args:
-            samples (tf.Tensor): Samples generated either uniformly or by the flow.
-            q_sample (tf.Tensor): Test probability of all mappings (analytic + flow)
-            func_vals (tf.Tensor): True probability
-            channels (tf.Tensor): Tensor encoding which channel to use with shape (nsamples,).
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            q_sample (tf.Tensor):
+                Test probability of all mappings (analytic + flow) with shape (nsamples,)
+            func_vals (tf.Tensor):
+                True probability with shape (nsamples,)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
         """
         if self.sample_capacity == 0:
             return
@@ -156,13 +167,18 @@ class MultiChannelIntegrator:
         fixed analytic mappings used.
 
         Args:
-            x (tf.Tensor: Input coming either from an uniform distribution or from a flow.
-            logq (tf.Tensor: Log probability of the uniform distribution or the flow.
-            channels (tf.Tensor): Tensor encoding which channel to use with shape (nsamples,).
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            logq (tf.Tensor):
+                Log probability of the uniform distribution or the flow with shape (nsamles,)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
 
         Returns:
-            y (tf.Tensor): final sample output after all mappings.
-            logq (tf.Tensor): combined log probability of all mappings.
+            y (tf.Tensor):
+                final sample output after all mappings with shape (nsamples, ndim)
+            logq (tf.Tensor):
+                combined log probability of all mappings with shape (nsamples,)
         """
         if not self.use_analytic_mappings:
             return x, logq
@@ -187,16 +203,34 @@ class MultiChannelIntegrator:
         channel_weights: tf.Tensor,
         uniform_channel_ratio: tf.Tensor,
     ):
-        assert channel_weights.shape == (self.n_channels,)
-        # Split up nsamples * uniform_channel_ratio equally among all the channels
+        """Sample a tensor of channel numbers in two steps:
+        1. Split up nsamples * uniform_channel_ratio equally among all the channels
+        2. Sample the rest of the events from the distribution given by channel_weights
+           after correcting for the uniformly distributed samples
+        This allows stratified sampling by variance weighting while ensuring stable training
+        because there are events in every channel.
+
+        Args:
+            nsamples (tf.Tensor):
+                Number of samples as scalar integer tensor
+            channel_weights (tf.Tensor):
+                Weights of the channels (not normalized) with shape (nchannels,)
+            uniform_channel_ratio (tf.Tensor):
+                Scalar tensor between 0.0 and 1.0 to determine the ratio of samples that
+                will be distributed uniformly first
+
+        Returns:
+            channels (tf.Tensor):
+                Tensor of channel numbers with shape (nsamples,)
+        """
+        tf.debugging.assert_equal(tf.shape(channel_weights), (self.n_channels,))
         n_uniform = tf.cast(
             tf.cast(nsamples, self._dtype) * uniform_channel_ratio, tf.dtypes.int32
         )
         uniform_channels = tf.tile(
             tf.range(self.n_channels), (n_uniform // self.n_channels + 1,)
         )[:n_uniform]
-        # Sample the rest of the events from the distribution given by channel_weights
-        # after correcting for the uniformly distributed samples
+
         normed_weights = channel_weights / tf.reduce_sum(channel_weights)
         probs = tf.maximum(
             normed_weights
@@ -214,18 +248,25 @@ class MultiChannelIntegrator:
         self,
         channels: tf.Tensor
     ):
-        """
+        """Draws samples from the flow for the given channels and then computes the analytic
+        mappings, evaluates the integrand and the channel weight prior.
+
         Args:
-            nsamples (tf.Tensor): Numper of samples to be generated.
-            channel_weights (tf.Tensor): Importance of each channel with shape (n_channels,1)
-            uniform_channel_ratio (tf.Tensor): ratio of samples which are distributed
-                uniformly across all channels. If > 0, this guarantees that no channel is empty.
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
 
         Returns:
-            x (tf.Tensor): output generated either uniformly or by the flow.
-            q (tf.Tensor): test probability of all mappings (analytic + flow)
-            p (tf.Tensor): true probability/function.
-            channels (tf.Tensor): tensor encoding which channel to use with shape (nsamples,).
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            q_sample (tf.Tensor):
+                Test probability of all mappings (analytic + flow) with shape (nsamples,)
+            weight (tf.Tensor):
+                True probability with shape (nsamples,)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
         """
         nsamples = tf.shape(channels)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
@@ -254,6 +295,29 @@ class MultiChannelIntegrator:
         alphas_prior: tf.Tensor,
         channels: tf.Tensor,
     ):
+        """Return the weighted integrand and the channel weights
+
+        Args:
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            q_sample (tf.Tensor):
+                Test probability of all mappings (analytic + flow) with shape (nsamples,)
+            func_vals (tf.Tensor):
+                True probability with shape (nsamples,)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
+
+        Returns:
+            integrand (tf.Tensor):
+                True probability weighted by alpha / qsample (nsamples,)
+            alphas (tf.Tensor):
+                Channel weights with shape (nsamples, nchannels)
+        """
         q_test, logq, alphas = self._get_probs_alphas(
             x, y, alphas_prior, channels
         )
@@ -267,6 +331,28 @@ class MultiChannelIntegrator:
         alphas_prior: tf.Tensor,
         channels: tf.Tensor,
     ):
+        """Run the flow to extract the probability and its logarithm for the given samples x.
+        Compute the corresponding channel weights using y.
+
+        Args:
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
+
+        Returns:
+            q_test (tf.tensor):
+                true probability weighted by alpha / qsample (nsamples,)
+            logq (tf.tensor):
+                true probability weighted by alpha / qsample (nsamples,)
+            alphas (tf.Tensor):
+                Channel weights with shape (nsamples, nchannels)
+        """
         nsamples = tf.shape(x)[0]
         one_hot_channels = tf.one_hot(channels, self.n_channels, dtype=self._dtype)
         logq = self.dist.log_prob(x, condition=one_hot_channels)
@@ -283,6 +369,31 @@ class MultiChannelIntegrator:
         func_vals: tf.Tensor,
         channels: tf.Tensor,
     ):
+        """Compute the channel wise means and variances of the integrand and use it to
+        normalize the alpha-weighted true probability.
+
+        Args:
+            alphas (tf.Tensor):
+                Channel weights with shape (nsamples, nchannels)
+            q_sample (tf.Tensor):
+                Test probability of all mappings (analytic + flow) with shape (nsamples,)
+            func_vals (tf.Tensor):
+                True probability with shape (nsamples,)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
+
+        Returns:
+            p_true (tf.Tensor):
+                Normalized true probability with shape (nsamples,)
+            logp (tf.Tensor):
+                Log of the normalized true probability with shape (nsamples,)
+            means (tf.Tensor):
+                Channel-wise means of the integrand with shape (nchannels,)
+            vars (tf.Tensor):
+                Channel-wise variances of the integrand with shape (nchannels,)
+            counts (tf.Tensor):
+                Channel-wise number of samples with shape (nchannels,)
+        """
         nsamples = tf.shape(q_sample)[0]
         alphas = tf.gather(alphas, channels, batch_dims=1)
         p_unnormed = alphas * tf.abs(func_vals)
@@ -316,6 +427,20 @@ class MultiChannelIntegrator:
         y: tf.Tensor,
         alphas_prior: Optional[tf.Tensor]
     ):
+        """Run the MCW network to get the channel weights. If no MCW network is given,
+        the prior (if given) or uniform channel weights are returned.
+
+        Args:
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+
+        Returns:
+            alphas (tf.Tensor):
+                Channel weights with shape (nsamples, nchannels)
+        """
         nsamples = tf.shape(y)[0]
         if self.train_mcw:
             if self.use_weight_init:
@@ -352,6 +477,33 @@ class MultiChannelIntegrator:
         alphas_prior: tf.Tensor,
         channels: tf.Tensor,
     ):
+        """Perform one optimization step of the networks with the given samples
+
+        Args:
+            x (tf.Tensor):
+                Samples generated either uniformly or by the flow with shape (nsamples, ndim)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            q_sample (tf.Tensor):
+                Test probability of all mappings (analytic + flow) with shape (nsamples,)
+            func_vals (tf.Tensor):
+                True probability with shape (nsamples,)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
+
+        Returns:
+            loss (tf.Tensor):
+                Result for the loss (scalar)
+            means (tf.Tensor):
+                Channel-wise means of the integrand with shape (nchannels,)
+            vars (tf.Tensor):
+                Channel-wise variances of the integrand with shape (nchannels,)
+            counts (tf.Tensor):
+                Channel-wise number of samples with shape (nchannels,)
+        """
         if not self.train_flow and not self.train_mcw:
             raise ValueError("No network defined which can be optimized")
 
@@ -377,6 +529,13 @@ class MultiChannelIntegrator:
         return loss, means, vars, counts
 
     def _get_variance_weights(self):
+        """Use the list of saved variances to compute weights for sampling the
+        channels to allow for stratified sampling.
+
+        Returns:
+            w (tf.Tensor):
+                Weights for sampling the channels with shape (nchannels,)
+        """
         if len(self.variance_history) < self.variance_history_length:
             return tf.fill((self.n_channels,), tf.constant(1.0, dtype=self._dtype))
 
@@ -398,13 +557,18 @@ class MultiChannelIntegrator:
         """Perform one step of integration and improve the sampling.
 
         Args:
-            nsamples (int): Number of samples to be taken in a training step
-            integral (bool, optional): return the integral value. Defaults to False.
+            nsamples (int):
+                Number of samples to be taken in a training step
+            integral (bool, optional):
+                return the integral value. Defaults to False.
 
         Returns:
-            loss: Value of the loss function for this step
-            integral (optional): Estimate of the integral value
-            uncertainty (optional): Integral statistical uncertainty
+            loss:
+                Value of the loss function for this step
+            integral (optional):
+                Estimate of the integral value
+            uncertainty (optional):
+                Integral statistical uncertainty
         """
 
         # Sample from flow and update
@@ -438,10 +602,12 @@ class MultiChannelIntegrator:
         """Train the network on all saved samples.
 
         Args:
-            batch_size (int): batch size
+            batch_size (int):
+                Size of the batches that the saved samples are split up into
 
         Returns:
-            loss: Value of the loss function for this step
+            loss:
+                Averaged value of the loss function
         """
         sample_count = sum(int(tf.shape(item[0])[0]) for item in self.stored_samples)
         perm = tf.random.shuffle(tf.range(sample_count))
@@ -470,11 +636,20 @@ class MultiChannelIntegrator:
         i.e. the square root of (the variance divided by (nsamples - 1)).
 
         Args:
-            nsamples (int): Number of points on which the estimate is based on.
+            nsamples (int):
+                Number of points on which the estimate is based on
+            return_channels (bool, optional):
+                If True, also return channel-wise means and variances. Defaults to False
 
         Returns:
-            tuple of 2 tf.tensors: mean and mc error
-
+            mean (tf.Tensor):
+                integration result
+            std (tf.Tensor):
+                standard error
+            chan_means (tf.Tensor, optional):
+                channel-wise integration results
+            chan_stds (tf.Tensor, optional):
+                channel-wise standard errors
         """
         mean, std, chan_means, chan_stds = self._integrate(tf.constant(nsamples))
         if return_channels:
@@ -484,6 +659,23 @@ class MultiChannelIntegrator:
 
     @tf.function
     def _integrate(self, nsamples):
+        """Integrate the function with trained distribution.
+        See function integrate for details.
+
+        Args:
+            nsamples (int):
+                Number of points on which the estimate is based on
+
+        Returns:
+            mean (tf.Tensor):
+                integration result
+            std (tf.Tensor):
+                standard error
+            chan_means (tf.Tensor):
+                channel-wise integration results
+            chan_stds (tf.Tensor):
+                channel-wise standard errors
+        """
         channels = self._get_channels(
             nsamples,
             self._get_variance_weights(),
@@ -512,6 +704,23 @@ class MultiChannelIntegrator:
         self,
         channels: tf.Tensor
     ):
+        """Draw samples for the given channels and compute the integrands and channel weights.
+
+        Args:
+            channels (tf.Tensor):
+                Tensor encoding which channel to use with shape (nsamples,)
+
+        Returns:
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            weight (tf.Tensor):
+                True probability weighted by alpha / qsample (nsamples,)
+            alphas (tf.Tensor):
+                Channel weights with shape (nsamples, nchannels)
+            alphas_prior (tf.Tensor):
+                Prior for the channel weights with shape (nsamples, nchannels)
+        """
         x, y, q_sample, func_vals, alphas_prior = self._get_samples(channels)
         weight, alphas = self._get_integral_and_alphas(
             x, y, q_sample, func_vals, alphas_prior, channels
@@ -533,14 +742,23 @@ class MultiChannelIntegrator:
         that point.
 
         Args:
-            nsamples (int): Number of samples to be drawn.
-            channel (int): the channel of the sampling.
-            return_alphas (bool): if True, also return channel weights
+            nsamples (int):
+                Number of samples to be drawn.
+            channel (int):
+                the channel of the sampling.
+            return_alphas (bool):
+                if True, also return channel weights. Defaults to False
 
         Returns:
-            samples: tf.tensor of size (nsamples, ndims) of sampled points
-            true/test: tf.tensor of size (nsamples, ) of sampled weights
-
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
+            weight (tf.Tensor):
+                True probability weighted by alpha / qsample (nsamples,)
+            alphas (tf.Tensor, optional):
+                Channel weights with shape (nsamples, nchannels)
+            alphas_prior (tf.Tensor, optional):
+                Prior for the channel weights with shape (nsamples, nchannels)
         """
         channels = tf.fill((nsamples,), channel)
         y, weight, alphas, alphas_prior = self._sample_weights_and_alphas(channels)
@@ -564,13 +782,17 @@ class MultiChannelIntegrator:
         Optionally, the drawn samples can be returned, too.
 
         Args:
-            nsamples (int): Number of samples to be drawn.
-            yield_samples (bool, optional): return samples. Defaults to False.
+            nsamples (int):
+                Number of samples to be drawn.
+            yield_samples (bool, optional):
+                If True, also return samples. Defaults to False.
 
         Returns:
-            true/test: tf.tensor of size (nsamples, 1) of sampled weights
-            (samples: tf.tensor of size (nsamples, ndims) of sampled points)
-
+            weight (tf.Tensor):
+                True probability weighted by alpha / qsample (nsamples,)
+            y (tf.Tensor):
+                Samples after transformation through analytic mappings or from the call to
+                the integrand (if integrand_has_channels is True) with shape (nsamples, ndim)
         """
         channels = self._get_channels( 
             tf.constant(nsamples),
@@ -584,17 +806,24 @@ class MultiChannelIntegrator:
             return weight
 
     def acceptance(self, nopt: int, npool: int = 50, nreplica: int = 1000):
-        """Calculate the acceptance, i.e. the unweighting
-            efficiency as discussed in arXiv:2001.10028
+        """Calculate the acceptance, i.e. the unweighting efficiency
+        as discussed in arXiv:2001.10028
 
         Args:
-            nopt (int): Number of points on which the optimization was based on.
-            npool (int, optional): called n in the reference. Defaults to 50.
-            nreplica (int, optional): called m in the reference. Defaults to 1000.
+            nopt (int):
+                Number of points on which the optimization was based on.
+            npool (int, optional):
+                called n in the reference. Defaults to 50.
+            nreplica (int, optional):
+                called m in the reference. Defaults to 1000.
 
         Returns:
-            (float): unweighting efficiency
-
+            s_acc (float):
+                unweighting efficiency
+            s_acc_partial (float):
+                partial unweighting efficiency computed by setting over-weights to 1
+            over_weight_rate (float):
+                rate of over-weights
         """
 
         weights = []
@@ -616,14 +845,24 @@ class MultiChannelIntegrator:
         return s_acc, s_acc_partial, over_weight_rate
 
     def save_weights(self, path: str):
-        """Save the networks."""
+        """Save the networks.
+
+        Args:
+            path (str):
+                Path to save the networks to
+        """
         if self.train_flow:
             self.dist.save_weights(path + "flow")
         if self.train_mcw:
             self.mcw_model.save_weights(path + "mcw")
 
     def load_weights(self, path: str):
-        """Load the networks."""
+        """Load the networks.
+
+        Args:
+            path (str):
+                Path to load the networks from
+        """
         if self.train_flow:
             self.dist.load_weights(path + "flow")
         if self.train_mcw:
