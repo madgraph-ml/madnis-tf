@@ -325,9 +325,8 @@ CF2PY   integer, intent(out) :: answer
 c     0 means number used by genps.f (i.e. kinematic)
 c     1 means number taken by ranmar (i.e. auto_dsig and matrix.f) [not clear status yet]
 c     2 means number associated to dsample.f (related to discrete dimension for sure)      
-CF2PY   integer, intent(out) :: answer
+CF2PY   integer, intent(out), dimension(20) :: utility
       implicit none
-      integer answer
       integer utility(20)
       double precision Rstore(20)
       integer r_used

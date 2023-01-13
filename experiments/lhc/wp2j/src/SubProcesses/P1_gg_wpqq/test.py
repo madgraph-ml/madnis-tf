@@ -24,14 +24,17 @@ last =  1
 work = 0
 index= []
 index_fail = []
-nbatch = 100000
+nbatch = 100
 wgts = np.zeros(nbatch)
 chans = np.random.randint(3,5,size=nbatch)
-chans[0] = 3
+chans[0] = 8
 for j in range(nbatch):
     R = np.array([random.random() for _ in range(20)])
     try:
-        wgts[j] = madevent.madevent_api(R, channel, True)
+        wgts[j] = madevent.madevent_api(R, chans[0], True)
+        n_rand = madevent.get_number_of_random_used()
+        r_ut = madevent.get_random_used_utility()
+        print(n_rand, wgts[j], r_ut)
     except:
         pass
 #        p = madevent.get_momenta()
@@ -52,7 +55,9 @@ for j in range(nbatch):
 #            index.append(madevent.get_number_of_random_used())
     # print(i, current)
 
-print(chans[0]) 
+#print(chans[0])
+n_rand = madevent.get_number_of_random_used()
+print(n_rand)
 wgt2 = wgts**2
 mean = np.mean(wgts)
 error = np.sqrt((np.mean(wgt2) - mean**2)/(nbatch-1))
