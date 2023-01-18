@@ -1,15 +1,20 @@
 import tensorflow as tf
 import numpy as np
+import sys
 
 madgraph = tf.load_op_library('./madevent_tf.so')
-nbatch = 10000
+nbatch = 100000
 nrans = 20
-channel = 0
+channel = 1
 # tf.debugging.set_log_device_placement(True)
 rans = tf.random.uniform(shape=[nbatch, nrans], dtype=tf.float64)
 chans = channel*tf.ones(shape=[nbatch], dtype=tf.int32)
-mom, wgt = madgraph.call_madgraph(rans, chans, npart=5)
-print(mom)
+wgt, mom, alphas = madgraph.call_madgraph(rans, chans, npart=5, nchannels=8)
+#print(wgt)
+#print(mom)
+#print(alphas)
+#wgt /= alphas[:,channel]
+
 wgt2 = wgt**2
 mean = tf.reduce_mean(wgt)
 error = tf.sqrt((tf.reduce_mean(wgt2) - mean**2)/(nbatch-1))

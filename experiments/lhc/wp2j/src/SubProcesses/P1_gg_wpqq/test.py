@@ -3,9 +3,9 @@ import random
 import time
 import sys 
 import numpy as np
-multi_channel_in = 0
+multi_channel_in = 1
 helicity_sum = 1
-channel = 1
+channel = 2
 dconfig = channel
 
 
@@ -24,17 +24,25 @@ last =  1
 work = 0
 index= []
 index_fail = []
-nbatch = 100
+nbatch = 10000
 wgts = np.zeros(nbatch)
+wgts_corr = np.zeros(nbatch)
+random.seed(9001)
 chans = np.random.randint(3,5,size=nbatch)
-chans[0] = 8
 for j in range(nbatch):
     R = np.array([random.random() for _ in range(20)])
+    #print(f"Randon numbers: {R}")
     try:
-        wgts[j] = madevent.madevent_api(R, chans[0], True)
+        w = madevent.madevent_api(R, channel, True)
+        alpha = madevent.get_multichannel()
         n_rand = madevent.get_number_of_random_used()
         r_ut = madevent.get_random_used_utility()
-        print(n_rand, wgts[j], r_ut)
+        wgts[j] = w
+        wgts_corr[j] = np.nan_to_num(w/alpha[channel-1])
+        #wgts[j] = w
+        #print(n_rand, wgts[j], r_ut, alpha)
+        print(f"bare weight: {wgts[j]}, correct weight: {wgts_corr[j]}, alpha: {alpha[channel-1]}")
+        # print(f"alphas: {alpha}")
     except:
         pass
 #        p = madevent.get_momenta()
@@ -56,9 +64,13 @@ for j in range(nbatch):
     # print(i, current)
 
 #print(chans[0])
-n_rand = madevent.get_number_of_random_used()
-print(n_rand)
+#print(wgts)
 wgt2 = wgts**2
 mean = np.mean(wgts)
 error = np.sqrt((np.mean(wgt2) - mean**2)/(nbatch-1))
 print(mean, error)
+
+wgtc2 = wgts_corr**2
+meanc = np.mean(wgts_corr)
+errorc = np.sqrt((np.mean(wgtc2) - meanc**2)/(nbatch-1))
+print(meanc, errorc)
