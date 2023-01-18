@@ -5,7 +5,7 @@ import sys
 import numpy as np
 multi_channel_in = 1
 helicity_sum = 1
-channel = 2
+channel = 1
 dconfig = channel
 
 
@@ -27,10 +27,12 @@ index_fail = []
 nbatch = 10000
 wgts = np.zeros(nbatch)
 wgts_corr = np.zeros(nbatch)
-random.seed(9001)
+#random.seed(9001)
 chans = np.random.randint(3,5,size=nbatch)
 for j in range(nbatch):
     R = np.array([random.random() for _ in range(20)])
+    R[7] = 0.0
+    #print(R)
     #print(f"Randon numbers: {R}")
     try:
         w = madevent.madevent_api(R, channel, True)
@@ -41,7 +43,8 @@ for j in range(nbatch):
         wgts_corr[j] = np.nan_to_num(w/alpha[channel-1])
         #wgts[j] = w
         #print(n_rand, wgts[j], r_ut, alpha)
-        print(f"bare weight: {wgts[j]}, correct weight: {wgts_corr[j]}, alpha: {alpha[channel-1]}")
+        #print(n_rand, wgts[j], r_ut)
+        #print(f"bare weight: {wgts[j]}, correct weight: {wgts_corr[j]}, alpha: {alpha[channel-1]}")
         # print(f"alphas: {alpha}")
     except:
         pass
