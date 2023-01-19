@@ -377,14 +377,22 @@ CF2PY double precision, intent(out), dimension(0:3,5) :: pout
       end
 
 ************************************************************************
-      subroutine get_multichannel(alphaout)
+      subroutine get_multichannel(alphaout, used_channel)
 ************************************************************************
 CF2PY double precision, intent(out), dimension(8) :: alphaout
+CF2PY integer, intent(out) :: used_channel
+C     since symfact.dat implements a Monte-Carlo over some channel of integration
+C     the channel under consideration is not always the input channel
+C     used_channel returns the channel selected for the current event
+C     and therefore which of the alphaout needs to be associated to the event.      
       include 'maxamps.inc'
       DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
       double precision, intent(out) :: alphaout(8)
       COMMON/TO_AMPS/  AMP2,       JAMP2
 
+      integer mapconfig(0:lmaxconfigs), this_config
+      common/to_mconfigs/mapconfig, this_config
+      
       integer i
       double precision total
 
@@ -397,5 +405,7 @@ CF2PY double precision, intent(out), dimension(8) :: alphaout
          alphaout(i) = amp2(i) / total
       enddo
 
+      used_channel = this_config
+      
       return
       end      
