@@ -384,10 +384,15 @@ CF2PY integer, intent(out) :: used_channel
 C     since symfact.dat implements a Monte-Carlo over some channel of integration
 C     the channel under consideration is not always the input channel
 C     used_channel returns the channel selected for the current event
-C     and therefore which of the alphaout needs to be associated to the event.      
-      include 'maxamps.inc'
-      DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
+C     and therefore which of the alphaout needs to be associated to the event.
+      implicit none
       double precision, intent(out) :: alphaout(8)
+      integer used_channel
+
+      include 'maxamps.inc'
+      include 'maxconfigs.inc'
+
+      DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
       COMMON/TO_AMPS/  AMP2,       JAMP2
 
       integer mapconfig(0:lmaxconfigs), this_config
