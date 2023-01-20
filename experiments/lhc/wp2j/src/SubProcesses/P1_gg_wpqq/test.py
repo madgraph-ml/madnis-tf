@@ -24,23 +24,24 @@ last =  1
 work = 0
 index= []
 index_fail = []
-nbatch = 10000
+nbatch = 100000
 wgts = np.zeros(nbatch)
 wgts_corr = np.zeros(nbatch)
 #random.seed(9001)
 chans = np.random.randint(3,5,size=nbatch)
 for j in range(nbatch):
     R = np.array([random.random() for _ in range(20)])
-    R[7] = 0.0
+    #R[7] = 0.0
     #print(R)
     #print(f"Randon numbers: {R}")
     try:
         w = madevent.madevent_api(R, channel, True)
-        alpha = madevent.get_multichannel()
+        alpha, used_channel = madevent.get_multichannel()
+        #print(alpha, which_channel)
         n_rand = madevent.get_number_of_random_used()
         r_ut = madevent.get_random_used_utility()
         wgts[j] = w
-        wgts_corr[j] = np.nan_to_num(w/alpha[channel-1])
+        wgts_corr[j] = np.nan_to_num(w/alpha[used_channel-1])
         #wgts[j] = w
         #print(n_rand, wgts[j], r_ut, alpha)
         #print(n_rand, wgts[j], r_ut)

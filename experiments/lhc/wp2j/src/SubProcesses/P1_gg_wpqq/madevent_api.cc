@@ -11,7 +11,7 @@ extern "C" {
     void configure_code_tf_(bool, bool, double&); 
     void madevent_api_(double*, int&, int&, bool&, double&);
     void get_momenta_(double*);
-    void get_multichannel_(double*);
+    void get_multichannel_(double*, int*);
 }
 
 class MGInterface {
@@ -34,10 +34,9 @@ class MGInterface {
             get_momenta_(momenta.data());
             return momenta;
         }
-        std::vector<double> Alpha(int nchannels) {
-            std::vector<double> alphas(nchannels);
-            get_multichannel_(alphas.data());
-            return alphas;
+        void ReturnAlpha(std::vector<double>* alpha, int* used_channel) {
+            get_multichannel_(alpha->data(), used_channel);
+            return;
         }
         static MGInterface Instance() {
             static MGInterface interface;
@@ -127,7 +126,9 @@ class CallMadgraphOp : public OpKernel {
                 }
 
                 // Get corresponding alpha and make sure its not NaN
-                auto alpha = MGInterface::Instance().Alpha(nchannels_);
+                std::vector<double> alpha(nchannels_);
+                int used_channel;
+                MGInterface::Instance().ReturnAlpha(&alpha, &used_channel);
                 for(size_t ialpha = 0; ialpha < nchannels_; ++ialpha){
                     if (std::isnan(alpha[ialpha]) || weight == 0.0) {
                         alpha_flat(ibatch*nchannels_ + ialpha) = 1.0 / nchannels_;
@@ -136,8 +137,8 @@ class CallMadgraphOp : public OpKernel {
                     }
                 }
 
-                // Return correct weigt
-                weight_flat(ibatch) = weight/alpha_flat(ibatch*nchannels_ + channel);
+                // Return correct weight
+                weight_flat(ibatch) = weight/alpha_flat(ibatch*nchannels_ + used_channel - 1);
             }
             delete[] rans;
         }
