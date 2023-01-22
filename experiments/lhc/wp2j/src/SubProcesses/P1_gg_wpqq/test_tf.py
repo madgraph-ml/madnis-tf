@@ -5,7 +5,7 @@ import sys
 madgraph = tf.load_op_library('./madevent_tf.so')
 nbatch = 100000
 nrans = 20
-channel = 1
+channel = 0
 # tf.debugging.set_log_device_placement(True)
 rans = tf.random.uniform(shape=[nbatch, nrans], dtype=tf.float64)
 chans = channel*tf.ones(shape=[nbatch], dtype=tf.int32)
