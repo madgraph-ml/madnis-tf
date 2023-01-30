@@ -16,14 +16,14 @@ class VBLinear(tf.keras.layers.Layer):
         self.activation = tf.keras.activations.get(activation)
         self.kernel_initializer = kernel_initializer
         self.bias_initializer = bias_initializer
-        dtype = tf.as_dtype(self.dtype or backend.floatx())
+        dtype = tf.as_dtype(self.dtype or tf.keras.backend.floatx())
         self.prior_width = tf.constant(prior_width, dtype=self.dtype)
         self.logsig2_init = tf.constant(logsig2_init, dtype=self.dtype)
         self.map = False
         self.training = True
 
     def build(self, input_shape):
-        dtype = tf.as_dtype(self.dtype or backend.floatx())
+        dtype = tf.as_dtype(self.dtype or tf.keras.backend.floatx())
         self.bias = self.add_weight(
             "bias",
             shape=(self.units, ),
