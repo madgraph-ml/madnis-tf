@@ -1,29 +1,25 @@
-=================
-MadNIS
-=================
+# MadNIS
 
 This a machine learning framework to perform neural multi-channel importance sampling in MadGraph.
 It containes modules to construct a machine-learning based
 Monte Carlo integrator using TensorFlow 2.
 
+[![arXiv](https://img.shields.io/badge/arXiv-2212.06172-b31b1b.svg)](https://arxiv.org/abs/2212.06172)
 
-Installation
--------------
 
-.. code:: sh
+## Installation
 
-   # clone the repository
-   git clone https://github.com/ramonpeter/MadNIS.git
-   # then install in dev mode
-   cd MadNIS
-   python setup.py develop
+```bash
+# clone the repository
+git clone https://github.com/ramonpeter/MadNIS.git
+# then install in dev mode
+cd MadNIS
+python setup.py develop
+```
 
-Citation
----------
+## Citation
 
 If you use this code or parts of it, please cite:
-
-.. code:: sh
 
     @article{Heimel:2022wyj,
     author = "Heimel, Theo and Winterhalder, Ramon and Butter, Anja and Isaacson, Joshua and 
