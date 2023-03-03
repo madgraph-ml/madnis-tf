@@ -31,13 +31,13 @@ class CauchyRingMap(Mapping):
         self.c0 = tf.math.atan(self.r0 / self.gamma) / self.tf_pi
 
     def _to_sphericals(self, x):
-        x1, x2 = tf.split(x, 2, axis=-1)
+        x1, x2 = x[:, :1], x[:, 1:]
         r = tf.math.sqrt(x1 ** 2 + x2 ** 2)
         phi = tf.math.atan2(x2, x1) + self.tf_pi
         return r, phi
 
     def _to_cartesian(self, rvec):
-        r, phi = tf.split(rvec, 2, axis=-1)
+        r, phi = rvec[:, :1], rvec[:, 1:] - self.tf_pi
         x1 = r * tf.math.cos(phi)
         x2 = r * tf.math.sin(phi)
         return x1, x2
@@ -51,7 +51,8 @@ class CauchyRingMap(Mapping):
         r, phi = self._to_sphericals(x)
 
         # Map onto unit-hypercube
-        z1 = 1 / self.tf_pi * tf.math.atan((r - self.r0) / self.gamma) + self.c0
+        c1 = 2 / (1 + 2 * self.c0)
+        z1 = c1 / self.tf_pi * tf.math.atan((r - self.r0) / self.gamma) + self.c0 * c1
         z2 = phi / (2 * self.tf_pi)
 
         logdet = self.log_det(x)
@@ -66,7 +67,7 @@ class CauchyRingMap(Mapping):
         z2 = z[:, 1:]
 
         # Map onto sphericals
-        r = self.r0 + self.gamma * tf.math.tan(self.tf_pi * (z1 - self.c0))
+        r = self.r0 + self.gamma * tf.math.tan(self.tf_pi * (z1 / 2 + self.c0 * (z1 - 1)))
         phi = 2 * self.tf_pi * z2
         rvec = tf.concat([r, phi], axis=1)
 
@@ -84,16 +85,19 @@ class CauchyRingMap(Mapping):
             # first part of the pass
             z1 = x_or_z[:, :1]
             d11 = (
-                self.tf_pi
+                (0.5 + self.c0)
+                * self.tf_pi
                 * self.gamma
                 * 1
-                / (tf.math.cos(self.tf_pi * (z1 - self.c0)) ** 2)
+                / (tf.math.cos(self.tf_pi * (z1 / 2 + self.c0 * (z1 - 1))) ** 2)
             )
             d22 = 2 * self.tf_pi
             det_peak = d11 * d22
 
             # map onto cartesian
-            r = self.r0 + self.gamma * tf.math.tan(self.tf_pi * (z1 - self.c0))
+            r = self.r0 + self.gamma * tf.math.tan(
+                self.tf_pi * (z1 / 2 + self.c0 * (z1 - 1))
+            )
             return tf.squeeze(det_peak * r)
         else:
             # the derivative of the forward pass (dF/dx)
@@ -104,7 +108,13 @@ class CauchyRingMap(Mapping):
 
             # map out the peaks
             r, _ = self._to_sphericals(x_or_z)
-            d11 = self.gamma / (self.tf_pi) * 1 / ((r - self.r0) ** 2 + self.gamma ** 2)
+            d11 = (
+                2
+                * self.gamma
+                / self.tf_pi
+                / ((r - self.r0) ** 2 + self.gamma**2)
+                / (1 + 2 * self.c0)
+            )
             d22 = 1 / (2 * self.tf_pi)
             det_peak = d11 * d22
             return tf.squeeze(det_peak / r)
