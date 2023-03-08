@@ -4,7 +4,7 @@ import platform
 HTTPS_GITHUB_URL = "https://github.com/ramonpeter/MadNIS"
 PROCESSOR = platform.processor()
 
-with open("README.rst", "r") as fh:
+with open("README.md", "r") as fh:
     long_description = fh.read()
 
 requirements = ['scikit-hep', "pandas", "scipy", "tables"]
