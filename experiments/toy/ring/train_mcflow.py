@@ -16,7 +16,7 @@ from madnis.mappings.unit_hypercube import RealsToUnit
 from madnis.mappings.identity import Identity
 from madnis.models.mc_integrator import MultiChannelIntegrator
 from madnis.models.mc_prior import WeightPrior
-from madnis.nn.nets.mlp import MLP
+from madnis.nn.nets.mlp import MLP, MLPZero
 from madnis.models.vegasflow import AffineVegasFlow, RQSVegasFlow
 from madnis.mappings.multi_flow import MultiFlow
 from madnis.plotting.distributions import DistributionPlot

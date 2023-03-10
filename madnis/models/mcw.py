@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from ..nn.nets.mlp import MLP
+from ..nn.nets.mlp import MLP, MLPZero
 from ..nn.layers.residual import ResidualWeight, AdditiveResidualWeight
 from ..nn.layers.normalize import NormalizeWeights
 
