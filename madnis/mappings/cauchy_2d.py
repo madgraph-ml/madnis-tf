@@ -84,8 +84,9 @@ class CauchyRingMap(Mapping):
             # the derivative of the inverse pass (dF^{-1}/dz)
             # first part of the pass
             z1 = x_or_z[:, :1]
+            c1inv = (1 + 2 * self.c0) / 2
             d11 = (
-                (0.5 + self.c0)
+                c1inv
                 * self.tf_pi
                 * self.gamma
                 * 1

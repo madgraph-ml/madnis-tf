@@ -15,7 +15,7 @@ def mcw_model(
     """Defines a network to fit multi channel weights"""
 
     x_input = tf.keras.Input((dims_in,))
-    x = MLP(meta, dims_in, n_channels)(x_input)
+    x = MLPZero(meta, dims_in, n_channels)(x_input)
     x_out = NormalizeWeights(use_probs=True)(x)
 
     return tf.keras.Model(inputs=[x_input], outputs=x_out, name=name)
@@ -57,7 +57,6 @@ def additive_residual_mcw_model(
     residual = tf.keras.Input((n_channels,))
     x = MLP(meta, dims_in, n_channels)(x_input)
     x = NormalizeWeights(use_probs=True)(x)
-    #residual = NormalizeWeights(use_probs=True)(residual)
     x_out = AdditiveResidualWeight()(x, residual)
 
     return tf.keras.Model(inputs=[x_input, residual], outputs=x_out, name=name)

@@ -12,7 +12,7 @@ class Sigmoid(Transform):
     architectures.
     """
 
-    def __init__(self, dims_in, dims_c=None, temperature=1.0, epsilon=1e-8):
+    def __init__(self, dims_in, dims_c=None, trainable=True, epsilon=1e-8):
         """
         Args:
             epsilon (float, optional): Regularization of the logarithm in the inverse. Defaults to 1e-8.
@@ -22,7 +22,12 @@ class Sigmoid(Transform):
 
         self.epsilon = epsilon
         self._dtype = tf.keras.backend.floatx()
-        self.temperature = tf.constant(temperature, dtype=self._dtype)
+        self.temperature = self.add_weight(
+            "temp",
+            shape=(dims_in[0],),
+            initializer=tf.keras.initializers.Ones(),
+            trainable=trainable,
+        )
 
     def call(self, x, c=None, jac=True):
 
@@ -68,18 +73,14 @@ class Logit(InverseTransform):
     architectures.
     """
 
-    def __init__(self, dims_in, dims_c=None, temperature=1.0, epsilon=1e-8):
+    def __init__(self, dims_in, dims_c=None, trainable=True, epsilon=1e-8):
         """
         Args:
             epsilon (float, optional): Regularization of the logarithm in the inverse. Defaults to 1e-8.
         """
         super().__init__(
-            Sigmoid(dims_in, dims_c, temperature=temperature, epsilon=epsilon)
+            Sigmoid(dims_in, dims_c, trainable=trainable, epsilon=epsilon)
         )
-
-        self.epsilon = epsilon
-        self._dtype = tf.keras.backend.floatx()
-        self.temperature = tf.constant(temperature, dtype=self._dtype)
 
     def get_config(self):
         new_config = {"epsilon": self.epsilon, "temperature": self.temperature}
