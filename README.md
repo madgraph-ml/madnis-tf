@@ -15,9 +15,9 @@ Monte Carlo integrator using TensorFlow 2.
 
 ```bash
 # clone the repository
-git clone https://github.com/ramonpeter/MadNIS.git
+git clone https://github.com/madgraph-ml/madnis-tf
 # then install in dev mode
-cd MadNIS
+cd madnis-tf
 python setup.py develop
 ```
 
