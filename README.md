@@ -4,8 +4,12 @@ This a machine learning framework to perform neural multi-channel importance sam
 It containes modules to construct a machine-learning based
 Monte Carlo integrator using TensorFlow 2.
 
-[![arXiv](https://img.shields.io/badge/arXiv-2212.06172-b31b1b.svg)](https://arxiv.org/abs/2212.06172)
-
+<p align="center">
+<a href="https://arxiv.org/abs/2212.06172"><img alt="Arxiv" src="https://img.shields.io/badge/arXiv-2212.06172-b31b1b.svg"></a>
+<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+<a href="https://www.tensorflow.org"><img alt="tensorflow" src="https://img.shields.io/badge/TensorFlow-2.9.2-DD6C3A.svg?style=flat&logo=tensorflow"></a>
+<a href="https://pypi.org/project/pip/"><img alt="PyPi license" src="https://badgen.net/pypi/license/pip/"></a>
+</p>
 
 ## Installation
 
