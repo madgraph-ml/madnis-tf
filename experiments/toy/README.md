@@ -17,12 +17,5 @@ In this folder we test various multi-dimensional examples
     - trainable multi-channel weight $\alpha_i(x,\theta)$
     - trainable conditional Flow $H(x,\varphi\vert i)$ with
     jacobian determinants $h(x,\varphi\vert i)$.
-- $n$-dimensional Camel distribution on the unit hypercube in the folder `multidim`
-    - variable dimension $n$ and variable number of peaks $m$
-    - $k$ channels with or without analytic mappings $G_i: \Phi \to U_i$
-    and jacobian determinants $g_i(x)$.
-    - trainable multi-channel weight $\alpha_i(x,\theta)$
-    - trainable conditional Flow $H(x,\varphi\vert i)$ with
-    jacobian determinants $h(x,\varphi\vert i)$.
    
    
