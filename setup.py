@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import platform
 
-HTTPS_GITHUB_URL = "https://github.com/ramonpeter/MadNIS"
+HTTPS_GITHUB_URL = "https://github.com/madgraph-ml/madnis-tf"
 PROCESSOR = platform.processor()
 
 with open("README.md", "r") as fh:
