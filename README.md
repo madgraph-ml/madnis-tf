@@ -1,8 +1,8 @@
-# MadNIS
+<p align="center">
+  <img src="doc/static/logo.png" width="450", alt="MadNIS 2">
+</p>
 
-This a machine learning framework to perform neural multi-channel importance sampling in MadGraph.
-It containes modules to construct a machine-learning based
-Monte Carlo integrator using TensorFlow 2.
+<h2 align="center">Neural Multi-Channel Importance Sampling</h2>
 
 <p align="center">
 <a href="https://arxiv.org/abs/2212.06172"><img alt="Arxiv" src="https://img.shields.io/badge/arXiv-2212.06172-b31b1b.svg"></a>
@@ -10,6 +10,10 @@ Monte Carlo integrator using TensorFlow 2.
 <a href="https://www.tensorflow.org"><img alt="tensorflow" src="https://img.shields.io/badge/TensorFlow-2.9.2-DD6C3A.svg?style=flat&logo=tensorflow"></a>
 <a href="https://pypi.org/project/pip/"><img alt="PyPi license" src="https://badgen.net/pypi/license/pip/"></a>
 </p>
+
+This a machine learning framework to perform neural multi-channel importance sampling in MadGraph.
+It containes modules to construct a machine-learning based
+Monte Carlo integrator using TensorFlow 2.
 
 ## Installation
 
