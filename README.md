@@ -11,7 +11,7 @@
 <a href="https://pypi.org/project/pip/"><img alt="PyPi license" src="https://badgen.net/pypi/license/pip/"></a>
 </p>
 
-This a machine learning framework to perform neural multi-channel importance sampling in MadGraph.
+This a machine learning framework to perform neural multi-channel importance sampling.
 It containes modules to construct a machine-learning based
 Monte Carlo integrator using TensorFlow 2.
 
